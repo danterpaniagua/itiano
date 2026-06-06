@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}JSON Sandbox – Itiano{% endblock %}
+
+{% block content %}
+{% with back=request.GET.back|default:request.POST.back %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">JSON Sandbox</h5>
+    {% if back %}
+    <a href="#" onclick="history.back(); return false;" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+    {% endif %}
+</div>
+{% endwith %}
+
+<form method="post">
+    {% csrf_token %}
+    {% with back=request.GET.back|default:request.POST.back %}{% if back %}<input type="hidden" name="back" value="1">{% endif %}{% endwith %}
+    <div class="row g-3">
+
+        {# Left: JSON input #}
+        <div class="col-12 col-lg-6">
+            <label class="form-label fw-semibold">JSON Payload</label>
+            <textarea name="payload"
+                      class="form-control font-monospace"
+                      rows="22"
+                      placeholder='{"key": "value"}'>{{ payload_input }}</textarea>
+        </div>
+
+        {# Right: expression + output #}
+        <div class="col-12 col-lg-6">
+            <label class="form-label fw-semibold">JSONPath Expression</label>
+            <div class="input-group mb-3">
+                <input type="text"
+                       name="expression"
+                       class="form-control font-monospace"
+                       value="{{ expression_input }}"
+                       placeholder="$.issue.fields.status.name"
+                       autofocus>
+                <button type="submit" class="btn btn-primary">Evaluate</button>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endif %}
+
+            {% if result is not None %}
+            <label class="form-label fw-semibold">Result</label>
+            <pre class="bg-light border rounded p-3 font-monospace"
+                 style="min-height:4rem;overflow-x:auto;font-size:0.85rem;">{{ result }}</pre>
+            {% elif not error and request.method == "POST" and expression_input %}
+            <div class="alert alert-warning">No matches found.</div>
+            {% endif %}
+        </div>
+
+    </div>
+</form>
+{% endblock %}

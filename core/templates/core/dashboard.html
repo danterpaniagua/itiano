@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – Itiano{% endblock %}
+
+{% block content %}
+<h5 class="mb-3">Dashboard</h5>
+
+<div class="row g-3">
+    <div class="col-12 col-md-6">
+        <a href="{% url 'ticket-list' %}" class="text-decoration-none">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Tickets</h6>
+                    <div class="display-6 fw-bold">{{ itsm_count }}</div>
+                    <p class="card-text text-muted small mt-1">Open tickets</p>
+                </div>
+                <div class="card-footer text-muted small">View all tickets →</div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-12 col-md-6">
+        <a href="{% url 'jira-ticket-list' %}" class="text-decoration-none">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Jira Integration</h6>
+                    <div class="display-6 fw-bold">{{ jira_count }}</div>
+                    <p class="card-text text-muted small mt-1">Tickets received from Jira</p>
+                </div>
+                <div class="card-footer text-muted small">View Jira tickets →</div>
+            </div>
+        </a>
+    </div>
+
+    {% if request.user.is_staff %}
+    <div class="col-12 col-md-6">
+        <a href="{% url 'sandbox' %}" class="text-decoration-none">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">JSON Sandbox</h6>
+                    <div class="display-6 fw-bold"><i class="bi bi-terminal fs-3"></i></div>
+                    <p class="card-text text-muted small mt-1">Test JSONPath expressions</p>
+                </div>
+                <div class="card-footer text-muted small">Open sandbox →</div>
+            </div>
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

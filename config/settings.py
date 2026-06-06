@@ -3,6 +3,9 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+_version_file = BASE_DIR / 'VERSION'
+APP_VERSION = _version_file.read_text().strip() if _version_file.exists() else 'dev'
+
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-placeholder')
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
@@ -16,6 +19,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'core',
     'itsm',
+    'jira_integration',
+    'json_sandbox',
 ]
 
 MIDDLEWARE = [
@@ -42,6 +47,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.app_version',
             ],
         },
     },
@@ -77,6 +83,8 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+JIRA_WEBHOOK_SECRET = os.environ.get('JIRA_WEBHOOK_SECRET', '')
 
 LOGIN_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'

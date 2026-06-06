@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Jira Tickets – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">Jira Tickets</h5>
+    <span class="text-muted small">{{ tickets|length }} ticket{{ tickets|length|pluralize }}</span>
+</div>
+
+{% if not tickets %}
+<p class="text-muted">No Jira tickets received yet.</p>
+{% else %}
+
+{# Mobile: card list #}
+<div class="d-md-none">
+    {% for ticket in tickets %}
+    <div class="card mb-2">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-start">
+                <a href="{% url 'jira-ticket-detail' ticket.issue_key %}" class="text-decoration-none text-dark flex-grow-1">
+                    <div class="fw-semibold">{{ ticket.issue_key }}</div>
+                    <div class="small text-truncate" style="max-width:200px">{{ ticket.title }}</div>
+                    <small class="text-muted">{{ ticket.project_key }} · {{ ticket.issue_type }}</small>
+                </a>
+                <div class="d-flex gap-1 align-items-center ms-2">
+                    <span class="badge bg-secondary text-nowrap">{{ ticket.status }}</span>
+                    {% if request.user.is_staff and ticket.last_event_pk %}
+                    <a href="{% url 'jira-open-sandbox' ticket.issue_key ticket.last_event_pk %}"
+                       class="btn btn-sm btn-outline-secondary py-0 px-1"
+                       title="Open last payload in Sandbox">
+                        <i class="bi bi-terminal"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# Desktop: table #}
+<div class="d-none d-md-block">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Issue Key</th>
+                    <th>Title</th>
+                    <th>Project</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Events</th>
+                    <th>Last Update</th>
+                    {% if request.user.is_staff %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr>
+                    <td class="fw-semibold">
+                        <a href="{% url 'jira-ticket-detail' ticket.issue_key %}" class="text-decoration-none">
+                            {{ ticket.issue_key }}
+                        </a>
+                    </td>
+                    <td>{{ ticket.title }}</td>
+                    <td>{{ ticket.project_key }}</td>
+                    <td>{{ ticket.issue_type }}</td>
+                    <td><span class="badge bg-secondary">{{ ticket.status }}</span></td>
+                    <td>{{ ticket.events.count }}</td>
+                    <td class="text-muted">{{ ticket.updated_at|date:"d/m/Y H:i" }}</td>
+                    {% if request.user.is_staff %}
+                    <td>
+                        {% if ticket.last_event_pk %}
+                        <a href="{% url 'jira-open-sandbox' ticket.issue_key ticket.last_event_pk %}"
+                           class="btn btn-sm btn-outline-secondary py-0 px-1"
+                           title="Open last payload in Sandbox">
+                            <i class="bi bi-terminal"></i>
+                        </a>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

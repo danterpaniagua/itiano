@@ -1,0 +1,150 @@
+import hashlib
+import hmac
+import json
+import logging
+
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.db.models import OuterRef, Subquery
+from django.http import HttpResponse, HttpResponseNotAllowed
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
+
+from .models import JiraEvent, JiraTicket
+
+logger = logging.getLogger(__name__)
+
+
+def _verify_signature(request):
+    secret = getattr(settings, 'JIRA_WEBHOOK_SECRET', None)
+    if not secret:
+        return True
+
+    signature_header = request.headers.get('X-Hub-Signature', '')
+    if not signature_header.startswith('sha256='):
+        logger.warning('jira_webhook_missing_signature')
+        return False
+
+    expected = hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest()
+    received = signature_header[len('sha256='):]
+    return hmac.compare_digest(expected, received)
+
+
+@csrf_exempt
+def webhook(request):
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    if not _verify_signature(request):
+        logger.warning('jira_webhook_invalid_signature')
+        return HttpResponse(status=403)
+
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        logger.warning('jira_webhook_invalid_json', extra={'body': request.body[:200]})
+        return HttpResponse(status=400)
+
+    event_type = payload.get('webhookEvent', '')
+    issue = payload.get('issue', {})
+
+    if not issue:
+        return HttpResponse(status=200)
+
+    issue_key = issue.get('key', '')
+    if not issue_key:
+        return HttpResponse(status=200)
+
+    fields = issue.get('fields', {})
+    title = fields.get('summary', '')
+    project_key = fields.get('project', {}).get('key', '') if fields.get('project') else ''
+    issue_type = fields.get('issuetype', {}).get('name', '') if fields.get('issuetype') else ''
+    status = fields.get('status', {}).get('name', '') if fields.get('status') else ''
+
+    ticket, created = JiraTicket.objects.update_or_create(
+        issue_key=issue_key,
+        defaults={
+            'title': title,
+            'project_key': project_key,
+            'issue_type': issue_type,
+            'status': status,
+        },
+    )
+
+    summary = _build_summary(event_type, payload)
+
+    JiraEvent.objects.create(
+        ticket=ticket,
+        event_type=event_type,
+        summary=summary,
+        payload=payload,
+    )
+
+    logger.info(
+        'jira_webhook_received',
+        extra={'issue_key': issue_key, 'event_type': event_type, 'is_new': created},
+    )
+
+    return HttpResponse(status=200)
+
+
+def _build_summary(event_type, payload):
+    items = payload.get('changelog', {}).get('items', [])
+    if items:
+        parts = []
+        for item in items:
+            field = item.get('field', '')
+            from_str = item.get('fromString', '')
+            to_str = item.get('toString', '')
+            if from_str and to_str:
+                parts.append(f"{field}: {from_str} → {to_str}")
+            elif to_str:
+                parts.append(f"{field} set to {to_str}")
+        if parts:
+            return '; '.join(parts)
+
+    comment = payload.get('comment', {})
+    if comment:
+        author = comment.get('author', {}).get('displayName', '')
+        return f"Comment by {author}" if author else 'Comment added'
+
+    return event_type.replace('jira:', '').replace('_', ' ').title()
+
+
+@login_required
+def open_in_sandbox(request, issue_key, event_pk):
+    if not request.user.is_staff:
+        raise PermissionDenied
+    ticket = get_object_or_404(JiraTicket, issue_key=issue_key)
+    event = get_object_or_404(JiraEvent, pk=event_pk, ticket=ticket)
+    request.session['sandbox_payload'] = json.dumps(event.payload, indent=2)
+    return redirect(reverse('sandbox') + '?back=1')
+
+
+@login_required
+def ticket_list(request):
+    last_event_pk = JiraEvent.objects.filter(
+        ticket=OuterRef('pk')
+    ).order_by('-received_at').values('pk')[:1]
+
+    tickets = JiraTicket.objects.annotate(last_event_pk=Subquery(last_event_pk))
+    return render(request, 'jira_integration/ticket_list.html', {'tickets': tickets})
+
+
+@login_required
+def ticket_detail(request, issue_key):
+    ticket = get_object_or_404(JiraTicket, issue_key=issue_key)
+    events = list(ticket.events.order_by('-received_at'))
+
+    for event in events:
+        event.payload_pretty = json.dumps(event.payload, indent=2)
+
+    last_event = events[0] if events else None
+
+    return render(request, 'jira_integration/ticket_detail.html', {
+        'ticket': ticket,
+        'events': events,
+        'last_event': last_event,
+    })
