@@ -37,6 +37,14 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
+## Ejecutar tests
+
+Los tests requieren la base de datos PostgreSQL. Ejecutar dentro del contenedor:
+
+```bash
+docker compose exec app python manage.py test jira_integration json_sandbox
+```
+
 ## Variables de entorno
 
 | Variable | Descripción | Ejemplo |
@@ -49,13 +57,16 @@ python manage.py runserver
 | `DB_PASSWORD` | Contraseña PostgreSQL | — |
 | `DB_HOST` | Host PostgreSQL | `db` (Docker) / `localhost` (local) |
 | `DB_PORT` | Puerto PostgreSQL | `5432` |
+| `JIRA_WEBHOOK_SECRET` | Secreto HMAC para validar webhooks de Jira | cadena aleatoria |
 
 ## Arquitectura
 
 | App | Responsabilidad |
 |---|---|
-| `core` | Autenticación, `UserProfile` con rol, base templates |
+| `core` | Autenticación, `UserProfile` con rol, base templates, footer con versión |
 | `itsm` | Modelos de tickets, máquina de estados, vistas, permisos |
+| `jira_integration` | Recepción de webhooks de Jira, historial de eventos por ticket |
+| `json_sandbox` | Evaluación interactiva de expresiones JSONPath (solo staff) |
 
 Ver `.claude/architecture.md` para detalle completo de la arquitectura.
 
@@ -67,6 +78,10 @@ Ver `.claude/architecture.md` para detalle completo de la arquitectura.
 | `agent` | Atiende tickets asignados y sin asignar |
 | `manager` | Acceso completo, puede reasignar y cancelar |
 | `admin` | Control total incluyendo configuración |
+
+## Versión
+
+La versión activa se lee del archivo `VERSION` en la raíz del proyecto y se muestra en el footer de la aplicación.
 
 ## Logs
 

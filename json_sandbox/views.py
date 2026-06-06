@@ -37,7 +37,7 @@ def sandbox(request):
                 try:
                     from jsonpath_ng import parse
                     matches = [m.value for m in parse(expression_input).find(data)]
-                    result = json.dumps(matches, indent=2)
+                    result = json.dumps(matches, indent=2) if matches else None
                 except Exception as e:
                     error = f"JSONPath error: {e}"
 
