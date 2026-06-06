@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Tickets – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">Tickets</h5>
+    <a href="{% url 'ticket-create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> New Ticket
+    </a>
+</div>
+
+{% if not tickets %}
+<p class="text-muted">No tickets found.</p>
+{% else %}
+
+{# Mobile: card list #}
+<div class="d-md-none">
+    {% for ticket in tickets %}
+    <a href="{% url 'ticket-detail' ticket.pk %}" class="text-decoration-none text-dark">
+        <div class="card mb-2">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="fw-semibold">{{ ticket.title }}</div>
+                        <small class="text-muted">
+                            #{{ ticket.pk }} · {{ ticket.get_type_display }} · {{ ticket.get_priority_display }}
+                        </small>
+                    </div>
+                    <span class="badge bg-{{ ticket.state_badge_class }} ms-2 text-nowrap">
+                        {{ ticket.get_state_display }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+{# Desktop: table #}
+<div class="d-none d-md-block">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>State</th>
+                    <th>Priority</th>
+                    <th>Requester</th>
+                    <th>Assigned To</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr style="cursor:pointer" onclick="location.href='{% url 'ticket-detail' ticket.pk %}'">
+                    <td class="text-muted">{{ ticket.pk }}</td>
+                    <td>{{ ticket.title }}</td>
+                    <td>{{ ticket.get_type_display }}</td>
+                    <td><span class="badge bg-{{ ticket.state_badge_class }}">{{ ticket.get_state_display }}</span></td>
+                    <td>{{ ticket.get_priority_display }}</td>
+                    <td>{{ ticket.requester.username }}</td>
+                    <td>{{ ticket.assigned_to.username|default:"—" }}</td>
+                    <td class="text-muted">{{ ticket.created_at|date:"d/m/Y" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,13 @@
+.git/
+.claude/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyc
+.env
+staticfiles/
+data/
+logs/*.log
+.DS_Store
+*.sqlite3
+.vscode/

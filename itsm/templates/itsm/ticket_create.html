@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}New Ticket – Itiano{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 col-md-8 col-lg-6">
+        <h5 class="mb-3">New Ticket</h5>
+        <form method="post">
+            {% csrf_token %}
+            {% for field in form %}
+            <div class="mb-3">
+                <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
+                {{ field }}
+                {% for error in field.errors %}
+                <div class="text-danger small mt-1">{{ error }}</div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary">Create Ticket</button>
+                <a href="{% url 'ticket-list' %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

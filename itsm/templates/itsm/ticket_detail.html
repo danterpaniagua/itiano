@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}#{{ ticket.pk }} {{ ticket.title }} – Itiano{% endblock %}
+
+{% block content %}
+
+{# Header #}
+<div class="d-flex flex-wrap gap-2 align-items-start mb-3">
+    <div class="me-auto">
+        <h5 class="mb-1">
+            <span class="text-muted">#{{ ticket.pk }}</span> {{ ticket.title }}
+        </h5>
+        <div class="d-flex flex-wrap gap-1">
+            <span class="badge bg-{{ ticket.state_badge_class }}">{{ ticket.get_state_display }}</span>
+            <span class="badge bg-light text-dark border">{{ ticket.get_type_display }}</span>
+            <span class="badge bg-light text-dark border">{{ ticket.get_priority_display }}</span>
+        </div>
+    </div>
+    <a href="{% url 'ticket-list' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+{# Metadata #}
+<div class="row g-2 mb-3">
+    <div class="col-6 col-md-3">
+        <small class="text-muted d-block">Requester</small>
+        <span>{{ ticket.requester.username }}</span>
+    </div>
+    <div class="col-6 col-md-3">
+        <small class="text-muted d-block">Assigned To</small>
+        <span>{{ ticket.assigned_to.username|default:"—" }}</span>
+    </div>
+    <div class="col-6 col-md-3">
+        <small class="text-muted d-block">Category</small>
+        <span>{{ ticket.category|default:"—" }}</span>
+    </div>
+    <div class="col-6 col-md-3">
+        <small class="text-muted d-block">Created</small>
+        <span>{{ ticket.created_at|date:"d/m/Y H:i" }}</span>
+    </div>
+</div>
+
+{# Description #}
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="card-title text-muted">Description</h6>
+        <p class="mb-0" style="white-space: pre-wrap;">{{ ticket.description }}</p>
+    </div>
+</div>
+
+{# Actions #}
+{% if available_transitions %}
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="card-title text-muted">Actions</h6>
+        <div class="d-flex flex-wrap gap-2">
+            {% for t in available_transitions %}
+            <form method="post" action="{% url 'ticket-transition' ticket.pk %}"
+                  {% if t.state == 'cancelled' %}onsubmit="return confirm('Cancel this ticket?')"{% endif %}
+                  {% if t.state == 'closed' %}onsubmit="return confirm('Close this ticket?')"{% endif %}>
+                {% csrf_token %}
+                <input type="hidden" name="to_state" value="{{ t.state }}">
+                <button type="submit"
+                        class="btn btn-sm {% if t.state == 'cancelled' %}btn-outline-danger{% elif t.state == 'closed' %}btn-outline-dark{% else %}btn-outline-primary{% endif %}">
+                    {{ t.label }}
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Event History #}
+{% if events %}
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="card-title text-muted">History</h6>
+        <ul class="list-unstyled mb-0">
+            {% for event in events %}
+            <li class="d-flex gap-2 mb-2">
+                <small class="text-muted text-nowrap">{{ event.created_at|date:"d/m H:i" }}</small>
+                <div>
+                    <span class="fw-semibold">{{ event.actor.username }}</span>
+                    {% if event.from_state %}
+                        moved from <span class="badge bg-secondary">{{ event.from_state }}</span>
+                        to <span class="badge bg-secondary">{{ event.to_state }}</span>
+                    {% else %}
+                        created the ticket
+                    {% endif %}
+                    {% if event.note %}<span class="text-muted"> — {{ event.note }}</span>{% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+{# Comments #}
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="card-title text-muted">Comments</h6>
+        {% if comments %}
+        {% for comment in comments %}
+        <div class="mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+            <div class="d-flex gap-2 align-items-center mb-1">
+                <span class="fw-semibold">{{ comment.author.username }}</span>
+                <small class="text-muted">{{ comment.created_at|date:"d/m/Y H:i" }}</small>
+            </div>
+            <p class="mb-0" style="white-space: pre-wrap;">{{ comment.body }}</p>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="text-muted mb-0">No comments yet.</p>
+        {% endif %}
+
+        {% if can_comment %}
+        <form method="post" action="{% url 'ticket-comment' ticket.pk %}" class="mt-3">
+            {% csrf_token %}
+            <textarea name="body" rows="3" class="form-control mb-2"
+                      placeholder="Add a comment..."></textarea>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Add Comment</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

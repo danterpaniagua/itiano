@@ -1,0 +1,10 @@
+.git/
+.claude/
+.venv/
+data/
+logs/
+staticfiles/
+__pycache__/
+*.py[cod]
+.env
+.dockerignore
