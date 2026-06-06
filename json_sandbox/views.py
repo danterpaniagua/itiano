@@ -22,6 +22,8 @@ def sandbox(request):
     result = None
     error = None
 
+    show_back = bool(request.GET.get('back') or request.POST.get('back'))
+
     if request.method == 'POST':
         payload_input = request.POST.get('payload', '')
         expression_input = request.POST.get('expression', '')
@@ -44,4 +46,5 @@ def sandbox(request):
         'expression_input': expression_input,
         'result': result,
         'error': error,
+        'show_back': show_back,
     })
