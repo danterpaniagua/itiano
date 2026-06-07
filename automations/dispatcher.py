@@ -106,6 +106,7 @@ def _resolve_fields(mappings, payload):
         'creator_name': resolved.get('creator') or '',
         'service': resolved.get('service') or '',
         'sub_service': resolved.get('sub_service') or '',
+        'key': resolved.get('key') or '',
     }
 
 
@@ -115,8 +116,9 @@ def _upsert_ticket(action, payload):
 
     fields = _resolve_fields(action.field_mappings, payload)
 
-    external_id = ''
-    if action.dedup_expression:
+    # external_id: prefer field_mappings["key"], fall back to dedup_expression
+    external_id = fields['key']
+    if not external_id and action.dedup_expression:
         raw = resolve_value(action.dedup_expression, payload)
         if raw:
             external_id = str(raw)

@@ -37,3 +37,36 @@
     </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('textarea.font-monospace').forEach(function (ta) {
+        const fb = document.createElement('div');
+        fb.className = 'invalid-feedback';
+        ta.after(fb);
+
+        function validate() {
+            const val = ta.value.trim();
+            if (!val) { ta.classList.remove('is-invalid', 'is-valid'); return; }
+            try {
+                JSON.parse(val);
+                ta.classList.replace('is-invalid', 'is-valid') || ta.classList.add('is-valid');
+                fb.textContent = '';
+            } catch (e) {
+                ta.classList.replace('is-valid', 'is-invalid') || ta.classList.add('is-invalid');
+                fb.textContent = e.message;
+            }
+        }
+
+        ta.addEventListener('input', validate);
+        if (ta.value.trim()) validate();
+    });
+
+    document.querySelector('form').addEventListener('submit', function (e) {
+        const bad = document.querySelector('textarea.font-monospace.is-invalid');
+        if (bad) { e.preventDefault(); bad.focus(); }
+    });
+});
+</script>
+{% endblock %}

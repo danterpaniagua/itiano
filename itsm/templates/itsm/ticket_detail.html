@@ -30,19 +30,25 @@
 
 {# Metadata #}
 <div class="row g-2 mb-3">
-    <div class="col-6 col-md-3">
+    {% if ticket.external_id %}
+    <div class="col-6 col-md-2">
+        <small class="text-muted d-block">ID</small>
+        <span class="font-monospace">{{ ticket.external_id }}</span>
+    </div>
+    {% endif %}
+    <div class="col-6 col-md-2">
         <small class="text-muted d-block">Requester</small>
         <span>{{ ticket.requester.username }}</span>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-2">
         <small class="text-muted d-block">Assigned To</small>
         <span>{{ ticket.assigned_to.username|default:"—" }}</span>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-2">
         <small class="text-muted d-block">Category</small>
         <span>{{ ticket.category|default:"—" }}</span>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-2">
         <small class="text-muted d-block">Created</small>
         <span>{{ ticket.created_at|date:"d/m/Y H:i" }}</span>
     </div>

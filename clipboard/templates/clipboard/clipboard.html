@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Clipboard – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-journal-text"></i> Clipboard</h5>
+    <div class="btn-group" role="group">
+        <button type="button" class="btn btn-sm btn-dark" id="btn-edit" onclick="setMode('edit')">
+            <i class="bi bi-pencil"></i> Edit
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-preview" onclick="setMode('preview')">
+            <i class="bi bi-eye"></i> Preview
+        </button>
+    </div>
+</div>
+
+<form method="post" id="clipboard-form">
+    {% csrf_token %}
+
+    <div id="panel-edit">
+        <textarea name="content" id="editor"
+                  class="form-control font-monospace mb-3"
+                  rows="24"
+                  spellcheck="false"
+                  placeholder="Write markdown here...">{{ content }}</textarea>
+    </div>
+
+    <div id="panel-preview" style="display:none">
+        <div class="card mb-3">
+            <div class="card-body" id="preview-content" style="min-height:24rem"></div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+        <i class="bi bi-floppy"></i> Save
+    </button>
+</form>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+function setMode(mode) {
+    const editPanel = document.getElementById('panel-edit');
+    const previewPanel = document.getElementById('panel-preview');
+    const btnEdit = document.getElementById('btn-edit');
+    const btnPreview = document.getElementById('btn-preview');
+
+    if (mode === 'preview') {
+        document.getElementById('preview-content').innerHTML =
+            marked.parse(document.getElementById('editor').value || '');
+        editPanel.style.display = 'none';
+        previewPanel.style.display = '';
+        btnEdit.className = 'btn btn-sm btn-outline-secondary';
+        btnPreview.className = 'btn btn-sm btn-dark';
+    } else {
+        editPanel.style.display = '';
+        previewPanel.style.display = 'none';
+        btnEdit.className = 'btn btn-sm btn-dark';
+        btnPreview.className = 'btn btn-sm btn-outline-secondary';
+    }
+}
+</script>
+{% endblock %}

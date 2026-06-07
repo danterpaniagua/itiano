@@ -105,6 +105,30 @@
 </form>
 
 <script>
+(function () {
+    const ta = document.querySelector('textarea[name="filter_expr"]');
+    if (!ta) return;
+    const fb = document.createElement('div');
+    fb.className = 'invalid-feedback';
+    ta.after(fb);
+
+    function validate() {
+        const val = ta.value.trim();
+        if (!val) { ta.classList.remove('is-invalid', 'is-valid'); return; }
+        try {
+            JSON.parse(val);
+            ta.classList.replace('is-invalid', 'is-valid') || ta.classList.add('is-valid');
+            fb.textContent = '';
+        } catch (e) {
+            ta.classList.replace('is-valid', 'is-invalid') || ta.classList.add('is-invalid');
+            fb.textContent = e.message;
+        }
+    }
+
+    ta.addEventListener('input', validate);
+    if (ta.value.trim()) validate();
+})();
+
 function setMode(m) {
     document.getElementById('mode-input').value = m;
     document.getElementById('panel-jsonpath').style.display = m === 'jsonpath' ? '' : 'none';

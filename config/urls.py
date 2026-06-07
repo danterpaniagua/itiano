@@ -8,5 +8,6 @@ urlpatterns = [
     path('jira/', include('jira_integration.urls')),
     path('sandbox/', include('json_sandbox.urls')),
     path('automations/', include('automations.urls')),
+    path('clipboard/', include('clipboard.urls')),
     path('', include('core.urls')),
 ]

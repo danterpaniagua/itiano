@@ -1,0 +1,20 @@
+<h5 class="mb-3">Clipboard</h5>
+
+<p>A personal markdown scratchpad. Content is private to each user and encrypted at rest.</p>
+
+<h6 class="text-muted mt-3">Usage</h6>
+<ul>
+    <li>Write markdown in <strong>Edit</strong> mode.</li>
+    <li>Switch to <strong>Preview</strong> to render it.</li>
+    <li>Press <strong>Save</strong> — your content persists across sessions.</li>
+</ul>
+
+<h6 class="text-muted mt-3">Markdown support</h6>
+<p>Standard markdown syntax is supported: headings, bold, italic, lists, code blocks, links, and tables.</p>
+
+<h6 class="text-muted mt-3">Security</h6>
+<p>Content is stored encrypted in the database using AES-128 symmetric encryption (Fernet). The encryption key is derived from the application's <code>SECRET_KEY</code>.</p>
+<div class="alert alert-warning small mt-2">
+    <i class="bi bi-exclamation-triangle"></i>
+    <strong>Important:</strong> If the application's <code>SECRET_KEY</code> is rotated, existing clipboard content will become unreadable. Do not store content you cannot afford to lose.
+</div>

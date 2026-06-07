@@ -13,8 +13,9 @@ class Action(models.Model):
     field_mappings = models.JSONField(
         help_text=(
             'Map ticket fields to JSONPath expressions or literal values. '
-            'Example: {"title": "$.issue.key", "description": "$.issue.fields.description", '
-            '"type": "incident", "priority": "medium", "category": "Automation"}'
+            'Supported keys: key, title, description, type, priority, category, creator, service, sub_service. '
+            'Example: {"key": "$.issue.key", "title": "$.issue.fields.summary", '
+            '"description": "$.issue.fields.description", "type": "incident", "priority": "medium"}'
         )
     )
     system_user = models.ForeignKey(

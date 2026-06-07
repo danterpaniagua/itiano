@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     'jira_integration',
     'json_sandbox',
     'automations',
+    'clipboard',
 ]
 
 MIDDLEWARE = [

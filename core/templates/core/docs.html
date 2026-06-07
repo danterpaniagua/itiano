@@ -19,6 +19,12 @@
             Jira Integration
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" data-bs-toggle="tab"
+                data-bs-target="#docs-clipboard" type="button" role="tab">
+            Clipboard
+        </button>
+    </li>
     {% if request.user.is_staff %}
     <li class="nav-item" role="presentation">
         <button class="nav-link" data-bs-toggle="tab"
@@ -44,6 +50,11 @@
     <div class="tab-pane fade" id="docs-jira" role="tabpanel">
         <div class="card"><div class="card-body">
             {% include "jira_integration/docs.html" %}
+        </div></div>
+    </div>
+    <div class="tab-pane fade" id="docs-clipboard" role="tabpanel">
+        <div class="card"><div class="card-body">
+            {% include "clipboard/docs.html" %}
         </div></div>
     </div>
     {% if request.user.is_staff %}
