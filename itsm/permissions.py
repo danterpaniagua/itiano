@@ -12,6 +12,15 @@ def can_view_ticket(user, ticket):
     return role == 'requester' and ticket.requester_id == user.pk
 
 
+def can_edit_ticket(user, ticket):
+    if user.is_staff:
+        return True
+    role = get_role(user)
+    if role in ('manager', 'admin'):
+        return True
+    return role == 'agent' and ticket.assigned_to_id == user.pk
+
+
 def can_comment(user, ticket):
     role = get_role(user)
     if role in ('manager', 'admin'):

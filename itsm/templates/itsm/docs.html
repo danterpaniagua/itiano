@@ -1,0 +1,43 @@
+<h5 class="mb-3">Tickets</h5>
+
+<h6 class="text-muted">Types</h6>
+<ul>
+    <li><strong>Incident</strong> — Unexpected disruption or degradation of a service.</li>
+    <li><strong>Service Request</strong> — Formal request for access, hardware, or a standard service.</li>
+</ul>
+
+<h6 class="text-muted mt-3">Priorities</h6>
+<div class="table-responsive"><table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th>Priority</th><th>Meaning</th></tr></thead>
+    <tbody>
+        <tr><td>Low</td><td>Minimal impact; handle when possible.</td></tr>
+        <tr><td>Medium</td><td>Normal queue processing.</td></tr>
+        <tr><td>High</td><td>Significant impact; expedite.</td></tr>
+        <tr><td>Critical</td><td>Major outage or security risk; immediate response.</td></tr>
+    </tbody>
+</table></div>
+
+<h6 class="text-muted mt-3">States</h6>
+<div class="table-responsive"><table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th>State</th><th>Meaning</th></tr></thead>
+    <tbody>
+        <tr><td><span class="badge bg-primary">New</span></td><td>Created, not yet picked up.</td></tr>
+        <tr><td><span class="badge bg-info">Assigned</span></td><td>Assigned to an agent.</td></tr>
+        <tr><td><span class="badge bg-warning text-dark">In Progress</span></td><td>Actively being worked on.</td></tr>
+        <tr><td><span class="badge bg-secondary">Pending</span></td><td>Waiting on the requester or a third party.</td></tr>
+        <tr><td><span class="badge bg-success">Resolved</span></td><td>Solution applied; awaiting confirmation.</td></tr>
+        <tr><td><span class="badge bg-dark">Closed</span></td><td>Confirmed resolved.</td></tr>
+        <tr><td><span class="badge bg-danger">Cancelled</span></td><td>Ticket withdrawn or invalid.</td></tr>
+    </tbody>
+</table></div>
+
+<h6 class="text-muted mt-3">Roles</h6>
+<div class="table-responsive"><table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th>Role</th><th>Can see</th><th>Can edit</th></tr></thead>
+    <tbody>
+        <tr><td>Requester</td><td>Own tickets</td><td>—</td></tr>
+        <tr><td>Agent</td><td>Assigned + new unassigned</td><td>Own assigned tickets</td></tr>
+        <tr><td>Manager</td><td>All</td><td>All</td></tr>
+        <tr><td>Admin</td><td>All</td><td>All</td></tr>
+    </tbody>
+</table></div>

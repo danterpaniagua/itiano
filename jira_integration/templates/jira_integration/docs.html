@@ -1,0 +1,34 @@
+<h5 class="mb-3">Jira Integration</h5>
+
+<p>Itiano listens for Jira webhook events and creates tickets automatically via the Automations engine.</p>
+
+<h6 class="text-muted mt-3">Webhook Setup</h6>
+<ol>
+    <li>In Jira, go to <strong>Settings → System → Webhooks</strong>.</li>
+    <li>Create a new webhook pointing to: <code>/jira/webhook/</code></li>
+    <li>Select the events: <strong>Issue created</strong>, <strong>Issue updated</strong>.</li>
+    <li>Save. Jira will POST a payload to Itiano on each matching event.</li>
+</ol>
+
+<h6 class="text-muted mt-3">Common JSONPath References</h6>
+<div class="table-responsive"><table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th>JSONPath</th><th>Value</th></tr></thead>
+    <tbody>
+        <tr><td><code>$.webhookEvent</code></td><td>Event type, e.g. <code>jira:issue_created</code></td></tr>
+        <tr><td><code>$.issue.key</code></td><td>Issue key, e.g. <code>GIT-123</code></td></tr>
+        <tr><td><code>$.issue.fields.summary</code></td><td>Issue title</td></tr>
+        <tr><td><code>$.issue.fields.description</code></td><td>Issue description</td></tr>
+        <tr><td><code>$.issue.fields.issuetype.name</code></td><td>Issue type name</td></tr>
+        <tr><td><code>$.issue.fields.priority.name</code></td><td>Priority name</td></tr>
+        <tr><td><code>$.issue.fields.project.key</code></td><td>Project key</td></tr>
+        <tr><td><code>$.issue.fields.project.name</code></td><td>Project name</td></tr>
+        <tr><td><code>$.issue.fields.labels</code></td><td>Array of label strings</td></tr>
+        <tr><td><code>$.issue.fields.status.name</code></td><td>Status name</td></tr>
+        <tr><td><code>$.user.displayName</code></td><td>User who triggered the event</td></tr>
+    </tbody>
+</table></div>
+
+{% if request.user.is_staff %}
+<h6 class="text-muted mt-3">Testing</h6>
+<p>Use the <a href="{% url 'sandbox' %}">JSON Sandbox</a> to test JSONPath expressions and filter conditions against a real Jira payload before writing an automation trigger.</p>
+{% endif %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load itsm_filters %}
 {% block title %}#{{ ticket.pk }} {{ ticket.title }} – Itiano{% endblock %}
 
 {% block content %}
@@ -15,9 +16,16 @@
             <span class="badge bg-light text-dark border">{{ ticket.get_priority_display }}</span>
         </div>
     </div>
-    <a href="{% url 'ticket-list' %}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left"></i> Back
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if can_edit %}
+        <a href="{% url 'ticket-edit' ticket.pk %}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil"></i> Edit
+        </a>
+        {% endif %}
+        <a href="{% url 'ticket-list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
 </div>
 
 {# Metadata #}
@@ -40,15 +48,7 @@
     </div>
 </div>
 
-{# Description #}
-<div class="card mb-3">
-    <div class="card-body">
-        <h6 class="card-title text-muted">Description</h6>
-        <p class="mb-0" style="white-space: pre-wrap;">{{ ticket.description }}</p>
-    </div>
-</div>
-
-{# Actions #}
+{# State transitions #}
 {% if available_transitions %}
 <div class="card mb-3">
     <div class="card-body">
@@ -71,59 +71,128 @@
 </div>
 {% endif %}
 
-{# Event History #}
-{% if events %}
-<div class="card mb-3">
-    <div class="card-body">
-        <h6 class="card-title text-muted">History</h6>
-        <ul class="list-unstyled mb-0">
-            {% for event in events %}
-            <li class="d-flex gap-2 mb-2">
-                <small class="text-muted text-nowrap">{{ event.created_at|date:"d/m H:i" }}</small>
-                <div>
-                    <span class="fw-semibold">{{ event.actor.username }}</span>
-                    {% if event.from_state %}
-                        moved from <span class="badge bg-secondary">{{ event.from_state }}</span>
-                        to <span class="badge bg-secondary">{{ event.to_state }}</span>
-                    {% else %}
-                        created the ticket
+{# Tabs #}
+<ul class="nav nav-tabs mb-3" id="ticketTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-details" data-bs-toggle="tab"
+                data-bs-target="#panel-details" type="button" role="tab">
+            Details
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-comments" data-bs-toggle="tab"
+                data-bs-target="#panel-comments" type="button" role="tab">
+            Comments
+            {% if comments %}<span class="badge bg-secondary ms-1">{{ comments|length }}</span>{% endif %}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-log" data-bs-toggle="tab"
+                data-bs-target="#panel-log" type="button" role="tab">
+            Log
+            {% if events %}<span class="badge bg-secondary ms-1">{{ events|length }}</span>{% endif %}
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+    {# --- Details tab --- #}
+    <div class="tab-pane fade show active" id="panel-details" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Description</h6>
+                <div class="mb-3">{{ ticket.description|render_description }}</div>
+                {% if ticket.service or ticket.sub_service or ticket.creator_name %}
+                <hr>
+                <div class="row g-2">
+                    {% if ticket.creator_name %}
+                    <div class="col-6 col-md-4">
+                        <small class="text-muted d-block">Creator (external)</small>
+                        <span>{{ ticket.creator_name }}</span>
+                    </div>
                     {% endif %}
-                    {% if event.note %}<span class="text-muted"> — {{ event.note }}</span>{% endif %}
+                    {% if ticket.service %}
+                    <div class="col-6 col-md-4">
+                        <small class="text-muted d-block">Service</small>
+                        <span>{{ ticket.service }}</span>
+                    </div>
+                    {% endif %}
+                    {% if ticket.sub_service %}
+                    <div class="col-6 col-md-4">
+                        <small class="text-muted d-block">Sub-service</small>
+                        <span>{{ ticket.sub_service }}</span>
+                    </div>
+                    {% endif %}
                 </div>
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-</div>
-{% endif %}
-
-{# Comments #}
-<div class="card mb-3">
-    <div class="card-body">
-        <h6 class="card-title text-muted">Comments</h6>
-        {% if comments %}
-        {% for comment in comments %}
-        <div class="mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
-            <div class="d-flex gap-2 align-items-center mb-1">
-                <span class="fw-semibold">{{ comment.author.username }}</span>
-                <small class="text-muted">{{ comment.created_at|date:"d/m/Y H:i" }}</small>
+                {% endif %}
             </div>
-            <p class="mb-0" style="white-space: pre-wrap;">{{ comment.body }}</p>
         </div>
-        {% endfor %}
-        {% else %}
-        <p class="text-muted mb-0">No comments yet.</p>
-        {% endif %}
-
-        {% if can_comment %}
-        <form method="post" action="{% url 'ticket-comment' ticket.pk %}" class="mt-3">
-            {% csrf_token %}
-            <textarea name="body" rows="3" class="form-control mb-2"
-                      placeholder="Add a comment..."></textarea>
-            <button type="submit" class="btn btn-sm btn-outline-primary">Add Comment</button>
-        </form>
-        {% endif %}
     </div>
+
+    {# --- Comments tab --- #}
+    <div class="tab-pane fade" id="panel-comments" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if comments %}
+                {% for comment in comments %}
+                <div class="mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                    <div class="d-flex gap-2 align-items-center mb-1">
+                        <span class="fw-semibold">{{ comment.author.username }}</span>
+                        <small class="text-muted">{{ comment.created_at|date:"d/m/Y H:i" }}</small>
+                    </div>
+                    <p class="mb-0" style="white-space: pre-wrap;">{{ comment.body }}</p>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted mb-0">No comments yet.</p>
+                {% endif %}
+
+                {% if can_comment %}
+                <form method="post" action="{% url 'ticket-comment' ticket.pk %}" class="mt-3">
+                    {% csrf_token %}
+                    <textarea name="body" rows="3" class="form-control mb-2"
+                              placeholder="Add a comment..."></textarea>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Add Comment</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# --- Log tab --- #}
+    <div class="tab-pane fade" id="panel-log" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if events %}
+                <ul class="list-unstyled mb-0">
+                    {% for event in events reversed %}
+                    <li class="d-flex gap-2 mb-2">
+                        <small class="text-muted text-nowrap">{{ event.created_at|date:"d/m H:i" }}</small>
+                        <div>
+                            <span class="fw-semibold">{{ event.actor.username }}</span>
+                            {% if event.field_name %}
+                                changed <strong>{{ event.field_name }}</strong>
+                                from <span class="text-muted">{{ event.old_value|default:"—" }}</span>
+                                → <span>{{ event.new_value|default:"—" }}</span>
+                            {% elif event.from_state %}
+                                moved from <span class="badge bg-secondary">{{ event.from_state }}</span>
+                                to <span class="badge bg-secondary">{{ event.to_state }}</span>
+                            {% else %}
+                                created the ticket
+                            {% endif %}
+                            {% if event.note %}<span class="text-muted"> — {{ event.note }}</span>{% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-0">No log entries yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
 </div>
 
 {% endblock %}

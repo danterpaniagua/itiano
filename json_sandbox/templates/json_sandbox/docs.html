@@ -1,0 +1,27 @@
+<h5 class="mb-3">JSON Sandbox</h5>
+
+<p>The Sandbox is a staff tool for testing JSONPath expressions and automation filter conditions against a raw JSON payload before creating triggers.</p>
+
+<h6 class="text-muted mt-3">Modes</h6>
+<ul>
+    <li><strong>JSONPath</strong> — Evaluate a JSONPath expression against a payload and see the matched values.</li>
+    <li><strong>Filter</strong> — Evaluate a full automation filter condition tree and see whether it matches.</li>
+</ul>
+
+<h6 class="text-muted mt-3">JSONPath Tips</h6>
+<ul>
+    <li><code>$.field</code> — top-level field</li>
+    <li><code>$.issue.fields.status.name</code> — nested field</li>
+    <li><code>$.issue.fields.labels[0]</code> — first element of an array</li>
+    <li><code>$.issue.fields.labels[*]</code> — all elements of an array</li>
+    <li>Missing paths return no results — the filter evaluates to <code>false</code>.</li>
+</ul>
+
+<h6 class="text-muted mt-3">Filter Reference</h6>
+<p>For filter operator documentation, see the <a href="{% url 'docs' %}#automations">Automations</a> section.</p>
+
+<p class="mt-3">
+    <a href="{% url 'sandbox' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-terminal"></i> Open Sandbox
+    </a>
+</p>

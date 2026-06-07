@@ -74,6 +74,7 @@ class Ticket(models.Model):
     service = models.CharField(max_length=255, blank=True)
     sub_service = models.CharField(max_length=255, blank=True)
     creator_name = models.CharField(max_length=255, blank=True)
+    external_id = models.CharField(max_length=255, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -94,6 +95,9 @@ class TicketEvent(models.Model):
     from_state = models.CharField(max_length=20, blank=True)
     to_state = models.CharField(max_length=20, blank=True)
     note = models.TextField(blank=True)
+    field_name = models.CharField(max_length=100, blank=True)
+    old_value = models.CharField(max_length=500, blank=True)
+    new_value = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

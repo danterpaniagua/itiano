@@ -68,16 +68,18 @@ def _dispatch(source, payload):
 
 def _execute_action(action, payload):
     if action.action_type == 'create_ticket':
-        _create_ticket(action, payload)
+        _upsert_ticket(action, payload)
     else:
         raise ValueError(f"Unknown action_type: {action.action_type}")
 
 
-def _create_ticket(action, payload):
-    from itsm.models import Category, Ticket
-    from .resolver import resolve_value
+_TRACKED_FIELDS = ['title', 'description', 'type', 'priority', 'category', 'service', 'sub_service', 'creator_name']
 
-    mappings = action.field_mappings
+
+def _resolve_fields(mappings, payload):
+    from .resolver import resolve_value
+    from itsm.models import Category, Ticket
+
     resolved = {field: resolve_value(expr, payload) for field, expr in mappings.items()}
 
     title = resolved.get('title') or ''
@@ -87,7 +89,6 @@ def _create_ticket(action, payload):
 
     if ticket_type not in dict(Ticket.TYPES):
         ticket_type = Ticket.TYPE_INCIDENT
-
     if priority not in dict(Ticket.PRIORITIES):
         priority = Ticket.PRIORITY_MEDIUM
 
@@ -96,14 +97,80 @@ def _create_ticket(action, payload):
     if category_name:
         category, _ = Category.objects.get_or_create(name=category_name)
 
+    return {
+        'title': title,
+        'description': description,
+        'type': ticket_type,
+        'priority': priority,
+        'category': category,
+        'creator_name': resolved.get('creator') or '',
+        'service': resolved.get('service') or '',
+        'sub_service': resolved.get('sub_service') or '',
+    }
+
+
+def _upsert_ticket(action, payload):
+    from itsm.models import Ticket
+    from .resolver import resolve_value
+
+    fields = _resolve_fields(action.field_mappings, payload)
+
+    external_id = ''
+    if action.dedup_expression:
+        raw = resolve_value(action.dedup_expression, payload)
+        if raw:
+            external_id = str(raw)
+
+    if external_id:
+        existing = Ticket.objects.filter(external_id=external_id).first()
+        if existing:
+            _update_ticket(existing, fields, action.system_user)
+            logger.info('automations_ticket_updated', extra={'ticket_id': existing.pk, 'external_id': external_id})
+            return
+
     Ticket.objects.create(
-        title=title,
-        description=description,
-        type=ticket_type,
-        priority=priority,
+        title=fields['title'],
+        description=fields['description'],
+        type=fields['type'],
+        priority=fields['priority'],
         requester=action.system_user,
-        category=category,
-        creator_name=resolved.get('creator') or '',
-        service=resolved.get('service') or '',
-        sub_service=resolved.get('sub_service') or '',
+        category=fields['category'],
+        creator_name=fields['creator_name'],
+        service=fields['service'],
+        sub_service=fields['sub_service'],
+        external_id=external_id,
     )
+
+
+def _ticket_field_str(ticket, field):
+    value = getattr(ticket, field, None)
+    return str(value) if value is not None else ''
+
+
+def _update_ticket(ticket, fields, system_user):
+    from itsm.models import TicketEvent
+
+    old = {f: _ticket_field_str(ticket, f) for f in _TRACKED_FIELDS}
+
+    ticket.title = fields['title']
+    ticket.description = fields['description']
+    ticket.type = fields['type']
+    ticket.priority = fields['priority']
+    ticket.category = fields['category']
+    ticket.creator_name = fields['creator_name']
+    ticket.service = fields['service']
+    ticket.sub_service = fields['sub_service']
+    ticket.save()
+
+    ticket.refresh_from_db()
+    new = {f: _ticket_field_str(ticket, f) for f in _TRACKED_FIELDS}
+
+    for field in _TRACKED_FIELDS:
+        if old[field] != new[field]:
+            TicketEvent.objects.create(
+                ticket=ticket,
+                actor=system_user,
+                field_name=field,
+                old_value=old[field],
+                new_value=new[field],
+            )

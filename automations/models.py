@@ -22,6 +22,11 @@ class Action(models.Model):
         on_delete=models.PROTECT,
         help_text='User set as requester for tickets created by this action.',
     )
+    dedup_expression = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text='JSONPath to extract a unique key from the payload (e.g. $.issue.key). If set, an existing ticket with that key is updated instead of creating a new one.',
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

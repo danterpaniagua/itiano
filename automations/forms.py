@@ -21,11 +21,12 @@ def _apply_bootstrap(form):
 class ActionForm(forms.ModelForm):
     class Meta:
         model = Action
-        fields = ['name', 'action_type', 'field_mappings', 'system_user', 'is_active']
+        fields = ['name', 'action_type', 'field_mappings', 'system_user', 'dedup_expression', 'is_active']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         _apply_bootstrap(self)
+        self.fields['dedup_expression'].widget.attrs['placeholder'] = '$.issue.key'
 
 
 class TriggerForm(forms.ModelForm):

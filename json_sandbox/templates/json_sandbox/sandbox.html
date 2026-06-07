@@ -79,26 +79,12 @@
                           placeholder='{"and": [{"path": "$.issue.fields.project.name", "op": "eq", "value": "GIT"}]}'>{{ filter_input }}</textarea>
                 <button type="submit" class="btn btn-primary w-100 mb-3">Test Filter</button>
 
-                <details class="mb-3">
-                    <summary class="text-muted small" style="cursor:pointer">Operator reference</summary>
-                    <table class="table table-sm table-bordered mt-2 small">
-                        <thead class="table-light">
-                            <tr><th>Operator</th><th>Use case</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><td><code>eq</code></td><td>Exact match</td></tr>
-                            <tr><td><code>eq_ci</code></td><td>Case-insensitive match</td></tr>
-                            <tr><td><code>neq</code></td><td>Not equal</td></tr>
-                            <tr><td><code>in</code></td><td>Any label in list (exact)</td></tr>
-                            <tr><td><code>in_ci</code></td><td>Any label in list (case-insensitive)</td></tr>
-                            <tr><td><code>not_in</code></td><td>No label in list (exact)</td></tr>
-                            <tr><td><code>not_in_ci</code></td><td>No label in list (case-insensitive)</td></tr>
-                            <tr><td><code>contains</code></td><td>Substring match</td></tr>
-                            <tr><td><code>exists</code></td><td>Field exists and is non-empty (no <code>value</code> needed)</td></tr>
-                            <tr><td><code>regex</code></td><td>Any label matches regex pattern</td></tr>
-                        </tbody>
-                    </table>
-                </details>
+                <p class="small text-muted mb-3">
+                    <a href="{% url 'docs' %}" target="_blank">
+                        <i class="bi bi-book"></i> Operator reference
+                    </a>
+                    — see Automations tab in Docs.
+                </p>
 
                 {% if mode == 'filter' %}
                     {% if error %}

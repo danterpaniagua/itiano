@@ -7,6 +7,11 @@ from jira_integration.models import JiraTicket
 
 
 @login_required
+def docs(request):
+    return render(request, 'core/docs.html')
+
+
+@login_required
 def dashboard(request):
     itsm_count = Ticket.objects.exclude(state__in=['closed', 'cancelled']).count()
     jira_count = JiraTicket.objects.count()

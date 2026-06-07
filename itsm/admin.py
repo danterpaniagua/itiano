@@ -19,9 +19,9 @@ class CommentInline(admin.TabularInline):
 
 @admin.register(Ticket)
 class TicketAdmin(admin.ModelAdmin):
-    list_display = ('pk', 'title', 'type', 'state', 'priority', 'requester', 'assigned_to', 'created_at')
+    list_display = ('pk', 'title', 'type', 'state', 'priority', 'requester', 'assigned_to', 'external_id', 'created_at')
     list_filter = ('state', 'type', 'priority')
-    search_fields = ('title', 'description')
+    search_fields = ('title', 'description', 'external_id')
     readonly_fields = ('state', 'created_at', 'updated_at')
     inlines = [TicketEventInline, CommentInline]
 

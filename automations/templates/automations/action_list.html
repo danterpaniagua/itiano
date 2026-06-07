@@ -23,7 +23,7 @@
         <div class="card-body py-2 px-3">
             <div class="d-flex justify-content-between align-items-start gap-2">
                 <div>
-                    <div class="fw-semibold">{{ action.name }}</div>
+                    <div class="fw-semibold">{{ action.name }} <span class="text-muted fw-normal small">#{{ action.pk }}</span></div>
                     <small class="text-muted">{{ action.get_action_type_display }} · {{ action.triggers.count }} trigger{{ action.triggers.count|pluralize }} · {{ action.system_user.username }}</small>
                 </div>
                 <div class="d-flex gap-1 align-items-center flex-shrink-0">
@@ -60,7 +60,7 @@
             <tbody>
                 {% for action in actions %}
                 <tr>
-                    <td class="fw-semibold">{{ action.name }}</td>
+                    <td class="fw-semibold">{{ action.name }} <span class="text-muted fw-normal small">#{{ action.pk }}</span></td>
                     <td>{{ action.get_action_type_display }}</td>
                     <td class="text-muted">{{ action.system_user.username }}</td>
                     <td>{{ action.triggers.count }}</td>

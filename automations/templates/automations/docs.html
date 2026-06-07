@@ -1,0 +1,48 @@
+<h5 class="mb-3">Automations</h5>
+
+<p>Automations listen for incoming webhook payloads and create tickets when a filter condition matches.</p>
+
+<h6 class="text-muted mt-3">Concepts</h6>
+<ul>
+    <li><strong>Action</strong> — Defines what to do (e.g., create a ticket) and how to map payload fields.</li>
+    <li><strong>Trigger</strong> — Defines when to act: a source (e.g., Jira) and a filter condition.</li>
+    <li><strong>Filter</strong> — A JSON condition tree evaluated against the incoming payload.</li>
+</ul>
+
+<h6 class="text-muted mt-3">Filter Structure</h6>
+<p>Filters use a JSON AST with logical combinators and leaf conditions:</p>
+<pre class="bg-light border rounded p-3 font-monospace small">{
+  "and": [
+    {"path": "$.webhookEvent", "op": "eq", "value": "jira:issue_created"},
+    {"path": "$.issue.fields.labels", "op": "in", "value": ["PROD", "Azure"]}
+  ]
+}</pre>
+
+<h6 class="text-muted mt-3">Operators</h6>
+<div class="table-responsive"><table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th>Operator</th><th>Use case</th></tr></thead>
+    <tbody>
+        <tr><td><code>eq</code></td><td>Exact match</td></tr>
+        <tr><td><code>eq_ci</code></td><td>Case-insensitive match</td></tr>
+        <tr><td><code>neq</code></td><td>Not equal</td></tr>
+        <tr><td><code>in</code></td><td>Any label in list (exact)</td></tr>
+        <tr><td><code>in_ci</code></td><td>Any label in list (case-insensitive)</td></tr>
+        <tr><td><code>not_in</code></td><td>No label in list (exact)</td></tr>
+        <tr><td><code>not_in_ci</code></td><td>No label in list (case-insensitive)</td></tr>
+        <tr><td><code>contains</code></td><td>Substring match</td></tr>
+        <tr><td><code>exists</code></td><td>Field is present and non-empty (no <code>value</code> needed)</td></tr>
+        <tr><td><code>regex</code></td><td>Any label matches regex pattern</td></tr>
+    </tbody>
+</table></div>
+
+<h6 class="text-muted mt-3">Field Mappings</h6>
+<p>In an Action, <code>field_mappings</code> maps ticket fields to JSONPath expressions or literal values:</p>
+<pre class="bg-light border rounded p-3 font-monospace small">{
+  "title":       "$.issue.fields.summary",
+  "description": "$.issue.fields.description",
+  "type":        "incident",
+  "priority":    "$.issue.fields.priority.name",
+  "creator":     "$.user.displayName",
+  "service":     "$.issue.fields.project.name"
+}</pre>
+<p class="small text-muted">Values starting with <code>$.</code> are resolved via JSONPath. All others are used as literals.</p>

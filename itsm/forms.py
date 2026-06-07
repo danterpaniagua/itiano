@@ -23,6 +23,15 @@ class TicketForm(BootstrapFormMixin, forms.ModelForm):
         }
 
 
+class TicketEditForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = Ticket
+        fields = ['title', 'type', 'priority', 'category', 'description', 'service', 'sub_service']
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 4}),
+        }
+
+
 class CommentForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Comment

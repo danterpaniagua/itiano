@@ -26,6 +26,9 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'jira-ticket-list' %}">Jira</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'docs' %}">Docs</a>
+                </li>
                 {% if request.user.is_staff %}
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'sandbox' %}">Sandbox</a>
