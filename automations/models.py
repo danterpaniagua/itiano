@@ -41,11 +41,6 @@ class Trigger(models.Model):
 
     name = models.CharField(max_length=100)
     source = models.CharField(max_length=50, choices=SOURCES)
-    event_type = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text='Optional. Match only this Jira event type (e.g. jira:issue_created). Leave blank to match all.',
-    )
     filter = models.JSONField(
         help_text=(
             'Structured filter condition tree. '

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Logs – Automations – Itiano{% endblock %}
+
+{% block content %}
+<h5 class="mb-3">Automations</h5>
+{% include "automations/_tabs.html" %}
+
+<form method="get" class="d-flex flex-wrap gap-2 mb-3">
+    <select name="result" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+        <option value="">All results</option>
+        {% for value, label in result_choices %}
+        <option value="{{ value }}" {% if value == result_filter %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select name="source" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+        <option value="">All sources</option>
+        {% for value, label in source_choices %}
+        <option value="{{ value }}" {% if value == source_filter %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    {% if result_filter or source_filter %}
+    <a href="{% url 'automations-log-list' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
+    {% endif %}
+</form>
+
+{% if not triggers %}
+<p class="text-muted">No triggers found.</p>
+{% else %}
+
+{# Mobile: card list #}
+<div class="d-md-none">
+    {% for trigger in triggers %}
+    <div class="card mb-2">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                    <div class="fw-semibold small">{{ trigger.name }}</div>
+                    <small class="text-muted">{{ trigger.get_source_display }} · → {{ trigger.action.name }}</small>
+                    {% if trigger.last_detail %}
+                    <div class="text-danger small mt-1">{{ trigger.last_detail }}</div>
+                    {% endif %}
+                </div>
+                <div class="text-end flex-shrink-0">
+                    {% if trigger.last_result %}
+                    <span class="badge bg-{% if trigger.last_result == 'matched' %}success{% elif trigger.last_result == 'error' %}danger{% else %}secondary{% endif %}">
+                        {{ trigger.last_result }}
+                    </span>
+                    <div class="text-muted" style="font-size:.75rem">{{ trigger.last_log_at|date:"d/m/Y H:i" }}</div>
+                    {% else %}
+                    <span class="badge bg-light text-muted">no logs</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# Desktop: table #}
+<div class="d-none d-md-block">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Trigger</th>
+                    <th>Source</th>
+                    <th>Action</th>
+                    <th>Last Result</th>
+                    <th>Last Run</th>
+                    <th>Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trigger in triggers %}
+                <tr>
+                    <td class="fw-semibold">{{ trigger.name }}</td>
+                    <td>{{ trigger.get_source_display }}</td>
+                    <td class="text-muted">{{ trigger.action.name }}</td>
+                    <td>
+                        {% if trigger.last_result %}
+                        <span class="badge bg-{% if trigger.last_result == 'matched' %}success{% elif trigger.last_result == 'error' %}danger{% else %}secondary{% endif %}">
+                            {{ trigger.last_result }}
+                        </span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted">{{ trigger.last_log_at|date:"d/m/Y H:i"|default:"—" }}</td>
+                    <td class="text-muted small">{{ trigger.last_detail|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

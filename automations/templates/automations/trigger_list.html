@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Triggers – Automations – Itiano{% endblock %}
+
+{% block content %}
+<h5 class="mb-3">Automations</h5>
+{% include "automations/_tabs.html" %}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <span class="me-auto text-muted small">{{ triggers|length }} trigger{{ triggers|length|pluralize }}</span>
+    <a href="{% url 'automations-trigger-create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> New Trigger
+    </a>
+</div>
+
+{% if not triggers %}
+<p class="text-muted">No triggers configured yet.</p>
+{% else %}
+
+{# Mobile: card list #}
+<div class="d-md-none">
+    {% for trigger in triggers %}
+    <div class="card mb-2">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                    <div class="fw-semibold">{{ trigger.name }}</div>
+                    <small class="text-muted">{{ trigger.get_source_display }} · → {{ trigger.action.name }}</small>
+                </div>
+                <div class="d-flex gap-1 align-items-center flex-shrink-0">
+                    <form method="post" action="{% url 'automations-trigger-toggle' trigger.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm {% if trigger.is_active %}btn-success{% else %}btn-outline-secondary{% endif %}">
+                            {% if trigger.is_active %}Active{% else %}Inactive{% endif %}
+                        </button>
+                    </form>
+                    <a href="{% url 'automations-trigger-edit' trigger.pk %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# Desktop: table #}
+<div class="d-none d-md-block">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>Source</th>
+                    <th>Action</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trigger in triggers %}
+                <tr>
+                    <td class="fw-semibold">{{ trigger.name }}</td>
+                    <td>{{ trigger.get_source_display }}</td>
+                    <td>{{ trigger.action.name }}</td>
+                    <td>
+                        <form method="post" action="{% url 'automations-trigger-toggle' trigger.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm {% if trigger.is_active %}btn-success{% else %}btn-outline-secondary{% endif %}">
+                                {% if trigger.is_active %}Active{% else %}Inactive{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                    <td class="text-end">
+                        <a href="{% url 'automations-trigger-edit' trigger.pk %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

@@ -11,12 +11,26 @@
     {% endif %}
 </div>
 
-<form method="post">
+<form method="post" id="sandbox-form">
     {% csrf_token %}
     {% if show_back %}<input type="hidden" name="back" value="1">{% endif %}
+    <input type="hidden" name="mode" id="mode-input" value="{{ mode }}">
+
+    {# Mode toggle #}
+    <div class="btn-group mb-3" role="group">
+        <button type="button" class="btn btn-sm {% if mode == 'jsonpath' %}btn-dark{% else %}btn-outline-secondary{% endif %}"
+                onclick="setMode('jsonpath')">
+            <i class="bi bi-search"></i> JSONPath
+        </button>
+        <button type="button" class="btn btn-sm {% if mode == 'filter' %}btn-dark{% else %}btn-outline-secondary{% endif %}"
+                onclick="setMode('filter')">
+            <i class="bi bi-funnel"></i> Filter
+        </button>
+    </div>
+
     <div class="row g-3">
 
-        {# Left: JSON input #}
+        {# Left: JSON payload #}
         <div class="col-12 col-lg-6">
             <label class="form-label fw-semibold">JSON Payload</label>
             <textarea name="payload"
@@ -25,32 +39,91 @@
                       placeholder='{"key": "value"}'>{{ payload_input }}</textarea>
         </div>
 
-        {# Right: expression + output #}
+        {# Right: mode-specific input + output #}
         <div class="col-12 col-lg-6">
-            <label class="form-label fw-semibold">JSONPath Expression</label>
-            <div class="input-group mb-3">
-                <input type="text"
-                       name="expression"
-                       class="form-control font-monospace"
-                       value="{{ expression_input }}"
-                       placeholder="$.issue.fields.status.name"
-                       autofocus>
-                <button type="submit" class="btn btn-primary">Evaluate</button>
+
+            {# JSONPath mode #}
+            <div id="panel-jsonpath" {% if mode != 'jsonpath' %}style="display:none"{% endif %}>
+                <label class="form-label fw-semibold">JSONPath Expression</label>
+                <div class="input-group mb-3">
+                    <input type="text"
+                           name="expression"
+                           class="form-control font-monospace"
+                           value="{{ expression_input }}"
+                           placeholder="$.issue.fields.status.name">
+                    <button type="submit" class="btn btn-primary">Evaluate</button>
+                </div>
+
+                {% if mode == 'jsonpath' %}
+                    {% if error %}
+                    <div class="alert alert-danger">{{ error }}</div>
+                    {% endif %}
+
+                    {% if result is not None %}
+                    <label class="form-label fw-semibold">Result</label>
+                    <pre class="bg-light border rounded p-3 font-monospace"
+                         style="min-height:4rem;overflow-x:auto;font-size:0.85rem;">{{ result }}</pre>
+                    {% elif not error and request.method == "POST" and expression_input %}
+                    <div class="alert alert-warning">No matches found.</div>
+                    {% endif %}
+                {% endif %}
             </div>
 
-            {% if error %}
-            <div class="alert alert-danger">{{ error }}</div>
-            {% endif %}
+            {# Filter mode #}
+            <div id="panel-filter" {% if mode != 'filter' %}style="display:none"{% endif %}>
+                <label class="form-label fw-semibold">Automation Filter</label>
+                <textarea name="filter_expr"
+                          class="form-control font-monospace mb-3"
+                          rows="10"
+                          spellcheck="false"
+                          placeholder='{"and": [{"path": "$.issue.fields.project.name", "op": "eq", "value": "GIT"}]}'>{{ filter_input }}</textarea>
+                <button type="submit" class="btn btn-primary w-100 mb-3">Test Filter</button>
 
-            {% if result is not None %}
-            <label class="form-label fw-semibold">Result</label>
-            <pre class="bg-light border rounded p-3 font-monospace"
-                 style="min-height:4rem;overflow-x:auto;font-size:0.85rem;">{{ result }}</pre>
-            {% elif not error and request.method == "POST" and expression_input %}
-            <div class="alert alert-warning">No matches found.</div>
-            {% endif %}
+                <details class="mb-3">
+                    <summary class="text-muted small" style="cursor:pointer">Operator reference</summary>
+                    <table class="table table-sm table-bordered mt-2 small">
+                        <thead class="table-light">
+                            <tr><th>Operator</th><th>Use case</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><code>eq</code></td><td>Exact match</td></tr>
+                            <tr><td><code>eq_ci</code></td><td>Case-insensitive match</td></tr>
+                            <tr><td><code>neq</code></td><td>Not equal</td></tr>
+                            <tr><td><code>in</code></td><td>Any label in list (exact)</td></tr>
+                            <tr><td><code>in_ci</code></td><td>Any label in list (case-insensitive)</td></tr>
+                            <tr><td><code>not_in</code></td><td>No label in list (exact)</td></tr>
+                            <tr><td><code>not_in_ci</code></td><td>No label in list (case-insensitive)</td></tr>
+                            <tr><td><code>contains</code></td><td>Substring match</td></tr>
+                            <tr><td><code>exists</code></td><td>Field exists and is non-empty (no <code>value</code> needed)</td></tr>
+                            <tr><td><code>regex</code></td><td>Any label matches regex pattern</td></tr>
+                        </tbody>
+                    </table>
+                </details>
+
+                {% if mode == 'filter' %}
+                    {% if error %}
+                    <div class="alert alert-danger mt-3">{{ error }}</div>
+                    {% endif %}
+
+                    {% if filter_matched is not None %}
+                    <div class="alert {% if filter_matched %}alert-success{% else %}alert-warning{% endif %} mt-3 d-flex align-items-center gap-2">
+                        <i class="bi {% if filter_matched %}bi-check-circle-fill{% else %}bi-x-circle-fill{% endif %} fs-5"></i>
+                        <span class="fw-semibold">{% if filter_matched %}Filter matched{% else %}Filter did not match{% endif %}</span>
+                    </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+
         </div>
-
     </div>
 </form>
+
+<script>
+function setMode(m) {
+    document.getElementById('mode-input').value = m;
+    document.getElementById('panel-jsonpath').style.display = m === 'jsonpath' ? '' : 'none';
+    document.getElementById('panel-filter').style.display = m === 'filter' ? '' : 'none';
+    document.getElementById('sandbox-form').submit();
+}
+</script>
 {% endblock %}

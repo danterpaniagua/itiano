@@ -6,7 +6,7 @@ from .models import Action, Trigger, TriggerLog
 class TriggerInline(admin.TabularInline):
     model = Trigger
     extra = 0
-    fields = ('name', 'source', 'event_type', 'is_active')
+    fields = ('name', 'source', 'is_active')
     show_change_link = True
 
 
@@ -22,7 +22,7 @@ class ActionAdmin(admin.ModelAdmin):
 
 @admin.register(Trigger)
 class TriggerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'source', 'event_type', 'action', 'is_active', 'updated_at')
+    list_display = ('name', 'source', 'action', 'is_active', 'updated_at')
     list_filter = ('source', 'is_active')
     list_editable = ('is_active',)
     search_fields = ('name', 'action__name')

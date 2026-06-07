@@ -1,4 +1,5 @@
 import logging
+import re
 
 from .resolver import resolve_value
 
@@ -14,7 +15,19 @@ def evaluate_filter(condition, payload):
     Supported condition shapes:
       {"and": [...]}
       {"or": [...]}
-      {"path": "$.x", "op": "eq|neq|in|not_in|contains", "value": <any>}
+      {"path": "$.x", "op": "<operator>", "value": <any>}
+
+    Operators:
+      eq          exact equality
+      neq         exact inequality
+      eq_ci       case-insensitive equality
+      in          value (or any item if list) is in expected list
+      not_in      value (or no item if list) is in expected list
+      in_ci       case-insensitive version of in
+      not_in_ci   case-insensitive version of not_in
+      contains    expected is a substring of actual
+      exists      path resolves to a non-empty value (no value field needed)
+      regex       actual (or any item if list) matches regex pattern in value
     """
     if not condition:
         return True
@@ -33,6 +46,10 @@ def evaluate_filter(condition, payload):
         logger.debug('automations_evaluator_invalid_condition', extra={'condition': condition})
         return False
 
+    if op == 'exists':
+        actual = resolve_value(path, payload)
+        return actual is not None and actual != [] and actual != ''
+
     actual = resolve_value(path, payload)
     if actual is None:
         return False
@@ -42,6 +59,8 @@ def evaluate_filter(condition, payload):
             return actual == expected
         if op == 'neq':
             return actual != expected
+        if op == 'eq_ci':
+            return str(actual).lower() == str(expected).lower()
         if op == 'in':
             if isinstance(actual, list):
                 return any(item in expected for item in actual)
@@ -50,8 +69,23 @@ def evaluate_filter(condition, payload):
             if isinstance(actual, list):
                 return not any(item in expected for item in actual)
             return actual not in expected
+        if op == 'in_ci':
+            expected_lower = [str(e).lower() for e in expected]
+            if isinstance(actual, list):
+                return any(str(item).lower() in expected_lower for item in actual)
+            return str(actual).lower() in expected_lower
+        if op == 'not_in_ci':
+            expected_lower = [str(e).lower() for e in expected]
+            if isinstance(actual, list):
+                return not any(str(item).lower() in expected_lower for item in actual)
+            return str(actual).lower() not in expected_lower
         if op == 'contains':
             return expected in actual
+        if op == 'regex':
+            pattern = re.compile(expected)
+            if isinstance(actual, list):
+                return any(pattern.search(str(item)) for item in actual)
+            return bool(pattern.search(str(actual)))
     except Exception:
         logger.debug('automations_evaluator_comparison_error', extra={'path': path, 'op': op})
         return False

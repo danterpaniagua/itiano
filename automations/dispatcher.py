@@ -21,9 +21,7 @@ def _dispatch(source, payload):
     from .models import Trigger, TriggerLog
     from .evaluator import evaluate_filter
 
-    event_type = payload.get('webhookEvent', '')
     triggers = Trigger.objects.filter(source=source, is_active=True).select_related('action')
-    triggers = [t for t in triggers if not t.event_type or t.event_type == event_type]
 
     for trigger in triggers:
         if not trigger.action.is_active:
@@ -105,4 +103,7 @@ def _create_ticket(action, payload):
         priority=priority,
         requester=action.system_user,
         category=category,
+        creator_name=resolved.get('creator') or '',
+        service=resolved.get('service') or '',
+        sub_service=resolved.get('sub_service') or '',
     )

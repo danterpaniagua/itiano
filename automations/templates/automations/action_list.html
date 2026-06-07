@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Actions – Automations – Itiano{% endblock %}
+
+{% block content %}
+<h5 class="mb-3">Automations</h5>
+{% include "automations/_tabs.html" %}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <span class="me-auto text-muted small">{{ actions|length }} action{{ actions|length|pluralize }}</span>
+    <a href="{% url 'automations-action-create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> New Action
+    </a>
+</div>
+
+{% if not actions %}
+<p class="text-muted">No actions configured yet.</p>
+{% else %}
+
+{# Mobile: card list #}
+<div class="d-md-none">
+    {% for action in actions %}
+    <div class="card mb-2">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                    <div class="fw-semibold">{{ action.name }}</div>
+                    <small class="text-muted">{{ action.get_action_type_display }} · {{ action.triggers.count }} trigger{{ action.triggers.count|pluralize }} · {{ action.system_user.username }}</small>
+                </div>
+                <div class="d-flex gap-1 align-items-center flex-shrink-0">
+                    <form method="post" action="{% url 'automations-action-toggle' action.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm {% if action.is_active %}btn-success{% else %}btn-outline-secondary{% endif %}">
+                            {% if action.is_active %}Active{% else %}Inactive{% endif %}
+                        </button>
+                    </form>
+                    <a href="{% url 'automations-action-edit' action.pk %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# Desktop: table #}
+<div class="d-none d-md-block">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>System User</th>
+                    <th>Triggers</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for action in actions %}
+                <tr>
+                    <td class="fw-semibold">{{ action.name }}</td>
+                    <td>{{ action.get_action_type_display }}</td>
+                    <td class="text-muted">{{ action.system_user.username }}</td>
+                    <td>{{ action.triggers.count }}</td>
+                    <td>
+                        <form method="post" action="{% url 'automations-action-toggle' action.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm {% if action.is_active %}btn-success{% else %}btn-outline-secondary{% endif %}">
+                                {% if action.is_active %}Active{% else %}Inactive{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                    <td class="text-end">
+                        <a href="{% url 'automations-action-edit' action.pk %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

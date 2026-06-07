@@ -1,0 +1,38 @@
+from django import forms
+
+from .models import Action, Trigger
+
+_JSON_FIELDS = ('field_mappings', 'filter')
+
+
+def _apply_bootstrap(form):
+    for name, field in form.fields.items():
+        widget = field.widget
+        if isinstance(widget, forms.CheckboxInput):
+            widget.attrs['class'] = 'form-check-input'
+        elif isinstance(widget, (forms.Select, forms.SelectMultiple)):
+            widget.attrs['class'] = 'form-select'
+        else:
+            widget.attrs['class'] = 'form-control' + (' font-monospace' if name in _JSON_FIELDS else '')
+        if name in _JSON_FIELDS:
+            widget.attrs.update({'rows': 8, 'spellcheck': 'false'})
+
+
+class ActionForm(forms.ModelForm):
+    class Meta:
+        model = Action
+        fields = ['name', 'action_type', 'field_mappings', 'system_user', 'is_active']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply_bootstrap(self)
+
+
+class TriggerForm(forms.ModelForm):
+    class Meta:
+        model = Trigger
+        fields = ['name', 'source', 'filter', 'action', 'is_active']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply_bootstrap(self)

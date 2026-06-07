@@ -71,6 +71,9 @@ class Ticket(models.Model):
     category = models.ForeignKey(
         Category, on_delete=models.SET_NULL, null=True, blank=True
     )
+    service = models.CharField(max_length=255, blank=True)
+    sub_service = models.CharField(max_length=255, blank=True)
+    creator_name = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

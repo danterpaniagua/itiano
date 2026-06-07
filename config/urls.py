@@ -7,5 +7,6 @@ urlpatterns = [
     path('tickets/', include('itsm.urls')),
     path('jira/', include('jira_integration.urls')),
     path('sandbox/', include('json_sandbox.urls')),
+    path('automations/', include('automations.urls')),
     path('', include('core.urls')),
 ]
