@@ -42,7 +42,7 @@ python manage.py runserver
 Los tests requieren la base de datos PostgreSQL. Ejecutar dentro del contenedor:
 
 ```bash
-docker compose exec app python manage.py test jira_integration json_sandbox
+docker compose exec app python manage.py test jira_integration json_sandbox automations
 ```
 
 ## Variables de entorno
@@ -67,6 +67,7 @@ docker compose exec app python manage.py test jira_integration json_sandbox
 | `itsm` | Modelos de tickets, máquina de estados, vistas, permisos |
 | `jira_integration` | Recepción de webhooks de Jira, historial de eventos por ticket |
 | `json_sandbox` | Evaluación interactiva de expresiones JSONPath (solo staff) |
+| `automations` | Motor de automatizaciones: Triggers con filtros JSONPath disparan Actions que crean tickets |
 
 Ver `.claude/architecture.md` para detalle completo de la arquitectura.
 

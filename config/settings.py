@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     'itsm',
     'jira_integration',
     'json_sandbox',
+    'automations',
 ]
 
 MIDDLEWARE = [

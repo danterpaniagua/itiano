@@ -87,6 +87,9 @@ def webhook(request):
         extra={'issue_key': issue_key, 'event_type': event_type, 'is_new': created},
     )
 
+    from automations.dispatcher import dispatch
+    dispatch(source='jira', payload=payload)
+
     return HttpResponse(status=200)
 
 
