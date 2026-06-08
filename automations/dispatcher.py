@@ -103,7 +103,7 @@ def _resolve_fields(mappings, payload):
         'type': ticket_type,
         'priority': priority,
         'category': category,
-        'creator_name': resolved.get('creator') or '',
+        'creator_name': resolved.get('requester') or resolved.get('creator') or '',
         'service': resolved.get('service') or '',
         'sub_service': resolved.get('sub_service') or '',
         'key': resolved.get('key') or '',

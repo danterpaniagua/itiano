@@ -105,9 +105,9 @@
             <button class="btn btn-primary btn-sm flex-grow-1" onclick="ocSave()">
                 <i class="bi bi-floppy"></i> Save
             </button>
-            <a href="{% url 'clipboard' %}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-arrow-up-right-square"></i>
-            </a>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="oc-btn-maximize" onclick="ocToggleMaximize()" title="Maximize">
+                <i class="bi bi-fullscreen" id="oc-maximize-icon"></i>
+            </button>
         </div>
         <div id="oc-status" class="small text-muted mt-1" style="min-height:1.2em"></div>
     </div>
@@ -147,6 +147,23 @@
             preview.style.display = 'none';
             btnEdit.className = 'btn btn-dark';
             btnPreview.className = 'btn btn-outline-secondary';
+        }
+    };
+
+    window.ocToggleMaximize = function () {
+        const panel = document.getElementById('clipboardOffcanvas');
+        const icon = document.getElementById('oc-maximize-icon');
+        const btn = document.getElementById('oc-btn-maximize');
+        const maximized = panel.classList.toggle('oc-maximized');
+        if (maximized) {
+            panel.style.setProperty('width', '100vw', 'important');
+            icon.className = 'bi bi-fullscreen-exit';
+            btn.title = 'Restore';
+        } else {
+            panel.style.removeProperty('width');
+            panel.style.width = '420px';
+            icon.className = 'bi bi-fullscreen';
+            btn.title = 'Maximize';
         }
     };
 
