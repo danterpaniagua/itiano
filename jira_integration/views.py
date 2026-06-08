@@ -74,6 +74,7 @@ def webhook(request):
     project_key = fields.get('project', {}).get('key', '') if fields.get('project') else ''
     issue_type = fields.get('issuetype', {}).get('name', '') if fields.get('issuetype') else ''
     status = fields.get('status', {}).get('name', '') if fields.get('status') else ''
+    labels = [l for l in (fields.get('labels') or []) if isinstance(l, str)]
 
     ticket, created = JiraTicket.objects.update_or_create(
         issue_key=issue_key,
@@ -82,6 +83,7 @@ def webhook(request):
             'project_key': project_key[:50],
             'issue_type': issue_type[:100],
             'status': status[:100],
+            'labels': labels,
         },
     )
 

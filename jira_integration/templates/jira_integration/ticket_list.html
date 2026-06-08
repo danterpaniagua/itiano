@@ -5,6 +5,7 @@
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <h5 class="mb-0 me-auto">Jira Tickets</h5>
     <span class="text-muted small">{{ tickets|length }} ticket{{ tickets|length|pluralize }}</span>
+    <a href="" class="btn btn-outline-secondary btn-sm" title="Refresh"><i class="bi bi-arrow-clockwise"></i></a>
 </div>
 
 {% if not tickets %}
@@ -21,6 +22,11 @@
                     <div class="fw-semibold">{{ ticket.issue_key }}</div>
                     <div class="small text-truncate" style="max-width:200px">{{ ticket.title }}</div>
                     <small class="text-muted">{{ ticket.project_key }} · {{ ticket.issue_type }}</small>
+                    {% if ticket.labels %}
+                    <div class="d-flex flex-wrap gap-1 mt-1">
+                        {% for label in ticket.labels %}<span class="badge bg-light text-dark border">{{ label }}</span>{% endfor %}
+                    </div>
+                    {% endif %}
                 </a>
                 <div class="d-flex gap-1 align-items-center ms-2">
                     <span class="badge bg-secondary text-nowrap">{{ ticket.status }}</span>
@@ -56,6 +62,7 @@
                     <th>Project</th>
                     <th>Type</th>
                     <th>Status</th>
+                    <th>Labels</th>
                     <th>Events</th>
                     <th>Last Update</th>
                     {% if request.user.is_staff %}<th></th>{% endif %}
@@ -73,6 +80,9 @@
                     <td>{{ ticket.project_key }}</td>
                     <td>{{ ticket.issue_type }}</td>
                     <td><span class="badge bg-secondary">{{ ticket.status }}</span></td>
+                    <td>
+                        {% for label in ticket.labels %}<span class="badge bg-light text-dark border me-1">{{ label }}</span>{% endfor %}
+                    </td>
                     <td>{{ ticket.events.count }}</td>
                     <td class="text-muted">{{ ticket.updated_at|date:"d/m/Y H:i" }}</td>
                     {% if request.user.is_staff %}

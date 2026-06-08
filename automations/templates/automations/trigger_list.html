@@ -7,6 +7,7 @@
 
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <span class="me-auto text-muted small">{{ triggers|length }} trigger{{ triggers|length|pluralize }}</span>
+    <a href="" class="btn btn-outline-secondary btn-sm" title="Refresh"><i class="bi bi-arrow-clockwise"></i></a>
     <a href="{% url 'automations-trigger-create' %}" class="btn btn-primary btn-sm">
         <i class="bi bi-plus-lg"></i> New Trigger
     </a>
