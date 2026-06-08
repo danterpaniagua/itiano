@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Log #{{ log.pk }} – Automations – Itiano{% endblock %}
+
+{% block content %}
+<h5 class="mb-3">Automations</h5>
+{% include "automations/_tabs.html" %}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h6 class="mb-0 me-auto">Log #{{ log.pk }}</h6>
+    <a href="{% url 'automations-log-list' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Summary</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-5">Trigger</dt>
+                    <dd class="col-7">{{ log.trigger.name }}</dd>
+                    <dt class="col-5">Action</dt>
+                    <dd class="col-7">{{ log.action.name|default:log.trigger.action.name }}</dd>
+                    <dt class="col-5">Source</dt>
+                    <dd class="col-7">{{ log.trigger.get_source_display }}</dd>
+                    <dt class="col-5">Result</dt>
+                    <dd class="col-7">
+                        <span class="badge bg-{% if log.result == 'matched' %}success{% elif log.result == 'error' %}danger{% else %}secondary{% endif %}">
+                            {{ log.get_result_display }}
+                        </span>
+                    </dd>
+                    <dt class="col-5">Timestamp</dt>
+                    <dd class="col-7">{{ log.created_at|date:"d/m/Y H:i:s" }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    {% if log.detail %}
+    <div class="col-12 col-md-6">
+        <div class="card h-100 border-danger">
+            <div class="card-header fw-semibold text-danger">Error Detail</div>
+            <div class="card-body">
+                <pre class="mb-0 small text-danger" style="white-space:pre-wrap;word-break:break-word;">{{ log.detail }}</pre>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header fw-semibold">Payload Snapshot</div>
+            <div class="card-body p-0">
+                <pre class="mb-0 p-3 font-monospace small bg-light" style="overflow-x:auto;max-height:480px;">{{ log.payload_snapshot|pprint }}</pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

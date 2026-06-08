@@ -11,10 +11,12 @@ class Action(models.Model):
     FORMAT_RAW = 'raw'
     FORMAT_HTML = 'html'
     FORMAT_MARKDOWN = 'markdown'
+    FORMAT_JIRA_WIKI = 'jira_wiki'
     DESCRIPTION_FORMATS = [
         (FORMAT_RAW, 'Plain text'),
         (FORMAT_HTML, 'HTML'),
         (FORMAT_MARKDOWN, 'Markdown'),
+        (FORMAT_JIRA_WIKI, 'Jira Wiki Markup'),
     ]
 
     name = models.CharField(max_length=100)

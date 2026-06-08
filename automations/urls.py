@@ -13,4 +13,5 @@ urlpatterns = [
     path('triggers/<int:pk>/edit/', views.trigger_edit, name='automations-trigger-edit'),
     path('triggers/<int:pk>/toggle/', views.trigger_toggle, name='automations-trigger-toggle'),
     path('logs/', views.log_list, name='automations-log-list'),
+    path('logs/<int:pk>/', views.log_detail, name='automations-log-detail'),
 ]

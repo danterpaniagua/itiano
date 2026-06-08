@@ -42,9 +42,11 @@
                 </div>
                 <div class="text-end flex-shrink-0">
                     {% if trigger.last_result %}
-                    <span class="badge bg-{% if trigger.last_result == 'matched' %}success{% elif trigger.last_result == 'error' %}danger{% else %}secondary{% endif %}">
-                        {{ trigger.last_result }}
-                    </span>
+                    <a href="{% url 'automations-log-detail' trigger.last_log_id %}" class="text-decoration-none">
+                        <span class="badge bg-{% if trigger.last_result == 'matched' %}success{% elif trigger.last_result == 'error' %}danger{% else %}secondary{% endif %}">
+                            {{ trigger.last_result }}
+                        </span>
+                    </a>
                     <div class="text-muted" style="font-size:.75rem">{{ trigger.last_log_at|date:"d/m/Y H:i" }}</div>
                     {% else %}
                     <span class="badge bg-light text-muted">no logs</span>
@@ -78,15 +80,17 @@
                     <td class="text-muted">{{ trigger.action.name }}</td>
                     <td>
                         {% if trigger.last_result %}
-                        <span class="badge bg-{% if trigger.last_result == 'matched' %}success{% elif trigger.last_result == 'error' %}danger{% else %}secondary{% endif %}">
-                            {{ trigger.last_result }}
-                        </span>
+                        <a href="{% url 'automations-log-detail' trigger.last_log_id %}" class="text-decoration-none">
+                            <span class="badge bg-{% if trigger.last_result == 'matched' %}success{% elif trigger.last_result == 'error' %}danger{% else %}secondary{% endif %}">
+                                {{ trigger.last_result }}
+                            </span>
+                        </a>
                         {% else %}
                         <span class="text-muted">—</span>
                         {% endif %}
                     </td>
                     <td class="text-muted">{{ trigger.last_log_at|date:"d/m/Y H:i"|default:"—" }}</td>
-                    <td class="text-muted small">{{ trigger.last_detail|default:"—" }}</td>
+                    <td class="text-muted small">{{ trigger.last_detail|truncatechars:80|default:"—" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

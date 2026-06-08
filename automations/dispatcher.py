@@ -116,6 +116,10 @@ def _normalize_description(text, fmt):
     if fmt == 'markdown':
         import markdown as md
         return md.markdown(text, extensions=['nl2br', 'tables', 'fenced_code'])
+    if fmt == 'jira_wiki':
+        import markdown as md
+        from jira2markdown import convert
+        return md.markdown(convert(text), extensions=['nl2br', 'tables', 'fenced_code'])
     return text
 
 

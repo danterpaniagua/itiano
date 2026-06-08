@@ -96,8 +96,8 @@ class TicketEvent(models.Model):
     to_state = models.CharField(max_length=20, blank=True)
     note = models.TextField(blank=True)
     field_name = models.CharField(max_length=100, blank=True)
-    old_value = models.CharField(max_length=500, blank=True)
-    new_value = models.CharField(max_length=500, blank=True)
+    old_value = models.TextField(blank=True)
+    new_value = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

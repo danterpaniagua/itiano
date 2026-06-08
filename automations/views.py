@@ -145,6 +145,7 @@ def log_list(request):
         last_result=Subquery(latest.values('result')[:1]),
         last_log_at=Subquery(latest.values('created_at')[:1]),
         last_detail=Subquery(latest.values('detail')[:1]),
+        last_log_id=Subquery(latest.values('pk')[:1]),
     )
 
     if result_filter:
@@ -158,5 +159,14 @@ def log_list(request):
         'source_filter': source_filter,
         'result_choices': TriggerLog.RESULTS,
         'source_choices': Trigger.SOURCES,
+        'section': 'logs',
+    })
+
+
+@staff_required
+def log_detail(request, pk):
+    log = get_object_or_404(TriggerLog.objects.select_related('trigger', 'trigger__action', 'action'), pk=pk)
+    return render(request, 'automations/log_detail.html', {
+        'log': log,
         'section': 'logs',
     })
