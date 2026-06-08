@@ -43,6 +43,7 @@ def credential_create(request):
     if form.is_valid():
         credential = form.save(commit=False)
         credential.owner = request.user
+        credential._changed_by = request.user
         credential.save()
         form._save_tags(credential)
         return redirect('vault-list')
@@ -59,12 +60,17 @@ def credential_edit(request, pk):
         raise PermissionDenied
     form = CredentialForm(request.POST or None, instance=credential, user=request.user)
     if form.is_valid():
-        form.save()
+        obj = form.save(commit=False)
+        obj._changed_by = request.user
+        obj.save()
+        form._save_tags(obj)
         return redirect('vault-list')
+    history = credential.versions.select_related('changed_by')[:20]
     return render(request, 'vault/credential_form.html', {
         'form': form,
         'title': 'Edit Credential',
         'credential': credential,
+        'history': history,
     })
 
 
@@ -113,9 +119,11 @@ def import_credentials(request):
                         entries = parse_kdbx(tmp_path, request.POST.get('password', ''))
                     finally:
                         os.unlink(tmp_path)
+                    source_tag = 'keepass'
                 elif filename.endswith('.xml'):
                     from .importer import parse_xml
                     entries = parse_xml(uploaded)
+                    source_tag = 'keepassx'
                 else:
                     error = 'Unsupported file type. Use .kdbx or .xml.'
                     entries = None
@@ -126,9 +134,11 @@ def import_credentials(request):
                     )
                     for e in entries:
                         e['duplicate'] = e['name'] in existing
+                        e['source_tag'] = source_tag
                     request.session['vault_import'] = entries
                     return render(request, 'vault/import_preview.html', {
                         'entries': entries,
+                        'source_tag': source_tag,
                         'new_count': sum(1 for e in entries if not e['duplicate']),
                         'skip_count': sum(1 for e in entries if e['duplicate']),
                     })
@@ -151,7 +161,7 @@ def import_confirm(request):
     for e in entries:
         if e['name'] in existing:
             continue
-        cred = Credential.objects.create(
+        cred = Credential(
             owner=request.user,
             credential_type=Credential.TYPE_PASSWORD,
             name=e['name'],
@@ -160,8 +170,13 @@ def import_confirm(request):
             notes=e['notes'],
             encrypted_password=encrypt_for_user(request.user, e['password']) if e['password'] else '',
         )
-        if e['tags']:
-            tags = [Tag.objects.get_or_create(name=t)[0] for t in e['tags']]
+        cred._changed_by = request.user
+        cred.save()
+        tag_names = list(e.get('tags') or [])
+        if e.get('source_tag'):
+            tag_names.append(e['source_tag'])
+        if tag_names:
+            tags = [Tag.objects.get_or_create(name=t)[0] for t in tag_names]
             cred.tags.set(tags)
 
     return redirect('vault-list')

@@ -30,7 +30,10 @@
                 <td>{{ e.name }}</td>
                 <td>{{ e.username }}</td>
                 <td class="small">{{ e.url|truncatechars:50 }}</td>
-                <td class="small">{{ e.tags|join:", " }}</td>
+                <td class="small">
+                    {% if e.source_tag %}<span class="badge bg-secondary me-1">{{ e.source_tag }}</span>{% endif %}
+                    {{ e.tags|join:", " }}
+                </td>
                 <td>
                     {% if e.duplicate %}
                     <span class="badge bg-warning text-dark">Skip</span>
