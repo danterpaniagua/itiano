@@ -25,6 +25,13 @@
                 <div class="d-flex gap-1 align-items-center ms-2">
                     <span class="badge bg-secondary text-nowrap">{{ ticket.status }}</span>
                     {% if request.user.is_staff and ticket.last_event_pk %}
+                    <form method="post" action="{% url 'jira-resend-event' ticket.issue_key ticket.last_event_pk %}"
+                          onsubmit="return confirm('Resend last event to Automations?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-1" title="Resend to Automations">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                    </form>
                     <a href="{% url 'jira-open-sandbox' ticket.issue_key ticket.last_event_pk %}"
                        class="btn btn-sm btn-outline-secondary py-0 px-1"
                        title="Open last payload in Sandbox">
@@ -71,11 +78,20 @@
                     {% if request.user.is_staff %}
                     <td>
                         {% if ticket.last_event_pk %}
-                        <a href="{% url 'jira-open-sandbox' ticket.issue_key ticket.last_event_pk %}"
-                           class="btn btn-sm btn-outline-secondary py-0 px-1"
-                           title="Open last payload in Sandbox">
-                            <i class="bi bi-terminal"></i>
-                        </a>
+                        <div class="d-flex gap-1">
+                            <form method="post" action="{% url 'jira-resend-event' ticket.issue_key ticket.last_event_pk %}"
+                                  onsubmit="return confirm('Resend last event to Automations?')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-1" title="Resend to Automations">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                            </form>
+                            <a href="{% url 'jira-open-sandbox' ticket.issue_key ticket.last_event_pk %}"
+                               class="btn btn-sm btn-outline-secondary py-0 px-1"
+                               title="Open last payload in Sandbox">
+                                <i class="bi bi-terminal"></i>
+                            </a>
+                        </div>
                         {% endif %}
                     </td>
                     {% endif %}
