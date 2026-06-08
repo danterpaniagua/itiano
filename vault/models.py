@@ -83,3 +83,34 @@ class Credential(models.Model):
             return False
         from django.utils import timezone
         return (self.expiry_date - timezone.now().date()).days <= 30
+
+
+class CredentialVersion(models.Model):
+    credential = models.ForeignKey(Credential, on_delete=models.CASCADE, related_name='versions')
+    version_number = models.PositiveIntegerField()
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    changed_fields = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # Plaintext snapshot
+    name = models.CharField(max_length=200, blank=True)
+    credential_type = models.CharField(max_length=20, blank=True)
+    visibility = models.CharField(max_length=10, blank=True)
+    url = models.CharField(max_length=500, blank=True)
+    username = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+    public_key = models.TextField(blank=True)
+    certificate_pem = models.TextField(blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+
+    # Encrypted snapshot (ciphertext stored as-is)
+    encrypted_password = models.TextField(blank=True)
+    encrypted_private_key = models.TextField(blank=True)
+    encrypted_passphrase = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-version_number']
+        unique_together = [('credential', 'version_number')]
+
+    def __str__(self):
+        return f"{self.credential} v{self.version_number}"
