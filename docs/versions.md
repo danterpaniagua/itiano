@@ -40,5 +40,5 @@
 | v4.6.1 | Docker Health Check + Graceful Shutdown | Delivered | [v4/v4.6.1.md](v4/v4.6.1.md) |
 | v4.7.0 | Credential Vault | Delivered | [v4/v4.7.0.md](v4/v4.7.0.md) |
 | v4.7.1 | KeePass Import | Delivered | [v4/v4.7.1.md](v4/v4.7.1.md) |
-| v4.7.2 | Credential Versioning | In Progress | [.claude/v4.7.2.md](../.claude/v4.7.2.md) |
-| v4.7.3 | Import Source Tagging | In Progress | [.claude/v4.7.3.md](../.claude/v4.7.3.md) |
+| v4.7.2 | Credential Versioning | Delivered | [v4/v4.7.2.md](v4/v4.7.2.md) |
+| v4.7.3 | Import Source Tagging | Delivered | [v4/v4.7.3.md](v4/v4.7.3.md) |
