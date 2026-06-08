@@ -37,6 +37,12 @@ def webhook(request):
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
+    logger.info('jira_webhook_post_received', extra={
+        'content_length': request.headers.get('Content-Length', '?'),
+        'has_signature': bool(request.headers.get('X-Hub-Signature')),
+        'remote_addr': request.META.get('REMOTE_ADDR', '?'),
+    })
+
     if not _verify_signature(request):
         logger.warning('jira_webhook_invalid_signature')
         return HttpResponse(status=403)
@@ -49,6 +55,12 @@ def webhook(request):
 
     event_type = payload.get('webhookEvent', '')
     issue = payload.get('issue', {})
+
+    logger.info('jira_webhook_payload_parsed', extra={
+        'event_type': event_type,
+        'issue_key': issue.get('key', '—') if issue else '—',
+        'has_issue': bool(issue),
+    })
 
     if not issue:
         return HttpResponse(status=200)
@@ -66,10 +78,10 @@ def webhook(request):
     ticket, created = JiraTicket.objects.update_or_create(
         issue_key=issue_key,
         defaults={
-            'title': title,
-            'project_key': project_key,
-            'issue_type': issue_type,
-            'status': status,
+            'title': title[:500],
+            'project_key': project_key[:50],
+            'issue_type': issue_type[:100],
+            'status': status[:100],
         },
     )
 
@@ -106,14 +118,16 @@ def _build_summary(event_type, payload):
             elif to_str:
                 parts.append(f"{field} set to {to_str}")
         if parts:
-            return '; '.join(parts)
+            result = '; '.join(parts)
+            return result[:497] + '...' if len(result) > 500 else result
 
     comment = payload.get('comment', {})
     if comment:
         author = comment.get('author', {}).get('displayName', '')
-        return f"Comment by {author}" if author else 'Comment added'
+        summary = f"Comment by {author}" if author else 'Comment added'
+        return summary[:497] + '...' if len(summary) > 500 else summary
 
-    return event_type.replace('jira:', '').replace('_', ' ').title()
+    return event_type.replace('jira:', '').replace('_', ' ').title()[:500]
 
 
 @login_required
