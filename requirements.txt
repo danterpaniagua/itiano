@@ -6,3 +6,4 @@ jsonpath-ng==1.8.0
 cryptography==44.0.3
 markdown==3.7
 jira2markdown==0.5
+pykeepass==4.1.0
