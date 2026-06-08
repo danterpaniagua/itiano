@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Import Preview – Vault – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">Import Preview</h5>
+</div>
+
+<div class="alert alert-info">
+    <strong>{{ new_count }}</strong> credential{{ new_count|pluralize }} will be imported.
+    {% if skip_count %}
+    <strong>{{ skip_count }}</strong> skipped (already exist with the same name).
+    {% endif %}
+</div>
+
+<div class="table-responsive mb-3">
+    <table class="table table-sm align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Name</th>
+                <th>Username</th>
+                <th>URL</th>
+                <th>Tags</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in entries %}
+            <tr {% if e.duplicate %}class="text-muted"{% endif %}>
+                <td>{{ e.name }}</td>
+                <td>{{ e.username }}</td>
+                <td class="small">{{ e.url|truncatechars:50 }}</td>
+                <td class="small">{{ e.tags|join:", " }}</td>
+                <td>
+                    {% if e.duplicate %}
+                    <span class="badge bg-warning text-dark">Skip</span>
+                    {% else %}
+                    <span class="badge bg-success">Import</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<form method="post" action="{% url 'vault-import-confirm' %}">
+    {% csrf_token %}
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" {% if not new_count %}disabled{% endif %}>
+            Confirm Import ({{ new_count }})
+        </button>
+        <a href="{% url 'vault-import' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

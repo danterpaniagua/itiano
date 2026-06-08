@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Import – Vault – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">Import from KeePass</h5>
+    <a href="{% url 'vault-list' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="row">
+<div class="col-12 col-md-6">
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label fw-semibold">File</label>
+        <input type="file" name="file" class="form-control" accept=".kdbx,.xml" required>
+        <div class="form-text">Supported: KeePass 2 (.kdbx) or KeePass XML export (.xml).</div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label fw-semibold">Master Password <span class="text-muted fw-normal small">(required for .kdbx)</span></label>
+        <input type="password" name="password" class="form-control" autocomplete="off">
+    </div>
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Preview Import</button>
+        <a href="{% url 'vault-list' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+
+</div>
+</div>
+{% endblock %}

@@ -90,3 +90,78 @@ def credential_copy(request, pk):
     else:
         secret = decrypt_for_user(credential.owner, credential.encrypted_private_key)
     return JsonResponse({'secret': secret})
+
+
+@login_required
+def import_credentials(request):
+    error = None
+    if request.method == 'POST':
+        uploaded = request.FILES.get('file')
+        if not uploaded:
+            error = 'Please select a file.'
+        else:
+            filename = uploaded.name.lower()
+            try:
+                if filename.endswith('.kdbx'):
+                    from .importer import parse_kdbx
+                    import tempfile, os
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.kdbx') as tmp:
+                        for chunk in uploaded.chunks():
+                            tmp.write(chunk)
+                        tmp_path = tmp.name
+                    try:
+                        entries = parse_kdbx(tmp_path, request.POST.get('password', ''))
+                    finally:
+                        os.unlink(tmp_path)
+                elif filename.endswith('.xml'):
+                    from .importer import parse_xml
+                    entries = parse_xml(uploaded)
+                else:
+                    error = 'Unsupported file type. Use .kdbx or .xml.'
+                    entries = None
+
+                if entries is not None:
+                    existing = set(
+                        Credential.objects.filter(owner=request.user).values_list('name', flat=True)
+                    )
+                    for e in entries:
+                        e['duplicate'] = e['name'] in existing
+                    request.session['vault_import'] = entries
+                    return render(request, 'vault/import_preview.html', {
+                        'entries': entries,
+                        'new_count': sum(1 for e in entries if not e['duplicate']),
+                        'skip_count': sum(1 for e in entries if e['duplicate']),
+                    })
+            except Exception as exc:
+                error = f'Failed to parse file: {exc}'
+
+    return render(request, 'vault/import_form.html', {'error': error})
+
+
+@login_required
+@require_POST
+def import_confirm(request):
+    entries = request.session.pop('vault_import', None)
+    if not entries:
+        return redirect('vault-import')
+
+    existing = set(Credential.objects.filter(owner=request.user).values_list('name', flat=True))
+    from .crypto import encrypt_for_user
+
+    for e in entries:
+        if e['name'] in existing:
+            continue
+        cred = Credential.objects.create(
+            owner=request.user,
+            credential_type=Credential.TYPE_PASSWORD,
+            name=e['name'],
+            url=e['url'],
+            username=e['username'],
+            notes=e['notes'],
+            encrypted_password=encrypt_for_user(request.user, e['password']) if e['password'] else '',
+        )
+        if e['tags']:
+            tags = [Tag.objects.get_or_create(name=t)[0] for t in e['tags']]
+            cred.tags.set(tags)
+
+    return redirect('vault-list')

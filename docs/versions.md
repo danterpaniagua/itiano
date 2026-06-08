@@ -38,4 +38,5 @@
 | v4.5.2 | Resend Jira Event to Automations | Delivered | [v4/v4.5.2.md](v4/v4.5.2.md) |
 | v4.6.0 | Action/Trigger Change History + No-Op Save Guards | Delivered | [v4/v4.6.0.md](v4/v4.6.0.md) |
 | v4.6.1 | Docker Health Check + Graceful Shutdown | Delivered | [v4/v4.6.1.md](v4/v4.6.1.md) |
-| v4.7.0 | Credential Vault | Scoped | [v4/v4.7.0.md](v4/v4.7.0.md) |
+| v4.7.0 | Credential Vault | Delivered | [v4/v4.7.0.md](v4/v4.7.0.md) |
+| v4.7.1 | KeePass Import | In Progress | — |
