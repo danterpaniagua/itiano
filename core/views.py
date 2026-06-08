@@ -1,4 +1,5 @@
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import render
 
 from automations.models import Trigger
@@ -21,3 +22,12 @@ def dashboard(request):
         'jira_count': jira_count,
         'automations_count': automations_count,
     })
+
+
+def health(request):
+    try:
+        from django.db import connection
+        connection.ensure_connection()
+        return JsonResponse({'status': 'ok'})
+    except Exception:
+        return JsonResponse({'status': 'error'}, status=503)

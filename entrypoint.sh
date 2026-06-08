@@ -23,5 +23,7 @@ python manage.py collectstatic --noinput
 exec gunicorn config.wsgi:application \
   --bind 0.0.0.0:8000 \
   --workers 2 \
+  --timeout 30 \
+  --graceful-timeout 30 \
   --access-logfile /app/logs/access.log \
   --error-logfile /app/logs/error.log
