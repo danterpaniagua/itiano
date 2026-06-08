@@ -9,4 +9,6 @@ urlpatterns = [
     path('<int:pk>/transition/', views.TransitionView.as_view(), name='ticket-transition'),
     path('<int:pk>/comment/', views.CommentCreateView.as_view(), name='ticket-comment'),
     path('<int:pk>/edit/', views.TicketEditView.as_view(), name='ticket-edit'),
+    path('<int:pk>/tags/add/', views.TicketTagAddView.as_view(), name='ticket-tag-add'),
+    path('<int:pk>/tags/<int:tag_pk>/remove/', views.TicketTagRemoveView.as_view(), name='ticket-tag-remove'),
 ]

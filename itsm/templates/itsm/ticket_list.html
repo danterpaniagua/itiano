@@ -4,6 +4,19 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <h5 class="mb-0 me-auto">Tickets</h5>
+    {% if all_tags %}
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <select name="tag" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+            <option value="">All tags</option>
+            {% for tag in all_tags %}
+            <option value="{{ tag.name }}" {% if tag.name == tag_filter %}selected{% endif %}>{{ tag.name }}</option>
+            {% endfor %}
+        </select>
+        {% if tag_filter %}
+        <a href="{% url 'ticket-list' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
+        {% endif %}
+    </form>
+    {% endif %}
     <a href="{% url 'ticket-create' %}" class="btn btn-primary btn-sm">
         <i class="bi bi-plus-lg"></i> New Ticket
     </a>
@@ -25,6 +38,13 @@
                         <small class="text-muted">
                             #{{ ticket.pk }}{% if ticket.external_id %} · <span class="font-monospace">{{ ticket.external_id }}</span>{% endif %} · {{ ticket.get_type_display }} · {{ ticket.get_priority_display }}
                         </small>
+                        {% if ticket.tags.all %}
+                        <div class="mt-1 d-flex flex-wrap gap-1">
+                            {% for tag in ticket.tags.all %}
+                            <span class="badge bg-light text-dark border" style="font-size:.7rem">{{ tag.name }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
                     <span class="badge bg-{{ ticket.state_badge_class }} ms-2 text-nowrap">
                         {{ ticket.get_state_display }}
@@ -48,6 +68,7 @@
                     <th>Type</th>
                     <th>State</th>
                     <th>Priority</th>
+                    <th>Tags</th>
                     <th>Requester</th>
                     <th>Assigned To</th>
                     <th>Created</th>
@@ -62,6 +83,11 @@
                     <td>{{ ticket.get_type_display }}</td>
                     <td><span class="badge bg-{{ ticket.state_badge_class }}">{{ ticket.get_state_display }}</span></td>
                     <td>{{ ticket.get_priority_display }}</td>
+                    <td>
+                        {% for tag in ticket.tags.all %}
+                        <span class="badge bg-light text-dark border me-1" style="font-size:.75rem">{{ tag.name }}</span>
+                        {% endfor %}
+                    </td>
                     <td>{{ ticket.requester.username }}</td>
                     <td>{{ ticket.assigned_to.username|default:"—" }}</td>
                     <td class="text-muted">{{ ticket.created_at|date:"d/m/Y" }}</td>

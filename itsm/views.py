@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
 from .forms import CommentForm, TicketEditForm, TicketForm
-from .models import Ticket, TicketEvent
+from .models import Tag, Ticket, TicketEvent, TicketTag
 from .permissions import can_comment, can_edit_ticket, can_view_ticket
 from .transitions import TRANSITION_LABELS, get_available_transitions, perform_transition
 
@@ -28,8 +28,16 @@ class TicketListView(LoginRequiredMixin, View):
         else:
             tickets = Ticket.objects.filter(requester=request.user)
 
-        tickets = tickets.select_related('requester', 'assigned_to').order_by('-created_at')
-        return render(request, 'itsm/ticket_list.html', {'tickets': tickets})
+        tag_filter = request.GET.get('tag', '')
+        if tag_filter:
+            tickets = tickets.filter(tags__name=tag_filter)
+
+        tickets = tickets.select_related('requester', 'assigned_to').prefetch_related('tags').order_by('-created_at')
+        return render(request, 'itsm/ticket_list.html', {
+            'tickets': tickets,
+            'all_tags': Tag.objects.all(),
+            'tag_filter': tag_filter,
+        })
 
 
 class TicketCreateView(LoginRequiredMixin, View):
@@ -67,6 +75,10 @@ class TicketDetailView(LoginRequiredMixin, View):
             for t in raw_transitions
         ]
 
+        ticket_tags = ticket.ticket_tags.select_related('tag').all()
+        assigned_tag_ids = {tt.tag_id for tt in ticket_tags}
+        addable_tags = Tag.objects.exclude(pk__in=assigned_tag_ids)
+
         return render(request, 'itsm/ticket_detail.html', {
             'ticket': ticket,
             'events': ticket.events.select_related('actor').all(),
@@ -75,6 +87,8 @@ class TicketDetailView(LoginRequiredMixin, View):
             'can_comment': can_comment(request.user, ticket),
             'can_edit': can_edit_ticket(request.user, ticket),
             'comment_form': CommentForm(),
+            'ticket_tags': ticket_tags,
+            'addable_tags': addable_tags,
         })
 
 
@@ -155,4 +169,25 @@ class TicketEditView(LoginRequiredMixin, View):
                 )
 
         messages.success(request, 'Ticket updated.')
+        return redirect('ticket-detail', pk=pk)
+
+
+class TicketTagAddView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        ticket = get_object_or_404(Ticket, pk=pk)
+        if not can_edit_ticket(request.user, ticket):
+            raise PermissionDenied
+        tag_id = request.POST.get('tag_id')
+        if tag_id:
+            tag = get_object_or_404(Tag, pk=tag_id)
+            TicketTag.objects.get_or_create(ticket=ticket, tag=tag, defaults={'source': TicketTag.SOURCE_MANUAL})
+        return redirect('ticket-detail', pk=pk)
+
+
+class TicketTagRemoveView(LoginRequiredMixin, View):
+    def post(self, request, pk, tag_pk):
+        ticket = get_object_or_404(Ticket, pk=pk)
+        if not can_edit_ticket(request.user, ticket):
+            raise PermissionDenied
+        TicketTag.objects.filter(ticket=ticket, tag_id=tag_pk, source=TicketTag.SOURCE_MANUAL).delete()
         return redirect('ticket-detail', pk=pk)

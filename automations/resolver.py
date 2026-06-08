@@ -23,4 +23,6 @@ def resolve_value(expression, payload):
         logger.debug('automations_resolver_no_match', extra={'expression': expression})
         return None
 
-    return matches[0].value
+    if len(matches) == 1:
+        return matches[0].value
+    return [m.value for m in matches]

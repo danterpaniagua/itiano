@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Category, Comment, Ticket, TicketEvent
+from .models import Category, Comment, Tag, Ticket, TicketEvent
 
 
 class TicketEventInline(admin.TabularInline):
@@ -35,3 +35,9 @@ class CategoryAdmin(admin.ModelAdmin):
 class TicketEventAdmin(admin.ModelAdmin):
     list_display = ('ticket', 'actor', 'from_state', 'to_state', 'created_at')
     readonly_fields = ('ticket', 'actor', 'from_state', 'to_state', 'note', 'created_at')
+
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)

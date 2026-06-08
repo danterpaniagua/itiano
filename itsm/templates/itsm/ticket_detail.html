@@ -54,6 +54,38 @@
     </div>
 </div>
 
+{# Tags #}
+{% if ticket_tags or can_edit %}
+<div class="mb-3 d-flex flex-wrap align-items-center gap-2">
+    {% for tt in ticket_tags %}
+    <span class="badge bg-light text-dark border d-inline-flex align-items-center gap-1">
+        {{ tt.tag.name }}
+        {% if tt.source == 'manual' and can_edit %}
+        <form method="post" action="{% url 'ticket-tag-remove' ticket.pk tt.tag.pk %}" class="d-inline m-0 p-0">
+            {% csrf_token %}
+            <button type="submit" class="btn-close btn-close-sm" style="font-size:.5rem" aria-label="Remove"></button>
+        </form>
+        {% endif %}
+        {% if tt.source == 'automation' %}
+        <i class="bi bi-robot" style="font-size:.65rem" title="Set by automation"></i>
+        {% endif %}
+    </span>
+    {% endfor %}
+    {% if can_edit and addable_tags %}
+    <form method="post" action="{% url 'ticket-tag-add' ticket.pk %}" class="d-inline-flex gap-1 align-items-center">
+        {% csrf_token %}
+        <select name="tag_id" class="form-select form-select-sm" style="width:auto">
+            <option value="">Add tag...</option>
+            {% for tag in addable_tags %}
+            <option value="{{ tag.pk }}">{{ tag.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline-secondary btn-sm">+</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
 {# State transitions #}
 {% if available_transitions %}
 <div class="card mb-3">

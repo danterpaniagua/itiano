@@ -75,6 +75,7 @@ class Ticket(models.Model):
     sub_service = models.CharField(max_length=255, blank=True)
     creator_name = models.CharField(max_length=255, blank=True)
     external_id = models.CharField(max_length=255, blank=True, db_index=True)
+    tags = models.ManyToManyField('Tag', through='TicketTag', blank=True, related_name='tickets')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -105,6 +106,32 @@ class TicketEvent(models.Model):
 
     def __str__(self):
         return f"#{self.ticket_id} {self.from_state} → {self.to_state}"
+
+
+class Tag(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class TicketTag(models.Model):
+    SOURCE_MANUAL = 'manual'
+    SOURCE_AUTOMATION = 'automation'
+    SOURCES = [
+        (SOURCE_MANUAL, 'Manual'),
+        (SOURCE_AUTOMATION, 'Automation'),
+    ]
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='ticket_tags')
+    tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name='ticket_tags')
+    source = models.CharField(max_length=20, choices=SOURCES, default=SOURCE_MANUAL)
+
+    class Meta:
+        unique_together = [('ticket', 'tag')]
 
 
 class Comment(models.Model):

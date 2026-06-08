@@ -110,6 +110,38 @@ def _resolve_fields(mappings, payload):
     }
 
 
+def _resolve_tag_names(action, payload):
+    from .resolver import resolve_value
+    if action.tag_expressions.strip():
+        exprs = [line.strip() for line in action.tag_expressions.splitlines() if line.strip()]
+    else:
+        exprs = action.field_mappings.get('tags', [])
+        if not isinstance(exprs, list):
+            exprs = [exprs]
+    names = set()
+    for expr in exprs:
+        result = resolve_value(expr, payload)
+        if isinstance(result, list):
+            for item in result:
+                if item:
+                    names.add(str(item).strip())
+        elif result:
+            names.add(str(result).strip())
+    return names
+
+
+def _upsert_tags(ticket, tag_names):
+    from itsm.models import Tag, TicketTag
+    TicketTag.objects.filter(ticket=ticket, source=TicketTag.SOURCE_AUTOMATION).delete()
+    for name in tag_names:
+        if name:
+            tag, _ = Tag.objects.get_or_create(name=name)
+            TicketTag.objects.get_or_create(
+                ticket=ticket, tag=tag,
+                defaults={'source': TicketTag.SOURCE_AUTOMATION},
+            )
+
+
 def _normalize_description(text, fmt):
     if not text:
         return text
@@ -129,6 +161,7 @@ def _upsert_ticket(action, payload):
 
     fields = _resolve_fields(action.field_mappings, payload)
     fields['description'] = _normalize_description(fields['description'], action.description_format)
+    tag_names = _resolve_tag_names(action, payload)
 
     # external_id: prefer field_mappings["key"], fall back to dedup_expression
     external_id = fields['key']
@@ -141,10 +174,11 @@ def _upsert_ticket(action, payload):
         existing = Ticket.objects.filter(external_id=external_id).first()
         if existing:
             _update_ticket(existing, fields, action.system_user)
+            _upsert_tags(existing, tag_names)
             logger.info('automations_ticket_updated', extra={'ticket_id': existing.pk, 'external_id': external_id})
             return
 
-    Ticket.objects.create(
+    ticket = Ticket.objects.create(
         title=fields['title'],
         description=fields['description'],
         type=fields['type'],
@@ -156,6 +190,7 @@ def _upsert_ticket(action, payload):
         sub_service=fields['sub_service'],
         external_id=external_id,
     )
+    _upsert_tags(ticket, tag_names)
 
 
 def _ticket_field_str(ticket, field):
