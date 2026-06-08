@@ -42,3 +42,4 @@
 | v4.7.1 | KeePass Import | Delivered | [v4/v4.7.1.md](v4/v4.7.1.md) |
 | v4.7.2 | Credential Versioning | Delivered | [v4/v4.7.2.md](v4/v4.7.2.md) |
 | v4.7.3 | Import Source Tagging | Delivered | [v4/v4.7.3.md](v4/v4.7.3.md) |
+| v4.7.4 | Jira Webhook Fixes + Diagnostic Logs | Delivered | [v4/v4.7.4.md](v4/v4.7.4.md) |
