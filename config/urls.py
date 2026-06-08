@@ -9,5 +9,6 @@ urlpatterns = [
     path('sandbox/', include('json_sandbox.urls')),
     path('automations/', include('automations.urls')),
     path('clipboard/', include('clipboard.urls')),
+    path('vault/', include('vault.urls')),
     path('', include('core.urls')),
 ]

@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'json_sandbox',
     'automations',
     'clipboard',
+    'vault',
 ]
 
 MIDDLEWARE = [

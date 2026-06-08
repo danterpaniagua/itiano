@@ -1,0 +1,24 @@
+<h6>Credential Vault</h6>
+<p>Personal encrypted storage for passwords, SSH keys, and certificates.</p>
+
+<h6 class="mt-3">Credential Types</h6>
+<ul>
+    <li><strong>Password</strong> — URL, username, and encrypted password.</li>
+    <li><strong>SSH Key</strong> — Encrypted private key, optional passphrase, and plaintext public key.</li>
+    <li><strong>Certificate</strong> — Encrypted private key and plaintext certificate PEM.</li>
+</ul>
+
+<h6 class="mt-3">Visibility</h6>
+<ul>
+    <li><strong>Personal</strong> — Only you can see it.</li>
+    <li><strong>Team</strong> — All members of the selected team can see and copy it. Only the owner can edit or delete it.</li>
+</ul>
+
+<h6 class="mt-3">Copying Secrets</h6>
+<p>Secrets are never shown in plaintext. Use the <i class="bi bi-clipboard"></i> button to copy the decrypted secret directly to your clipboard via a secure AJAX request.</p>
+
+<h6 class="mt-3">Expiry Warnings</h6>
+<p>Credentials with an expiry date within 30 days show a warning badge in the list.</p>
+
+<h6 class="mt-3 text-warning">SECRET_KEY Rotation Warning</h6>
+<p>Each user's vault key is encrypted with a key derived from <code>SECRET_KEY</code>. Rotating <code>SECRET_KEY</code> will make <strong>all vault credentials unreadable</strong>. Export or re-enter credentials before rotating.</p>
