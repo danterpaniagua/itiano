@@ -4,3 +4,4 @@ gunicorn==22.0.0
 whitenoise==6.7.0
 jsonpath-ng==1.8.0
 cryptography==44.0.3
+markdown==3.7

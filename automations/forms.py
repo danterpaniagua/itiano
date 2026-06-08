@@ -21,7 +21,7 @@ def _apply_bootstrap(form):
 class ActionForm(forms.ModelForm):
     class Meta:
         model = Action
-        fields = ['name', 'action_type', 'field_mappings', 'system_user', 'dedup_expression', 'is_active']
+        fields = ['name', 'action_type', 'description_format', 'field_mappings', 'system_user', 'dedup_expression', 'is_active']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

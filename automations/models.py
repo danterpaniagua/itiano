@@ -8,8 +8,23 @@ class Action(models.Model):
         (ACTION_CREATE_TICKET, 'Create Ticket'),
     ]
 
+    FORMAT_RAW = 'raw'
+    FORMAT_HTML = 'html'
+    FORMAT_MARKDOWN = 'markdown'
+    DESCRIPTION_FORMATS = [
+        (FORMAT_RAW, 'Plain text'),
+        (FORMAT_HTML, 'HTML'),
+        (FORMAT_MARKDOWN, 'Markdown'),
+    ]
+
     name = models.CharField(max_length=100)
     action_type = models.CharField(max_length=50, choices=ACTION_TYPES)
+    description_format = models.CharField(
+        max_length=10,
+        choices=DESCRIPTION_FORMATS,
+        default=FORMAT_RAW,
+        help_text='Format of the description field in the incoming payload.',
+    )
     field_mappings = models.JSONField(
         help_text=(
             'Map ticket fields to JSONPath expressions or literal values. '

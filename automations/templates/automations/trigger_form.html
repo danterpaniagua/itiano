@@ -41,7 +41,7 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('textarea.font-monospace').forEach(function (ta) {
+    document.querySelectorAll('form textarea.font-monospace').forEach(function (ta) {
         const fb = document.createElement('div');
         fb.className = 'invalid-feedback';
         ta.after(fb);
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     document.querySelector('form').addEventListener('submit', function (e) {
-        const bad = document.querySelector('textarea.font-monospace.is-invalid');
+        const bad = document.querySelector('form textarea.font-monospace.is-invalid');
         if (bad) { e.preventDefault(); bad.focus(); }
     });
 });

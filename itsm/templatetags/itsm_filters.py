@@ -5,7 +5,7 @@ from django.utils.html import escape, mark_safe
 
 register = template.Library()
 
-_HTML_RE = re.compile(r'<(p|br|ul|ol|li|div|h[1-6]|strong|em|span|a|table|tr|td|th|blockquote)[\s/>]', re.IGNORECASE)
+_HTML_RE = re.compile(r'</?[a-z][a-z0-9]*[\s/>]', re.IGNORECASE)
 
 
 @register.filter

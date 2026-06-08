@@ -110,11 +110,21 @@ def _resolve_fields(mappings, payload):
     }
 
 
+def _normalize_description(text, fmt):
+    if not text:
+        return text
+    if fmt == 'markdown':
+        import markdown as md
+        return md.markdown(text, extensions=['nl2br', 'tables', 'fenced_code'])
+    return text
+
+
 def _upsert_ticket(action, payload):
     from itsm.models import Ticket
     from .resolver import resolve_value
 
     fields = _resolve_fields(action.field_mappings, payload)
+    fields['description'] = _normalize_description(fields['description'], action.description_format)
 
     # external_id: prefer field_mappings["key"], fall back to dedup_expression
     external_id = fields['key']
