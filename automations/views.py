@@ -8,7 +8,27 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .forms import ActionForm, TriggerForm
-from .models import Action, Trigger, TriggerLog
+from .models import Action, ActionHistory, Trigger, TriggerHistory, TriggerLog
+
+_ACTION_TRACKED = ['name', 'action_type', 'description_format', 'field_mappings', 'tag_expressions', 'system_user', 'dedup_expression', 'is_active']
+_TRIGGER_TRACKED = ['name', 'source', 'filter', 'action', 'is_active']
+
+
+def _snapshot(instance, fields):
+    snap = {}
+    for f in fields:
+        val = getattr(instance, f, None)
+        snap[f] = str(val.pk) if hasattr(val, 'pk') else ('' if val is None else str(val))
+    return snap
+
+
+def _record_history(history_model, fk_name, instance, user, before, after):
+    records = [
+        history_model(**{fk_name: instance, 'user': user, 'field_name': f, 'old_value': before[f], 'new_value': after[f]})
+        for f in before if before[f] != after.get(f, '')
+    ]
+    if records:
+        history_model.objects.bulk_create(records)
 
 logger = logging.getLogger(__name__)
 
@@ -59,14 +79,22 @@ def action_edit(request, pk):
     action = get_object_or_404(Action, pk=pk)
     form = ActionForm(request.POST or None, instance=action)
     if form.is_valid():
+        if not form.has_changed():
+            messages.info(request, 'No changes detected.')
+            return redirect('automations-action-list')
+        before = _snapshot(action, _ACTION_TRACKED)
         form.save()
+        action.refresh_from_db()
+        _record_history(ActionHistory, 'action', action, request.user, before, _snapshot(action, _ACTION_TRACKED))
         messages.success(request, 'Action updated.')
         return redirect('automations-action-list')
+    history = action.history.select_related('user')[:20]
     return render(request, 'automations/action_form.html', {
         'form': form,
         'title': 'Edit Action',
         'section': 'actions',
         'cancel_url': 'automations-action-list',
+        'history': history,
     })
 
 
@@ -110,14 +138,22 @@ def trigger_edit(request, pk):
     trigger = get_object_or_404(Trigger, pk=pk)
     form = TriggerForm(request.POST or None, instance=trigger)
     if form.is_valid():
+        if not form.has_changed():
+            messages.info(request, 'No changes detected.')
+            return redirect('automations-trigger-list')
+        before = _snapshot(trigger, _TRIGGER_TRACKED)
         form.save()
+        trigger.refresh_from_db()
+        _record_history(TriggerHistory, 'trigger', trigger, request.user, before, _snapshot(trigger, _TRIGGER_TRACKED))
         messages.success(request, 'Trigger updated.')
         return redirect('automations-trigger-list')
+    history = trigger.history.select_related('user')[:20]
     return render(request, 'automations/trigger_form.html', {
         'form': form,
         'title': 'Edit Trigger',
         'section': 'triggers',
         'cancel_url': 'automations-trigger-list',
+        'history': history,
     })
 
 

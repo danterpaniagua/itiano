@@ -34,5 +34,7 @@
 | v4.4.2 | Clipboard Maximize + Requester Mapping | Delivered | [v4/v4.4.2.md](v4/v4.4.2.md) |
 | v4.4.3 | Automation Log Detail + Event Overflow | Delivered | [v4/v4.4.3.md](v4/v4.4.3.md) |
 | v4.5.0 | Ticket Tags | Delivered | [v4/v4.5.0.md](v4/v4.5.0.md) |
-| v4.6.0 | Action/Trigger Change History | Scoped | — |
+| v4.5.1 | Tag Expressions Field + Resolver Fix | Delivered | [v4/v4.5.1.md](v4/v4.5.1.md) |
+| v4.5.2 | Resend Jira Event to Automations | Delivered | [v4/v4.5.2.md](v4/v4.5.2.md) |
+| v4.6.0 | Action/Trigger Change History + No-Op Save Guards | In Progress | — |
 | v4.7.0 | Credential Vault | Scoped | [v4/v4.7.0.md](v4/v4.7.0.md) |

@@ -34,6 +34,33 @@
                 <a href="{% url cancel_url %}" class="btn btn-outline-secondary">Cancel</a>
             </div>
         </form>
+
+        {% if history %}
+        <div class="mt-4">
+            <button class="btn btn-sm btn-outline-secondary" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#trigger-history">
+                Change history ({{ history|length }})
+            </button>
+            <div class="collapse mt-2" id="trigger-history">
+                <ul class="list-group list-group-flush">
+                    {% for h in history %}
+                    <li class="list-group-item px-0 py-2">
+                        <div class="d-flex flex-wrap gap-2 align-items-baseline">
+                            <small class="text-muted text-nowrap">{{ h.changed_at|date:"d/m/Y H:i" }}</small>
+                            <span class="fw-semibold small">{{ h.user.username|default:"—" }}</span>
+                            <span class="badge bg-light text-dark border">{{ h.field_name }}</span>
+                        </div>
+                        <div class="small mt-1">
+                            <span class="text-muted">{{ h.old_value|default:"—"|truncatechars:120 }}</span>
+                            <span class="mx-1">→</span>
+                            <span>{{ h.new_value|default:"—"|truncatechars:120 }}</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

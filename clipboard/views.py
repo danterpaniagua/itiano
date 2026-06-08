@@ -14,9 +14,13 @@ def clipboard(request):
     entry, _ = ClipboardEntry.objects.get_or_create(user=request.user)
 
     if request.method == 'POST':
-        entry.set_content(request.POST.get('content', ''))
-        entry.save()
-        messages.success(request, 'Saved.')
+        new_content = request.POST.get('content', '')
+        if new_content != entry.get_decrypted():
+            entry.set_content(new_content)
+            entry.save()
+            messages.success(request, 'Saved.')
+        else:
+            messages.info(request, 'No changes detected.')
         return redirect('clipboard')
 
     return render(request, 'clipboard/clipboard.html', {
@@ -39,6 +43,9 @@ def clipboard_save(request):
     except (json.JSONDecodeError, ValueError):
         return JsonResponse({'ok': False, 'error': 'Invalid JSON'}, status=400)
     entry, _ = ClipboardEntry.objects.get_or_create(user=request.user)
-    entry.set_content(data.get('content', ''))
+    new_content = data.get('content', '')
+    if new_content == entry.get_decrypted():
+        return JsonResponse({'ok': True, 'changed': False})
+    entry.set_content(new_content)
     entry.save()
-    return JsonResponse({'ok': True})
+    return JsonResponse({'ok': True, 'changed': True})

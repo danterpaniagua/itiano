@@ -60,6 +60,18 @@ class Action(models.Model):
         return self.name
 
 
+class ActionHistory(models.Model):
+    action = models.ForeignKey(Action, on_delete=models.CASCADE, related_name='history')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    field_name = models.CharField(max_length=100)
+    old_value = models.TextField(blank=True)
+    new_value = models.TextField(blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at']
+
+
 class Trigger(models.Model):
     SOURCE_JIRA = 'jira'
     SOURCES = [
@@ -85,6 +97,18 @@ class Trigger(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class TriggerHistory(models.Model):
+    trigger = models.ForeignKey(Trigger, on_delete=models.CASCADE, related_name='history')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    field_name = models.CharField(max_length=100)
+    old_value = models.TextField(blank=True)
+    new_value = models.TextField(blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at']
 
 
 class TriggerLog(models.Model):

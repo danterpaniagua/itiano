@@ -154,6 +154,10 @@ class TicketEditView(LoginRequiredMixin, View):
         if not form.is_valid():
             return render(request, 'itsm/ticket_edit.html', {'ticket': ticket, 'form': form})
 
+        if not form.has_changed():
+            messages.info(request, 'No changes detected.')
+            return redirect('ticket-detail', pk=pk)
+
         form.save()
         ticket.refresh_from_db()
 
