@@ -30,7 +30,10 @@
                     <a class="nav-link" href="{% url 'docs' %}">Docs</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'clipboard' %}">Clipboard</a>
+                    <button class="btn btn-link nav-link" type="button"
+                            data-bs-toggle="offcanvas" data-bs-target="#clipboardOffcanvas">
+                        <i class="bi bi-journal-text"></i> Clipboard
+                    </button>
                 </li>
                 {% if request.user.is_staff %}
                 <li class="nav-item">
@@ -74,7 +77,97 @@
     {% block content %}{% endblock %}
 </main>
 
+{% if user.is_authenticated %}
+<div class="offcanvas offcanvas-end" tabindex="-1" id="clipboardOffcanvas" style="width:420px">
+    <div class="offcanvas-header border-bottom">
+        <h6 class="offcanvas-title mb-0"><i class="bi bi-journal-text"></i> Clipboard</h6>
+        <div class="btn-group btn-group-sm ms-auto me-2" role="group">
+            <button type="button" class="btn btn-dark" id="oc-btn-edit" onclick="ocSetMode('edit')">
+                <i class="bi bi-pencil"></i> Edit
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="oc-btn-preview" onclick="ocSetMode('preview')">
+                <i class="bi bi-eye"></i> Preview
+            </button>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column p-2">
+        <div id="oc-panel-edit" class="flex-grow-1 d-flex flex-column">
+            <textarea id="oc-editor" class="form-control font-monospace flex-grow-1"
+                      style="resize:none; min-height:300px"
+                      spellcheck="false"
+                      placeholder="Write markdown here..."></textarea>
+        </div>
+        <div id="oc-panel-preview" style="display:none" class="flex-grow-1 overflow-auto">
+            <div class="p-2" id="oc-preview-content"></div>
+        </div>
+        <div class="d-flex gap-2 mt-2 border-top pt-2">
+            <button class="btn btn-primary btn-sm flex-grow-1" onclick="ocSave()">
+                <i class="bi bi-floppy"></i> Save
+            </button>
+            <a href="{% url 'clipboard' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-up-right-square"></i>
+            </a>
+        </div>
+        <div id="oc-status" class="small text-muted mt-1" style="min-height:1.2em"></div>
+    </div>
+</div>
+{% endif %}
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% if user.is_authenticated %}
+<script>
+(function () {
+    const oc = document.getElementById('clipboardOffcanvas');
+    if (!oc) return;
+
+    const csrfToken = '{{ csrf_token }}';
+
+    oc.addEventListener('show.bs.offcanvas', function () {
+        fetch('{% url "clipboard-content" %}')
+            .then(r => r.json())
+            .then(d => { document.getElementById('oc-editor').value = d.content || ''; });
+    });
+
+    window.ocSetMode = function (mode) {
+        const edit = document.getElementById('oc-panel-edit');
+        const preview = document.getElementById('oc-panel-preview');
+        const btnEdit = document.getElementById('oc-btn-edit');
+        const btnPreview = document.getElementById('oc-btn-preview');
+        if (mode === 'preview') {
+            document.getElementById('oc-preview-content').innerHTML =
+                marked.parse(document.getElementById('oc-editor').value || '');
+            edit.style.display = 'none';
+            preview.style.display = '';
+            btnEdit.className = 'btn btn-outline-secondary';
+            btnPreview.className = 'btn btn-dark';
+        } else {
+            edit.style.display = '';
+            preview.style.display = 'none';
+            btnEdit.className = 'btn btn-dark';
+            btnPreview.className = 'btn btn-outline-secondary';
+        }
+    };
+
+    window.ocSave = function () {
+        const content = document.getElementById('oc-editor').value;
+        const status = document.getElementById('oc-status');
+        fetch('{% url "clipboard-save" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({content}),
+        })
+        .then(r => r.json())
+        .then(d => {
+            status.textContent = d.ok ? 'Saved.' : 'Error saving.';
+            setTimeout(() => { status.textContent = ''; }, 2000);
+        })
+        .catch(() => { status.textContent = 'Network error.'; });
+    };
+})();
+</script>
+{% endif %}
 {% block extra_js %}{% endblock %}
 
 <footer class="border-top mt-4 py-2 text-center text-muted small">
