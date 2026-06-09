@@ -22,16 +22,14 @@ class ActionForm(forms.ModelForm):
     class Meta:
         model = Action
         fields = ['name', 'action_type', 'description_format', 'field_mappings', 'tag_expressions', 'system_user', 'dedup_expression', 'is_active']
+        widgets = {
+            'tag_expressions': forms.HiddenInput(),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         _apply_bootstrap(self)
         self.fields['dedup_expression'].widget.attrs['placeholder'] = '$.issue.key'
-        self.fields['tag_expressions'].widget.attrs.update({
-            'rows': 4,
-            'placeholder': '$.issue.status.name\n$.issue.labels[*]',
-            'spellcheck': 'false',
-        })
 
 
 class TriggerForm(forms.ModelForm):

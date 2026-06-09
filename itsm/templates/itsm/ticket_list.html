@@ -42,7 +42,7 @@
                         {% if ticket.tags.all %}
                         <div class="mt-1 d-flex flex-wrap gap-1">
                             {% for tag in ticket.tags.all %}
-                            <span class="badge bg-light text-dark border" style="font-size:.7rem">{{ tag.name }}</span>
+                            <span class="badge" style="font-size:.7rem;background-color:{{ tag.display_color }};color:#fff;">{{ tag.name }}</span>
                             {% endfor %}
                         </div>
                         {% endif %}
@@ -86,7 +86,7 @@
                     <td>{{ ticket.get_priority_display }}</td>
                     <td>
                         {% for tag in ticket.tags.all %}
-                        <span class="badge bg-light text-dark border me-1" style="font-size:.75rem">{{ tag.name }}</span>
+                        <span class="badge me-1" style="font-size:.75rem;background-color:{{ tag.display_color }};color:#fff;">{{ tag.name }}</span>
                         {% endfor %}
                     </td>
                     <td>{% if ticket.requester.contact %}{{ ticket.requester.contact.full_name }}{% else %}{{ ticket.requester.username }}{% endif %}</td>

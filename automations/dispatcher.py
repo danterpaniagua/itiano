@@ -110,33 +110,38 @@ def _resolve_fields(mappings, payload):
     }
 
 
-def _resolve_tag_names(action, payload):
+def _resolve_tags(action, payload):
+    """Return list of (name, color) pairs resolved from tag_expressions."""
     from .resolver import resolve_value
-    if action.tag_expressions.strip():
-        exprs = [line.strip() for line in action.tag_expressions.splitlines() if line.strip()]
-    else:
-        exprs = action.field_mappings.get('tags', [])
-        if not isinstance(exprs, list):
-            exprs = [exprs]
-    names = set()
-    for expr in exprs:
+    exprs = action.tag_expressions if isinstance(action.tag_expressions, list) else []
+    if not exprs:
+        raw = action.field_mappings.get('tags', [])
+        exprs = [{'expression': e, 'color': ''} for e in (raw if isinstance(raw, list) else [raw])]
+    results = []
+    for item in exprs:
+        expr = item.get('expression', '') if isinstance(item, dict) else str(item)
+        color = item.get('color', '') if isinstance(item, dict) else ''
+        if not expr:
+            continue
         result = resolve_value(expr, payload)
-        if isinstance(result, list):
-            for item in result:
-                if item:
-                    names.add(str(item).strip())
-        elif result:
-            names.add(str(result).strip())
-    return names
+        values = result if isinstance(result, list) else [result]
+        for v in values:
+            name = str(v).strip() if v else ''
+            if name:
+                results.append((name, color))
+    return results
 
 
-def _upsert_tags(ticket, tag_names):
+def _upsert_tags(ticket, tag_pairs):
     from itsm.models import Tag, TicketTag
     TicketTag.objects.filter(ticket=ticket, source=TicketTag.SOURCE_AUTOMATION).delete()
-    for name in tag_names:
+    for name, color in tag_pairs:
         if name:
             tag, _ = Tag.objects.get_or_create(name=name)
-            TicketTag.objects.get_or_create(
+            if color and tag.color != color:
+                tag.color = color
+                tag.save(update_fields=['color'])
+            TicketTag.objects.update_or_create(
                 ticket=ticket, tag=tag,
                 defaults={'source': TicketTag.SOURCE_AUTOMATION},
             )
@@ -161,7 +166,7 @@ def _upsert_ticket(action, payload):
 
     fields = _resolve_fields(action.field_mappings, payload)
     fields['description'] = _normalize_description(fields['description'], action.description_format)
-    tag_names = _resolve_tag_names(action, payload)
+    tag_names = _resolve_tags(action, payload)
 
     # external_id: prefer field_mappings["key"], fall back to dedup_expression
     external_id = fields['key']

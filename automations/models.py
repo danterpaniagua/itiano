@@ -40,9 +40,10 @@ class Action(models.Model):
         on_delete=models.PROTECT,
         help_text='User set as requester for tickets created by this action.',
     )
-    tag_expressions = models.TextField(
+    tag_expressions = models.JSONField(
+        default=list,
         blank=True,
-        help_text='One JSONPath expression per line. Each resolved value becomes a tag name on the ticket.',
+        help_text='List of {expression, color} objects. Each resolved value becomes a colored tag on the ticket.',
     )
     dedup_expression = models.CharField(
         max_length=500,

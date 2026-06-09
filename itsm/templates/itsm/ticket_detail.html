@@ -58,30 +58,36 @@
 {% if ticket_tags or can_edit %}
 <div class="mb-3 d-flex flex-wrap align-items-center gap-2">
     {% for tt in ticket_tags %}
-    <span class="badge bg-light text-dark border d-inline-flex align-items-center gap-1">
-        {{ tt.tag.name }}
+    <span class="badge d-inline-flex align-items-center gap-1"
+          style="background-color:{{ tt.tag.display_color }};color:#fff;">
+        {% if tt.source == 'automation' %}🤖 {% endif %}{{ tt.tag.name }}
         {% if tt.source == 'manual' and can_edit %}
         <form method="post" action="{% url 'ticket-tag-remove' ticket.pk tt.tag.pk %}" class="d-inline m-0 p-0">
             {% csrf_token %}
-            <button type="submit" class="btn-close btn-close-sm" style="font-size:.5rem" aria-label="Remove"></button>
+            <button type="submit" class="btn-close btn-close-white btn-close-sm" style="font-size:.5rem" aria-label="Remove"></button>
         </form>
-        {% endif %}
-        {% if tt.source == 'automation' %}
-        <i class="bi bi-robot" style="font-size:.65rem" title="Set by automation"></i>
         {% endif %}
     </span>
     {% endfor %}
-    {% if can_edit and addable_tags %}
-    <form method="post" action="{% url 'ticket-tag-add' ticket.pk %}" class="d-inline-flex gap-1 align-items-center">
-        {% csrf_token %}
-        <select name="tag_id" class="form-select form-select-sm" style="width:auto">
-            <option value="">Add tag...</option>
-            {% for tag in addable_tags %}
-            <option value="{{ tag.pk }}">{{ tag.name }}</option>
-            {% endfor %}
-        </select>
-        <button type="submit" class="btn btn-outline-secondary btn-sm">+</button>
-    </form>
+    {% if can_edit %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-add-tag">
+        <i class="bi bi-plus"></i> Tag
+    </button>
+    <div id="tag-add-form" class="d-none">
+        <form method="post" action="{% url 'ticket-tag-add' ticket.pk %}" class="d-flex flex-wrap gap-2 align-items-center mt-1" id="form-add-tag">
+            {% csrf_token %}
+            <input type="text" name="tag_name" id="tag-name-input" class="form-control form-control-sm" placeholder="Tag name…" autocomplete="off" style="width:160px">
+            <input type="hidden" name="tag_color" id="tag-color-hidden" value="#6c757d">
+            <div class="d-flex gap-1" id="tag-palette"></div>
+            <span class="d-inline-flex align-items-center gap-1">
+                <span id="tag-color-preview" style="display:inline-block;width:16px;height:16px;border-radius:3px;border:1px solid #ccc;background:transparent;flex-shrink:0"></span>
+                <input type="text" id="tag-hex-input" class="form-control form-control-sm" maxlength="7" placeholder="#custom" style="width:80px;font-size:.75rem" title="Custom hex color">
+            </span>
+            <button type="submit" class="btn btn-primary btn-sm">Add</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-cancel-tag">Cancel</button>
+        </form>
+        <div id="tag-suggestions" class="list-group mt-1" style="max-width:220px;position:absolute;z-index:100;display:none"></div>
+    </div>
     {% endif %}
 </div>
 {% endif %}
@@ -417,4 +423,119 @@
 
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const PALETTE = [
+        {label:'Primary',   value:'#0d6efd'},
+        {label:'Secondary', value:'#6c757d'},
+        {label:'Success',   value:'#198754'},
+        {label:'Danger',    value:'#dc3545'},
+        {label:'Warning',   value:'#ffc107'},
+        {label:'Info',      value:'#0dcaf0'},
+    ];
+
+    const btnAdd = document.getElementById('btn-add-tag');
+    if (!btnAdd) return;
+
+    const formWrap    = document.getElementById('tag-add-form');
+    const addWrap     = document.getElementById('tag-add-form').parentElement;
+    const nameInput   = document.getElementById('tag-name-input');
+    const colorHidden = document.getElementById('tag-color-hidden');
+    const hexInput    = document.getElementById('tag-hex-input');
+    const colorPreview = document.getElementById('tag-color-preview');
+    const palette     = document.getElementById('tag-palette');
+    const suggestions = document.getElementById('tag-suggestions');
+
+    PALETTE.forEach(function (p) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.color = p.value;
+        btn.style.cssText = 'width:18px;height:18px;border-radius:3px;border:2px solid transparent;background:' + p.value + ';cursor:pointer;padding:0;';
+        btn.title = p.label;
+        btn.addEventListener('click', function () {
+            setPaletteColor(p.value);
+        });
+        palette.appendChild(btn);
+    });
+
+    function syncPaletteBorder(c) {
+        palette.querySelectorAll('button').forEach(function (b) {
+            b.style.border = '2px solid ' + (b.dataset.color === c ? '#000' : 'transparent');
+        });
+    }
+
+    function setPaletteColor(c) {
+        colorHidden.value = c;
+        hexInput.value = '';
+        colorPreview.style.background = 'transparent';
+        syncPaletteBorder(c);
+    }
+
+    hexInput.addEventListener('input', function () {
+        const val = hexInput.value.trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+            colorHidden.value = val;
+            colorPreview.style.background = val;
+            syncPaletteBorder('');
+        }
+    });
+
+    btnAdd.addEventListener('click', function () {
+        document.getElementById('tag-add-form').parentElement.classList.remove('d-none');
+        btnAdd.classList.add('d-none');
+        nameInput.focus();
+    });
+
+    document.getElementById('btn-cancel-tag').addEventListener('click', function () {
+        document.getElementById('tag-add-form').parentElement.classList.add('d-none');
+        btnAdd.classList.remove('d-none');
+        suggestions.style.display = 'none';
+    });
+
+    let debounce;
+    nameInput.addEventListener('input', function () {
+        clearTimeout(debounce);
+        const q = nameInput.value.trim();
+        if (!q) { suggestions.style.display = 'none'; return; }
+        debounce = setTimeout(function () {
+            fetch('{% url "tag-autocomplete" %}?q=' + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    suggestions.innerHTML = '';
+                    if (!data.results.length) { suggestions.style.display = 'none'; return; }
+                    data.results.forEach(function (t) {
+                        const a = document.createElement('button');
+                        a.type = 'button';
+                        a.className = 'list-group-item list-group-item-action d-flex align-items-center gap-2 py-1 px-2 small';
+                        a.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:' + t.color + '"></span>' + t.name;
+                        a.addEventListener('click', function () {
+                            nameInput.value = t.name;
+                            const isPalette = PALETTE.some(function (p) { return p.value === t.color; });
+                            if (isPalette) {
+                                setPaletteColor(t.color);
+                            } else {
+                                colorHidden.value = t.color;
+                                hexInput.value = t.color;
+                                colorPreview.style.background = t.color;
+                                syncPaletteBorder('');
+                            }
+                            suggestions.style.display = 'none';
+                        });
+                        suggestions.appendChild(a);
+                    });
+                    suggestions.style.display = 'block';
+                });
+        }, 200);
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!suggestions.contains(e.target) && e.target !== nameInput) {
+            suggestions.style.display = 'none';
+        }
+    });
+})();
+</script>
 {% endblock %}

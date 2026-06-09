@@ -110,12 +110,17 @@ class TicketEvent(models.Model):
 
 class Tag(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    color = models.CharField(max_length=7, blank=True, default='')
 
     class Meta:
         ordering = ['name']
 
     def __str__(self):
         return self.name
+
+    @property
+    def display_color(self):
+        return self.color or '#6c757d'
 
 
 class TicketTag(models.Model):

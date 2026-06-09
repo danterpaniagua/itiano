@@ -11,6 +11,7 @@ urlpatterns = [
     path('<int:pk>/edit/', views.TicketEditView.as_view(), name='ticket-edit'),
     path('<int:pk>/tags/add/', views.TicketTagAddView.as_view(), name='ticket-tag-add'),
     path('<int:pk>/tags/<int:tag_pk>/remove/', views.TicketTagRemoveView.as_view(), name='ticket-tag-remove'),
+    path('tags/autocomplete/', views.TagAutocompleteView.as_view(), name='tag-autocomplete'),
     path('<int:pk>/attachments/upload/', views.AttachmentUploadView.as_view(), name='ticket-attachment-upload'),
     path('<int:pk>/attachments/<int:att_pk>/delete/', views.AttachmentDeleteView.as_view(), name='ticket-attachment-delete'),
 ]

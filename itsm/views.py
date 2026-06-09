@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
@@ -196,9 +197,13 @@ class TicketTagAddView(LoginRequiredMixin, View):
         ticket = get_object_or_404(Ticket, pk=pk)
         if not can_edit_ticket(request.user, ticket):
             raise PermissionDenied
-        tag_id = request.POST.get('tag_id')
-        if tag_id:
-            tag = get_object_or_404(Tag, pk=tag_id)
+        name = request.POST.get('tag_name', '').strip()
+        color = request.POST.get('tag_color', '').strip()
+        if name:
+            tag, _ = Tag.objects.get_or_create(name=name)
+            if color and tag.color != color:
+                tag.color = color
+                tag.save(update_fields=['color'])
             TicketTag.objects.get_or_create(ticket=ticket, tag=tag, defaults={'source': TicketTag.SOURCE_MANUAL})
         return redirect('ticket-detail', pk=pk)
 
@@ -210,6 +215,15 @@ class TicketTagRemoveView(LoginRequiredMixin, View):
             raise PermissionDenied
         TicketTag.objects.filter(ticket=ticket, tag_id=tag_pk, source=TicketTag.SOURCE_MANUAL).delete()
         return redirect('ticket-detail', pk=pk)
+
+
+class TagAutocompleteView(LoginRequiredMixin, View):
+    def get(self, request):
+        if not request.user.is_staff:
+            raise PermissionDenied
+        q = request.GET.get('q', '').strip()
+        tags = Tag.objects.filter(name__icontains=q)[:10] if q else Tag.objects.all()[:10]
+        return JsonResponse({'results': [{'name': t.name, 'color': t.display_color} for t in tags]})
 
 
 class AttachmentUploadView(LoginRequiredMixin, View):

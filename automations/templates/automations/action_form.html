@@ -16,6 +16,7 @@
         <form method="post" id="main-form">
             {% csrf_token %}
             {% for field in form %}
+            {% if field.html_name == 'tag_expressions' %}{{ field }}{% else %}
             <div class="mb-3">
                 {% if field.field.widget.input_type == 'checkbox' %}
                 <div class="form-check">
@@ -33,7 +34,19 @@
                 <div class="text-danger small mt-1">{{ error }}</div>
                 {% endfor %}
             </div>
+            {% endif %}
             {% endfor %}
+
+            {# Tag expressions custom UI #}
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Tag Expressions</label>
+                <div id="tag-expr-rows"></div>
+                <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="btn-add-expr">
+                    <i class="bi bi-plus"></i> Add expression
+                </button>
+                <div class="form-text">Each JSONPath expression extracts tag names from the payload. Pick a color per expression.</div>
+            </div>
+
             <div class="d-flex flex-wrap gap-2 mt-4">
                 <button type="submit" class="btn btn-primary">Save</button>
                 <a href="{% url cancel_url %}" class="btn btn-outline-secondary">Cancel</a>
@@ -71,6 +84,109 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+(function () {
+    const PALETTE = [
+        {label:'Primary',   value:'#0d6efd'},
+        {label:'Secondary', value:'#6c757d'},
+        {label:'Success',   value:'#198754'},
+        {label:'Danger',    value:'#dc3545'},
+        {label:'Warning',   value:'#ffc107'},
+        {label:'Info',      value:'#0dcaf0'},
+    ];
+
+    function colorSwatches(selectedColor) {
+        return PALETTE.map(function (p) {
+            const active = selectedColor === p.value ? ' ring-2' : '';
+            return '<button type="button" class="btn-swatch' + active + '" data-color="' + p.value + '" '
+                + 'style="width:18px;height:18px;border-radius:3px;border:2px solid ' + (selectedColor === p.value ? '#000' : 'transparent') + ';background:' + p.value + ';cursor:pointer;padding:0;" '
+                + 'title="' + p.label + '"></button>';
+        }).join('');
+    }
+
+    function makeRow(expr, color) {
+        expr = expr || '';
+        color = color || '#6c757d';
+        const isPalette = PALETTE.some(function (p) { return p.value === color; });
+        const row = document.createElement('div');
+        row.className = 'd-flex gap-2 align-items-center mb-2 tag-expr-row flex-wrap';
+        row.innerHTML =
+            '<input type="text" class="form-control form-control-sm font-monospace expr-input" placeholder="$.issue.fields.labels[*]" value="' + expr.replace(/"/g, '&quot;') + '" style="min-width:200px;flex:1">' +
+            '<div class="d-flex gap-1 align-items-center swatch-group">' + colorSwatches(color) + '</div>' +
+            '<span class="d-inline-flex align-items-center gap-1 custom-color-wrap">' +
+              '<span class="color-preview" style="display:inline-block;width:16px;height:16px;border-radius:3px;border:1px solid #ccc;background:' + (isPalette ? 'transparent' : color) + ';flex-shrink:0"></span>' +
+              '<input type="text" class="form-control form-control-sm hex-input" maxlength="7" placeholder="#custom" value="' + (isPalette ? '' : color) + '" style="width:80px;font-size:.75rem" title="Custom hex color">' +
+            '</span>' +
+            '<button type="button" class="btn btn-outline-danger btn-sm btn-rm-expr"><i class="bi bi-dash"></i></button>';
+
+        function syncSwatch(c) {
+            row.querySelectorAll('.btn-swatch').forEach(function (b) {
+                b.style.border = '2px solid ' + (b.dataset.color === c ? '#000' : 'transparent');
+            });
+        }
+
+        row.querySelectorAll('.btn-swatch').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const c = btn.dataset.color;
+                syncSwatch(c);
+                row.querySelector('.hex-input').value = '';
+                row.querySelector('.color-preview').style.background = 'transparent';
+            });
+        });
+
+        row.querySelector('.hex-input').addEventListener('input', function () {
+            const val = this.value.trim();
+            if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+                row.querySelector('.color-preview').style.background = val;
+                syncSwatch('');
+            }
+        });
+
+        row.querySelector('.btn-rm-expr').addEventListener('click', function () {
+            row.remove();
+        });
+
+        syncSwatch(isPalette ? color : '');
+        return row;
+    }
+
+    function getRowColor(row) {
+        const hex = row.querySelector('.hex-input').value.trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
+        const active = Array.from(row.querySelectorAll('.btn-swatch')).find(function (b) {
+            return b.style.border.includes('rgb(0') || b.style.borderColor === 'rgb(0, 0, 0)' || b.style.border === '2px solid rgb(0, 0, 0)';
+        });
+        return active ? active.dataset.color : '#6c757d';
+    }
+
+    function serializeRows() {
+        const result = [];
+        document.querySelectorAll('.tag-expr-row').forEach(function (row) {
+            const expr = row.querySelector('.expr-input').value.trim();
+            const color = getRowColor(row);
+            if (expr) result.push({expression: expr, color: color});
+        });
+        document.getElementById('id_tag_expressions').value = JSON.stringify(result);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        let initial = [];
+        try { initial = JSON.parse(document.getElementById('id_tag_expressions').value || '[]'); } catch (e) {}
+        const container = document.getElementById('tag-expr-rows');
+        initial.forEach(function (item) {
+            container.appendChild(makeRow(item.expression || '', item.color || ''));
+        });
+
+        document.getElementById('btn-add-expr').addEventListener('click', function () {
+            container.appendChild(makeRow('', ''));
+        });
+
+        document.getElementById('main-form').addEventListener('submit', function () {
+            serializeRows();
+        });
+    });
+})();
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('form textarea.font-monospace').forEach(function (ta) {
