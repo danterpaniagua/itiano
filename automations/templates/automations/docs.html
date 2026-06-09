@@ -35,6 +35,26 @@
     </tbody>
 </table></div>
 
+<h6 class="text-muted mt-3">Tag Expressions</h6>
+<p>Actions can stamp colored tags on created tickets. Each expression row has a JSONPath and a color (Bootstrap palette or custom hex):</p>
+<pre class="bg-light border rounded p-3 font-monospace small">[
+  {"expression": "$.issue.fields.labels[*]", "color": "#ffc107"},
+  {"expression": "$.issue.fields.status.name", "color": "#198754"}
+]</pre>
+<ul>
+    <li>A JSONPath that returns multiple values (e.g. <code>[*]</code>) creates one tag per value.</li>
+    <li>Tag color is updated on the Tag record each time the automation fires.</li>
+    <li>Tags created by automations are marked with 🤖 on the ticket.</li>
+</ul>
+
+<h6 class="text-muted mt-3">Save vs Apply</h6>
+<p>The Action and Trigger edit forms have two submit buttons:</p>
+<ul>
+    <li><strong>Save</strong> — saves and returns to the list.</li>
+    <li><strong>Apply</strong> — saves and stays on the edit page. Useful when iterating on tag colors or field mappings without losing your place.</li>
+</ul>
+<p class="text-muted small">Both buttons are disabled until a change is detected in the form.</p>
+
 <h6 class="text-muted mt-3">Field Mappings</h6>
 <p>In an Action, <code>field_mappings</code> maps ticket fields to JSONPath expressions or literal values:</p>
 <pre class="bg-light border rounded p-3 font-monospace small">{

@@ -42,7 +42,7 @@ python manage.py runserver
 Los tests requieren la base de datos PostgreSQL. Ejecutar dentro del contenedor:
 
 ```bash
-docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault
+docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault notes contacts
 ```
 
 ## Variables de entorno
@@ -70,6 +70,8 @@ docker compose exec app python manage.py test itsm jira_integration json_sandbox
 | `automations` | Motor de automatizaciones: Triggers con filtros JSONPath disparan Actions que crean tickets |
 | `clipboard` | Portapapeles cifrado por usuario, accesible desde cualquier página |
 | `vault` | Almacén de credenciales cifradas con versionado automático e importación KeePass |
+| `notes` | Blocs de notas privados por usuario con soporte Markdown |
+| `contacts` | Directorio de contactos con canales de notificación HTTP configurables |
 
 Ver `.claude/architecture.md` para detalle completo de la arquitectura.
 

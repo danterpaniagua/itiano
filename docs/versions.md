@@ -55,3 +55,5 @@
 | v5.0.0 | Notes | Delivered | [v5/v5.0.0.md](v5/v5.0.0.md) |
 | v5.1.0 | Contacts | Delivered | [v5/v5.1.0.md](v5/v5.1.0.md) |
 | v5.1.1 | Variables Reference (Docs) | Delivered | [v5/v5.1.1.md](v5/v5.1.1.md) |
+| v5.2.0 | Tag Colors & Manual Ticket Tags | Delivered | [v5/v5.2.0.md](v5/v5.2.0.md) |
+| v5.2.1 | Apply Button on Actions and Triggers | Delivered | [v5/v5.2.1.md](v5/v5.2.1.md) |
