@@ -47,3 +47,10 @@
 | v4.8.0 | Ticket Attachments | Delivered | [v4/v4.8.0.md](v4/v4.8.0.md) |
 | v4.8.1 | Jira Metadata Tab on ITSM Tickets | Delivered | [v4/v4.8.1.md](v4/v4.8.1.md) |
 | v4.8.2 | App Home Navigation | Delivered | [v4/v4.8.2.md](v4/v4.8.2.md) |
+
+## v5.x
+
+| Version | Title | Status | Link |
+|---|---|---|---|
+| v5.0.0 | Notes | Delivered | [v5/v5.0.0.md](v5/v5.0.0.md) |
+| v5.1.0 | Contacts | Delivered | [v5/v5.1.0.md](v5/v5.1.0.md) |
