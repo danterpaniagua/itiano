@@ -24,9 +24,16 @@
         <tr><td><code>$.issue.fields.project.name</code></td><td>Project name</td></tr>
         <tr><td><code>$.issue.fields.labels</code></td><td>Array of label strings</td></tr>
         <tr><td><code>$.issue.fields.status.name</code></td><td>Status name</td></tr>
+        <tr><td><code>$.issue.fields.attachment</code></td><td>Array of attachment objects (filename, author, content URL, size)</td></tr>
+        <tr><td><code>$.issue.fields.attachment[0].filename</code></td><td>First attachment filename</td></tr>
+        <tr><td><code>$.issue.fields.attachment[0].content</code></td><td>Direct download URL for the first attachment</td></tr>
         <tr><td><code>$.user.displayName</code></td><td>User who triggered the event</td></tr>
     </tbody>
 </table></div>
+
+<h6 class="text-muted mt-3">Jira Tab on ITSM Tickets</h6>
+<p>When a Jira automation creates an ITSM ticket, it sets the ticket's <strong>External ID</strong> to the Jira issue key. Itiano uses this link to show a <strong>Jira</strong> tab on the ticket detail page with the issue's current status, labels, and attached files.</p>
+<p>Attachment metadata (filename, author, date, download URL) is read from the most recent webhook payload — no additional Jira API calls are made. The tab is hidden if no matching Jira ticket is found.</p>
 
 {% if request.user.is_staff %}
 <h6 class="text-muted mt-3">Testing</h6>

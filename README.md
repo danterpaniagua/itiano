@@ -64,7 +64,7 @@ docker compose exec app python manage.py test itsm jira_integration json_sandbox
 | App | Responsabilidad |
 |---|---|
 | `core` | Autenticación, `UserProfile` con rol, base templates, footer con versión |
-| `itsm` | Modelos de tickets, máquina de estados, vistas, permisos, adjuntos |
+| `itsm` | Modelos de tickets, máquina de estados, vistas, permisos, adjuntos, pestaña de metadatos Jira |
 | `jira_integration` | Recepción de webhooks de Jira, historial de eventos por ticket |
 | `json_sandbox` | Evaluación interactiva de expresiones JSONPath (solo staff) |
 | `automations` | Motor de automatizaciones: Triggers con filtros JSONPath disparan Actions que crean tickets |

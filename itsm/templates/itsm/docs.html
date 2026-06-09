@@ -41,3 +41,20 @@
         <tr><td>Admin</td><td>All</td><td>All</td></tr>
     </tbody>
 </table></div>
+
+<h6 class="text-muted mt-3">Attachments</h6>
+<p>Any authenticated user who can view a ticket can upload files via the <strong>Attachments</strong> tab. Files are stored on disk under <code>media/attachments/</code>.</p>
+<ul>
+    <li>Maximum file size: <strong>10 MB</strong>.</li>
+    <li>Download: clicking the filename opens the file directly.</li>
+    <li>Delete: only the uploader or a staff member can delete an attachment.</li>
+</ul>
+
+<h6 class="text-muted mt-3">Jira Tab</h6>
+<p>Tickets created by a Jira automation have their <strong>External ID</strong> set to the Jira issue key (e.g. <code>GITIN-1281</code>). When this matches a known Jira ticket, a <strong>Jira</strong> tab appears on the ticket detail page showing:</p>
+<ul>
+    <li>Issue key (linked to the Jira ticket page), project, type, and current status.</li>
+    <li>Labels.</li>
+    <li>All files attached to the Jira issue: filename, author, date, and a direct download link from Jira.</li>
+</ul>
+<p class="text-muted small">The tab is hidden if no matching Jira ticket exists. File content is not downloaded — only metadata from the last received webhook payload is shown.</p>
