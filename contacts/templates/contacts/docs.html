@@ -15,11 +15,52 @@
 </table>
 
 <h6 class="mt-4">POST Channel Body Variables</h6>
-<p>Use Django template syntax in the body field:</p>
-<ul>
-    <li><code>{% verbatim %}{{ contact.first_name }}{% endverbatim %}</code>, <code>{% verbatim %}{{ contact.last_name }}{% endverbatim %}</code></li>
-    <li><code>{% verbatim %}{{ ticket.id }}{% endverbatim %}</code>, <code>{% verbatim %}{{ ticket.title }}{% endverbatim %}</code>, <code>{% verbatim %}{{ ticket.state }}{% endverbatim %}</code></li>
-</ul>
+<p>Use Django template syntax in the body field. All variables below are available when composing the body of a POST channel.</p>
+
+<table class="table table-sm table-bordered">
+    <thead class="table-light">
+        <tr>
+            <th>Variable</th>
+            <th>Source</th>
+            <th>Type</th>
+            <th>Example</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>{% verbatim %}{{ contact.first_name }}{% endverbatim %}</code></td>
+            <td>Contact</td>
+            <td>string</td>
+            <td><code>Juan</code></td>
+        </tr>
+        <tr>
+            <td><code>{% verbatim %}{{ contact.last_name }}{% endverbatim %}</code></td>
+            <td>Contact</td>
+            <td>string</td>
+            <td><code>Pérez</code></td>
+        </tr>
+        <tr>
+            <td><code>{% verbatim %}{{ ticket.id }}{% endverbatim %}</code></td>
+            <td>Ticket</td>
+            <td>integer</td>
+            <td><code>42</code></td>
+        </tr>
+        <tr>
+            <td><code>{% verbatim %}{{ ticket.title }}{% endverbatim %}</code></td>
+            <td>Ticket</td>
+            <td>string</td>
+            <td><code>VPN no conecta desde oficina</code></td>
+        </tr>
+        <tr>
+            <td><code>{% verbatim %}{{ ticket.state }}{% endverbatim %}</code></td>
+            <td>Ticket</td>
+            <td>string</td>
+            <td><code>open</code>, <code>in_progress</code>, <code>closed</code></td>
+        </tr>
+    </tbody>
+</table>
+
+<p class="text-muted small">Variables are resolved at send time (v5.2.0). In the current version, the test button uses the literal body text without substitution.</p>
 
 <h6 class="mt-4">Test Button</h6>
 <p>POST channels have a test button on the contact detail page. The test fires a real HTTP POST with the saved URL, headers, and body. The body and headers are editable before sending. The response status code and body are shown inline.</p>
