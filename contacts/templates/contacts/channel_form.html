@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} – Contacts{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">{{ title }}</h5>
+    <a href="{% url 'contact-detail' contact.pk %}" class="btn btn-outline-secondary btn-sm" title="Back to contact">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-8">
+        <form method="post" id="channel-form">
+            {% csrf_token %}
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-md-4">
+                    <label class="form-label">Type</label>
+                    <select name="type" id="channel-type" class="form-select">
+                        <option value="email" {% if channel.type == 'email' %}selected{% endif %}>Email</option>
+                        <option value="post" {% if channel.type == 'post' %}selected{% endif %}>POST</option>
+                        <option value="phone" {% if channel.type == 'phone' %}selected{% endif %}>Phone</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="form-label">Label <span class="text-muted">(optional)</span></label>
+                    <input type="text" name="label" class="form-control" value="{{ channel.label|default:'' }}"
+                           placeholder="e.g. Work email, Telegram">
+                </div>
+                <div class="col-12 col-md-2 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="is_primary" id="is-primary"
+                               {% if channel.is_primary %}checked{% endif %}>
+                        <label class="form-check-label" for="is-primary">Primary</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email / Phone value -->
+            <div id="field-value" class="mb-3">
+                <label class="form-label" id="value-label">Value</label>
+                <input type="text" name="value" class="form-control" value="{{ channel.value|default:'' }}"
+                       placeholder="Email address or phone number">
+            </div>
+
+            <!-- POST fields -->
+            <div id="field-post" class="d-none">
+                <div class="mb-3">
+                    <label class="form-label">URL</label>
+                    <input type="url" name="url" class="form-control" value="{{ channel.url|default:'' }}"
+                           placeholder="https://...">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Headers</label>
+                    <div id="headers-container">
+                        {% if channel.headers %}
+                            {% for key, val in channel.headers.items %}
+                            <div class="d-flex gap-2 mb-2 header-row">
+                                <input type="text" name="header_key" class="form-control form-control-sm"
+                                       placeholder="Key" value="{{ key }}">
+                                <input type="text" name="header_value" class="form-control form-control-sm"
+                                       placeholder="Value" value="{{ val }}">
+                                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-header">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-add-header">
+                        <i class="bi bi-plus"></i> Add Header
+                    </button>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Body Template</label>
+                    <textarea name="body" class="form-control font-monospace" rows="6"
+                              placeholder='{"text": "Ticket {{ "{{" }} ticket.id {{ "}}" }} — {{ "{{" }} ticket.title {{ "}}" }}"}'>{{ channel.body|default:'' }}</textarea>
+                    <div class="form-text">
+                        Variables: <code>{{ "{{" }} contact.first_name {{ "}}" }}</code>,
+                        <code>{{ "{{" }} contact.last_name {{ "}}" }}</code>,
+                        <code>{{ "{{" }} ticket.id {{ "}}" }}</code>,
+                        <code>{{ "{{" }} ticket.title {{ "}}" }}</code>,
+                        <code>{{ "{{" }} ticket.state {{ "}}" }}</code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <a href="{% url 'contact-detail' contact.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const typeSelect = document.getElementById('channel-type');
+    const fieldValue = document.getElementById('field-value');
+    const fieldPost = document.getElementById('field-post');
+    const valueLabel = document.getElementById('value-label');
+
+    function updateFields() {
+        const t = typeSelect.value;
+        if (t === 'post') {
+            fieldValue.classList.add('d-none');
+            fieldPost.classList.remove('d-none');
+        } else {
+            fieldValue.classList.remove('d-none');
+            fieldPost.classList.add('d-none');
+            valueLabel.textContent = t === 'email' ? 'Email address' : 'Phone number';
+        }
+    }
+
+    typeSelect.addEventListener('change', updateFields);
+    updateFields();
+
+    document.getElementById('btn-add-header').addEventListener('click', function () {
+        const row = document.createElement('div');
+        row.className = 'd-flex gap-2 mb-2 header-row';
+        row.innerHTML = '<input type="text" name="header_key" class="form-control form-control-sm" placeholder="Key">' +
+                        '<input type="text" name="header_value" class="form-control form-control-sm" placeholder="Value">' +
+                        '<button type="button" class="btn btn-outline-danger btn-sm btn-remove-header"><i class="bi bi-dash"></i></button>';
+        document.getElementById('headers-container').appendChild(row);
+    });
+
+    document.getElementById('headers-container').addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-remove-header');
+        if (btn) btn.closest('.header-row').remove();
+    });
+})();
+</script>
+{% endblock %}

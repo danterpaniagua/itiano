@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Contacts – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">Contacts</h5>
+    <a href="{% url 'contact-create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-person-plus"></i> New Contact
+    </a>
+</div>
+
+{% if contacts %}
+<!-- Desktop table -->
+<div class="table-responsive d-none d-md-block">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>User</th>
+                <th>Channels</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for contact in contacts %}
+            <tr>
+                <td><a href="{% url 'contact-detail' contact.pk %}">{{ contact.full_name }}</a></td>
+                <td>{{ contact.user.username|default:"—" }}</td>
+                <td>{{ contact.channels.count }}</td>
+                <td class="text-end">
+                    <a href="{% url 'contact-edit' contact.pk %}" class="btn btn-outline-secondary btn-sm" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Mobile cards -->
+<div class="d-md-none">
+    {% for contact in contacts %}
+    <div class="card mb-2">
+        <a href="{% url 'contact-detail' contact.pk %}" class="text-decoration-none text-body stretched-link"></a>
+        <div class="card-body d-flex align-items-center justify-content-between">
+            <div>
+                <div class="fw-semibold">{{ contact.full_name }}</div>
+                <small class="text-muted">{{ contact.user.username|default:"No user" }} · {{ contact.channels.count }} channel{{ contact.channels.count|pluralize }}</small>
+            </div>
+            <a href="{% url 'contact-edit' contact.pk %}" class="btn btn-outline-secondary btn-sm position-relative" style="z-index:1" title="Edit">
+                <i class="bi bi-pencil"></i>
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<p class="text-muted">No contacts yet.</p>
+{% endif %}
+{% endblock %}

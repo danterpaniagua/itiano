@@ -13,6 +13,7 @@ urlpatterns = [
     path('clipboard/', include('clipboard.urls')),
     path('vault/', include('vault.urls')),
     path('notes/', include('notes.urls')),
+    path('contacts/', include('contacts.urls')),
     path('', include('core.urls')),
 ]
 

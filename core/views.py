@@ -16,17 +16,20 @@ def docs(request):
 def dashboard(request):
     from vault.models import Credential
     from notes.models import Note
+    from contacts.models import Contact
     itsm_count = Ticket.objects.exclude(state__in=['closed', 'cancelled']).count()
     jira_count = JiraTicket.objects.count()
     automations_count = Trigger.objects.filter(is_active=True).count()
     vault_count = Credential.objects.filter(owner=request.user).count() if request.user.is_authenticated else 0
     notes_count = Note.objects.filter(owner=request.user).count() if request.user.is_authenticated else 0
+    contacts_count = Contact.objects.count() if request.user.is_staff else 0
     return render(request, 'core/dashboard.html', {
         'itsm_count': itsm_count,
         'jira_count': jira_count,
         'automations_count': automations_count,
         'vault_count': vault_count,
         'notes_count': notes_count,
+        'contacts_count': contacts_count,
     })
 
 

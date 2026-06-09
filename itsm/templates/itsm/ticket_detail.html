@@ -38,7 +38,7 @@
     {% endif %}
     <div class="col-6 col-md-2">
         <small class="text-muted d-block">Requester</small>
-        <span>{{ ticket.requester.username }}</span>
+        <span>{% if ticket.requester.contact %}{{ ticket.requester.contact.full_name }}{% else %}{{ ticket.requester.username }}{% endif %}</span>
     </div>
     <div class="col-6 col-md-2">
         <small class="text-muted d-block">Assigned To</small>

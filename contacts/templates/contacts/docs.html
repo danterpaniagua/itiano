@@ -1,0 +1,28 @@
+<h6>Contacts</h6>
+<p>Contacts enrich user identities with real names and communication channels. A Contact can exist without a linked user account.</p>
+
+<h6 class="mt-4">Ticket Display</h6>
+<p>When a ticket's requester has a linked Contact, the ticket list and detail show the contact's full name instead of the username.</p>
+
+<h6 class="mt-4">Channel Types</h6>
+<table class="table table-sm">
+    <thead><tr><th>Type</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>Email</td><td>Stores an email address (display only in this version).</td></tr>
+        <tr><td>Phone</td><td>Stores a phone number (display only in this version).</td></tr>
+        <tr><td>POST</td><td>HTTP POST endpoint with URL, custom headers, and a body template.</td></tr>
+    </tbody>
+</table>
+
+<h6 class="mt-4">POST Channel Body Variables</h6>
+<p>Use Django template syntax in the body field:</p>
+<ul>
+    <li><code>{% verbatim %}{{ contact.first_name }}{% endverbatim %}</code>, <code>{% verbatim %}{{ contact.last_name }}{% endverbatim %}</code></li>
+    <li><code>{% verbatim %}{{ ticket.id }}{% endverbatim %}</code>, <code>{% verbatim %}{{ ticket.title }}{% endverbatim %}</code>, <code>{% verbatim %}{{ ticket.state }}{% endverbatim %}</code></li>
+</ul>
+
+<h6 class="mt-4">Test Button</h6>
+<p>POST channels have a test button on the contact detail page. The test fires a real HTTP POST with the saved URL, headers, and body. The body and headers are editable before sending. The response status code and body are shown inline.</p>
+
+<h6 class="mt-4">Delivery</h6>
+<p>Automatic notification delivery (triggering POST channels when a ticket state changes) is planned for v5.2.0.</p>

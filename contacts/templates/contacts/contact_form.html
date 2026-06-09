@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} – Contacts{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">{{ title }}</h5>
+    <a href="{% url 'contact-list' %}" class="btn btn-outline-secondary btn-sm" title="All contacts">
+        <i class="bi bi-house"></i>
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-6">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">First Name</label>
+                <input type="text" name="first_name" class="form-control"
+                       value="{{ contact.first_name|default:'' }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Last Name</label>
+                <input type="text" name="last_name" class="form-control"
+                       value="{{ contact.last_name|default:'' }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Linked User <span class="text-muted">(optional)</span></label>
+                <select name="user" class="form-select">
+                    <option value="">— none —</option>
+                    {% for u in users %}
+                    <option value="{{ u.pk }}"
+                        {% if contact.user_id == u.pk %}selected{% endif %}>
+                        {{ u.username }}
+                    </option>
+                    {% endfor %}
+                    {% if contact.user and contact.user not in users %}
+                    <option value="{{ contact.user.pk }}" selected>{{ contact.user.username }}</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Save</button>
+                {% if contact %}
+                <a href="{% url 'contact-detail' contact.pk %}" class="btn btn-outline-secondary">Cancel</a>
+                {% else %}
+                <a href="{% url 'contact-list' %}" class="btn btn-outline-secondary">Cancel</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}{{ contact.full_name }} – Contacts{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">{{ contact.full_name }}</h5>
+    <a href="{% url 'contact-list' %}" class="btn btn-outline-secondary btn-sm" title="All contacts">
+        <i class="bi bi-house"></i>
+    </a>
+    <a href="{% url 'contact-edit' contact.pk %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+    <a href="{% url 'contact-delete' contact.pk %}" class="btn btn-outline-danger btn-sm">Delete</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Contact Info</h6>
+                <dl class="mb-0">
+                    <dt class="small text-muted">Full name</dt>
+                    <dd>{{ contact.full_name }}</dd>
+                    <dt class="small text-muted">Linked user</dt>
+                    <dd>{{ contact.user.username|default:"—" }}</dd>
+                    <dt class="small text-muted">Created</dt>
+                    <dd>{{ contact.created_at|date:"Y-m-d H:i" }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+    <h6 class="mb-0 me-auto">Channels</h6>
+    <a href="{% url 'channel-create' contact.pk %}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-plus"></i> Add Channel
+    </a>
+</div>
+
+{% if contact.channels.all %}
+<!-- Desktop table -->
+<div class="table-responsive d-none d-md-block">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Label</th>
+                <th>Value / URL</th>
+                <th>Primary</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ch in contact.channels.all %}
+            <tr>
+                <td><span class="badge bg-secondary">{{ ch.get_type_display }}</span></td>
+                <td>{{ ch.label|default:"—" }}</td>
+                <td class="text-truncate" style="max-width:200px">
+                    {% if ch.type == 'post' %}{{ ch.url|default:"—" }}
+                    {% else %}{{ ch.value|default:"—" }}{% endif %}
+                </td>
+                <td>{% if ch.is_primary %}<i class="bi bi-star-fill text-warning"></i>{% endif %}</td>
+                <td class="text-end">
+                    {% if ch.type == 'post' %}
+                    <button class="btn btn-outline-info btn-sm me-1 btn-test-channel"
+                            data-url="{% url 'channel-test' contact.pk ch.pk %}"
+                            data-headers="{{ ch.headers|safe }}"
+                            data-body="{{ ch.body }}"
+                            title="Test">
+                        <i class="bi bi-play"></i>
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'channel-edit' contact.pk ch.pk %}" class="btn btn-outline-secondary btn-sm" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" action="{% url 'channel-delete' contact.pk ch.pk %}" class="d-inline"
+                          onsubmit="return confirm('Delete this channel?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Mobile cards -->
+<div class="d-md-none">
+    {% for ch in contact.channels.all %}
+    <div class="card mb-2">
+        <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <div>
+                    <span class="badge bg-secondary me-1">{{ ch.get_type_display }}</span>
+                    {% if ch.is_primary %}<i class="bi bi-star-fill text-warning"></i>{% endif %}
+                    {% if ch.label %}<span class="fw-semibold">{{ ch.label }}</span>{% endif %}
+                </div>
+                <div class="d-flex gap-1">
+                    {% if ch.type == 'post' %}
+                    <button class="btn btn-outline-info btn-sm btn-test-channel"
+                            data-url="{% url 'channel-test' contact.pk ch.pk %}"
+                            data-headers="{{ ch.headers|safe }}"
+                            data-body="{{ ch.body }}"
+                            title="Test">
+                        <i class="bi bi-play"></i>
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'channel-edit' contact.pk ch.pk %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" action="{% url 'channel-delete' contact.pk ch.pk %}" class="d-inline"
+                          onsubmit="return confirm('Delete this channel?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <small class="text-muted">
+                {% if ch.type == 'post' %}{{ ch.url|default:"No URL" }}
+                {% else %}{{ ch.value|default:"—" }}{% endif %}
+            </small>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">No channels yet.</p>
+{% endif %}
+
+<!-- Test modal -->
+<div class="modal fade" id="testModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">Test POST Channel</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Body</label>
+                    <textarea id="test-body" class="form-control font-monospace" rows="5"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Headers (JSON)</label>
+                    <textarea id="test-headers" class="form-control font-monospace" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer flex-column align-items-stretch">
+                <button type="button" class="btn btn-primary" id="btn-run-test">
+                    <i class="bi bi-play"></i> Send
+                </button>
+                <div id="test-result" class="mt-2 d-none">
+                    <div id="test-status" class="fw-semibold mb-1"></div>
+                    <pre id="test-body-out" class="bg-light p-2 rounded small" style="max-height:200px;overflow:auto"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    let testUrl = '';
+    const modal = new bootstrap.Modal(document.getElementById('testModal'));
+
+    document.querySelectorAll('.btn-test-channel').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            testUrl = btn.dataset.url;
+            let headers = {};
+            try { headers = JSON.parse(btn.dataset.headers || '{}'); } catch (e) {}
+            document.getElementById('test-body').value = btn.dataset.body || '';
+            document.getElementById('test-headers').value = JSON.stringify(headers, null, 2);
+            document.getElementById('test-result').classList.add('d-none');
+            modal.show();
+        });
+    });
+
+    document.getElementById('btn-run-test').addEventListener('click', function () {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending…';
+
+        let headers = {};
+        try { headers = JSON.parse(document.getElementById('test-headers').value || '{}'); } catch (e) {}
+
+        fetch(testUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify({
+                body: document.getElementById('test-body').value,
+                headers: headers,
+            }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            const result = document.getElementById('test-result');
+            result.classList.remove('d-none');
+            if (data.error) {
+                document.getElementById('test-status').textContent = 'Error: ' + data.error;
+                document.getElementById('test-status').className = 'fw-semibold text-danger mb-1';
+            } else {
+                document.getElementById('test-status').textContent = 'Status: ' + data.status_code;
+                document.getElementById('test-status').className = 'fw-semibold mb-1 ' + (data.status_code < 300 ? 'text-success' : 'text-warning');
+            }
+            document.getElementById('test-body-out').textContent = data.body || '';
+        })
+        .catch(function (err) {
+            document.getElementById('test-result').classList.remove('d-none');
+            document.getElementById('test-status').textContent = 'Network error: ' + err;
+            document.getElementById('test-status').className = 'fw-semibold text-danger mb-1';
+        })
+        .finally(function () {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-play"></i> Send';
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Delete Contact – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">Delete Contact</h5>
+</div>
+<p>Delete <strong>{{ contact.full_name }}</strong> and all their channels?</p>
+<form method="post" class="d-flex gap-2">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Delete</button>
+    <a href="{% url 'contact-detail' contact.pk %}" class="btn btn-outline-secondary">Cancel</a>
+</form>
+{% endblock %}

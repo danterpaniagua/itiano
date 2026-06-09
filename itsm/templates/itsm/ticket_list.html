@@ -89,7 +89,7 @@
                         <span class="badge bg-light text-dark border me-1" style="font-size:.75rem">{{ tag.name }}</span>
                         {% endfor %}
                     </td>
-                    <td>{{ ticket.requester.username }}</td>
+                    <td>{% if ticket.requester.contact %}{{ ticket.requester.contact.full_name }}{% else %}{{ ticket.requester.username }}{% endif %}</td>
                     <td>{{ ticket.assigned_to.username|default:"—" }}</td>
                     <td class="text-muted">{{ ticket.created_at|date:"d/m/Y" }}</td>
                 </tr>

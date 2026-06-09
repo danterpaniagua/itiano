@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'clipboard',
     'vault',
     'notes',
+    'contacts',
 ]
 
 MIDDLEWARE = [
