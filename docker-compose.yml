@@ -5,6 +5,7 @@ services:
       - "8000:8000"
     volumes:
       - ./logs:/app/logs
+      - ./media:/app/media
     env_file:
       - .env
     environment:

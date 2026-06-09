@@ -42,7 +42,7 @@ python manage.py runserver
 Los tests requieren la base de datos PostgreSQL. Ejecutar dentro del contenedor:
 
 ```bash
-docker compose exec app python manage.py test jira_integration json_sandbox automations
+docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault
 ```
 
 ## Variables de entorno
@@ -64,10 +64,12 @@ docker compose exec app python manage.py test jira_integration json_sandbox auto
 | App | Responsabilidad |
 |---|---|
 | `core` | Autenticación, `UserProfile` con rol, base templates, footer con versión |
-| `itsm` | Modelos de tickets, máquina de estados, vistas, permisos |
+| `itsm` | Modelos de tickets, máquina de estados, vistas, permisos, adjuntos |
 | `jira_integration` | Recepción de webhooks de Jira, historial de eventos por ticket |
 | `json_sandbox` | Evaluación interactiva de expresiones JSONPath (solo staff) |
 | `automations` | Motor de automatizaciones: Triggers con filtros JSONPath disparan Actions que crean tickets |
+| `clipboard` | Portapapeles cifrado por usuario, accesible desde cualquier página |
+| `vault` | Almacén de credenciales cifradas con versionado automático e importación KeePass |
 
 Ver `.claude/architecture.md` para detalle completo de la arquitectura.
 
@@ -87,3 +89,7 @@ La versión activa se lee del archivo `VERSION` en la raíz del proyecto y se mu
 ## Logs
 
 Los logs de acceso y errores de gunicorn se generan en `logs/` (bind mount desde el host).
+
+## Archivos adjuntos
+
+Los archivos subidos a tickets se almacenan en `media/` (bind mount desde el host, creado automáticamente). En entornos de desarrollo (`DEBUG=True`) Django sirve los archivos directamente en `/media/`. En producción se requiere un servidor de archivos externo (nginx u equivalente) para servir `MEDIA_ROOT`.

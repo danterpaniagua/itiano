@@ -145,3 +145,18 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"Comment by {self.author} on #{self.ticket_id}"
+
+
+class TicketAttachment(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='attachments/%Y/%m/')
+    original_name = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField()
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return self.original_name

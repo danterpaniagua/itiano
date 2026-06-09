@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
@@ -6,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
 from .forms import CommentForm, TicketEditForm, TicketForm
-from .models import Tag, Ticket, TicketEvent, TicketTag
+from .models import Tag, Ticket, TicketAttachment, TicketEvent, TicketTag
 from .permissions import can_comment, can_edit_ticket, can_view_ticket
 from .transitions import TRANSITION_LABELS, get_available_transitions, perform_transition
 
@@ -89,6 +90,7 @@ class TicketDetailView(LoginRequiredMixin, View):
             'comment_form': CommentForm(),
             'ticket_tags': ticket_tags,
             'addable_tags': addable_tags,
+            'attachments': ticket.attachments.select_related('uploaded_by').all(),
         })
 
 
@@ -194,4 +196,43 @@ class TicketTagRemoveView(LoginRequiredMixin, View):
         if not can_edit_ticket(request.user, ticket):
             raise PermissionDenied
         TicketTag.objects.filter(ticket=ticket, tag_id=tag_pk, source=TicketTag.SOURCE_MANUAL).delete()
+        return redirect('ticket-detail', pk=pk)
+
+
+class AttachmentUploadView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        ticket = get_object_or_404(Ticket, pk=pk)
+        if not can_view_ticket(request.user, ticket):
+            raise PermissionDenied
+
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            messages.error(request, 'No file provided.')
+            return redirect('ticket-detail', pk=pk)
+
+        max_size = getattr(settings, 'MAX_UPLOAD_SIZE', 10 * 1024 * 1024)
+        if uploaded_file.size > max_size:
+            messages.error(request, f'File too large. Maximum size is {max_size // (1024 * 1024)} MB.')
+            return redirect('ticket-detail', pk=pk)
+
+        TicketAttachment.objects.create(
+            ticket=ticket,
+            file=uploaded_file,
+            original_name=uploaded_file.name[:255],
+            file_size=uploaded_file.size,
+            uploaded_by=request.user,
+        )
+        return redirect('ticket-detail', pk=pk)
+
+
+class AttachmentDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk, att_pk):
+        ticket = get_object_or_404(Ticket, pk=pk)
+        attachment = get_object_or_404(TicketAttachment, pk=att_pk, ticket=ticket)
+
+        if attachment.uploaded_by != request.user and not request.user.is_staff:
+            raise PermissionDenied
+
+        attachment.file.delete(save=False)
+        attachment.delete()
         return redirect('ticket-detail', pk=pk)

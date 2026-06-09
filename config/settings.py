@@ -85,6 +85,10 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 JIRA_WEBHOOK_SECRET = os.environ.get('JIRA_WEBHOOK_SECRET', '')
