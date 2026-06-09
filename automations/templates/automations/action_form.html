@@ -48,7 +48,8 @@
             </div>
 
             <div class="d-flex flex-wrap gap-2 mt-4">
-                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="submit" class="btn btn-primary btn-form-action" {% if not buttons_enabled %}disabled{% endif %}>Save</button>
+                <button type="submit" name="_apply" value="1" class="btn btn-outline-success btn-form-action" {% if not buttons_enabled %}disabled{% endif %}>Apply</button>
                 <a href="{% url cancel_url %}" class="btn btn-outline-secondary">Cancel</a>
             </div>
         </form>
@@ -169,6 +170,10 @@
         document.getElementById('id_tag_expressions').value = JSON.stringify(result);
     }
 
+    function enableFormActions() {
+        document.querySelectorAll('.btn-form-action').forEach(function (b) { b.disabled = false; });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         let initial = [];
         try { initial = JSON.parse(document.getElementById('id_tag_expressions').value || '[]'); } catch (e) {}
@@ -179,6 +184,19 @@
 
         document.getElementById('btn-add-expr').addEventListener('click', function () {
             container.appendChild(makeRow('', ''));
+            enableFormActions();
+        });
+
+        // Enable on any standard field change
+        document.getElementById('main-form').addEventListener('input', enableFormActions);
+        document.getElementById('main-form').addEventListener('change', enableFormActions);
+
+        // Enable when tag expression rows change (delegated)
+        container.addEventListener('input', enableFormActions);
+        container.addEventListener('click', function (e) {
+            if (e.target.closest('.btn-swatch') || e.target.closest('.btn-rm-expr')) {
+                enableFormActions();
+            }
         });
 
         document.getElementById('main-form').addEventListener('submit', function () {

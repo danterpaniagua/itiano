@@ -71,6 +71,7 @@ def action_create(request):
         'title': 'New Action',
         'section': 'actions',
         'cancel_url': 'automations-action-list',
+        'buttons_enabled': True,
     })
 
 
@@ -78,16 +79,17 @@ def action_create(request):
 def action_edit(request, pk):
     action = get_object_or_404(Action, pk=pk)
     form = ActionForm(request.POST or None, instance=action)
+    stay = '_apply' in request.POST
     if form.is_valid():
         if not form.has_changed():
             messages.info(request, 'No changes detected.')
-            return redirect('automations-action-list')
+            return redirect('automations-action-edit', pk=pk) if stay else redirect('automations-action-list')
         before = _snapshot(action, _ACTION_TRACKED)
         form.save()
         action.refresh_from_db()
         _record_history(ActionHistory, 'action', action, request.user, before, _snapshot(action, _ACTION_TRACKED))
         messages.success(request, 'Action updated.')
-        return redirect('automations-action-list')
+        return redirect('automations-action-edit', pk=pk) if stay else redirect('automations-action-list')
     history = action.history.select_related('user')[:20]
     return render(request, 'automations/action_form.html', {
         'form': form,
@@ -105,6 +107,7 @@ def action_toggle(request, pk):
     action.is_active = not action.is_active
     action.save()
     return redirect('automations-action-list')
+
 
 
 # ── Triggers ───────────────────────────────────────────────────────────────────
@@ -130,6 +133,7 @@ def trigger_create(request):
         'title': 'New Trigger',
         'section': 'triggers',
         'cancel_url': 'automations-trigger-list',
+        'buttons_enabled': True,
     })
 
 
@@ -137,16 +141,17 @@ def trigger_create(request):
 def trigger_edit(request, pk):
     trigger = get_object_or_404(Trigger, pk=pk)
     form = TriggerForm(request.POST or None, instance=trigger)
+    stay = '_apply' in request.POST
     if form.is_valid():
         if not form.has_changed():
             messages.info(request, 'No changes detected.')
-            return redirect('automations-trigger-list')
+            return redirect('automations-trigger-edit', pk=pk) if stay else redirect('automations-trigger-list')
         before = _snapshot(trigger, _TRIGGER_TRACKED)
         form.save()
         trigger.refresh_from_db()
         _record_history(TriggerHistory, 'trigger', trigger, request.user, before, _snapshot(trigger, _TRIGGER_TRACKED))
         messages.success(request, 'Trigger updated.')
-        return redirect('automations-trigger-list')
+        return redirect('automations-trigger-edit', pk=pk) if stay else redirect('automations-trigger-list')
     history = trigger.history.select_related('user')[:20]
     return render(request, 'automations/trigger_form.html', {
         'form': form,
@@ -164,6 +169,7 @@ def trigger_toggle(request, pk):
     trigger.is_active = not trigger.is_active
     trigger.save()
     return redirect('automations-trigger-list')
+
 
 
 # ── Logs ───────────────────────────────────────────────────────────────────────
