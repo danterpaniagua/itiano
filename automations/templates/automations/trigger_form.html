@@ -2,7 +2,12 @@
 {% block title %}{{ title }} – Automations – Itiano{% endblock %}
 
 {% block content %}
-<h5 class="mb-3">Automations</h5>
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">Automations</h5>
+    <a href="{% url 'automations-trigger-list' %}" class="btn btn-outline-secondary btn-sm" title="All triggers">
+        <i class="bi bi-house"></i>
+    </a>
+</div>
 {% include "automations/_tabs.html" %}
 
 <div class="row">
