@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Notes – Itiano{% endblock %}
+
+{% block content %}
+<div class="row g-0" style="min-height: 75vh">
+
+    {# Sidebar #}
+    <div class="col-12 col-md-3 border-end pe-md-3 mb-3 mb-md-0">
+
+        {# New note + new notebook #}
+        <div class="d-flex gap-2 mb-3">
+            <a href="{% url 'note-new' %}" class="btn btn-primary btn-sm flex-grow-1">
+                <i class="bi bi-plus-lg"></i> New Note
+            </a>
+            <button class="btn btn-outline-secondary btn-sm" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#new-notebook-form" title="New notebook">
+                <i class="bi bi-folder-plus"></i>
+            </button>
+        </div>
+
+        <div class="collapse mb-2" id="new-notebook-form">
+            <form method="post" action="{% url 'notebook-new' %}" class="d-flex gap-1">
+                {% csrf_token %}
+                <input type="text" name="name" class="form-control form-control-sm" placeholder="Notebook name" required>
+                <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+            </form>
+        </div>
+
+        {# All notes link #}
+        <a href="{% url 'notes-list' %}"
+           class="d-flex align-items-center gap-2 text-decoration-none py-1 px-2 rounded mb-1
+                  {% if not selected_notebook %}fw-semibold bg-light{% else %}text-body{% endif %}">
+            <i class="bi bi-journal-text text-muted"></i>
+            <span>All Notes</span>
+            <span class="badge bg-secondary ms-auto">{{ notes|length }}</span>
+        </a>
+
+        {# Notebooks #}
+        {% for nb in notebooks %}
+        <div class="d-flex align-items-center gap-1 py-1 px-2 rounded mb-1
+                    {% if selected_notebook.pk == nb.pk %}fw-semibold bg-light{% endif %}">
+            <a href="{% url 'notes-notebook' nb.pk %}"
+               class="d-flex align-items-center gap-2 text-decoration-none text-body flex-grow-1">
+                <i class="bi bi-folder text-warning"></i>
+                <span class="text-truncate">{{ nb.name }}</span>
+                <span class="badge bg-secondary ms-auto">{{ nb.notes.count }}</span>
+            </a>
+            {% if nb.notes.count == 0 %}
+            <form method="post" action="{% url 'notebook-delete' nb.pk %}"
+                  onsubmit="return confirm('Delete notebook {{ nb.name }}?')" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Delete">
+                    <i class="bi bi-x"></i>
+                </button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        {# Shared with me #}
+        {% if shared_notes %}
+        <hr class="my-2">
+        <div class="small text-muted px-2 mb-1">Shared with me</div>
+        {% for note in shared_notes %}
+        <a href="{% url 'note-edit' note.pk %}"
+           class="d-flex align-items-center gap-2 text-decoration-none text-body py-1 px-2 rounded mb-1">
+            <i class="bi bi-person-lines-fill text-info"></i>
+            <span class="text-truncate small">{{ note.title }}</span>
+        </a>
+        {% endfor %}
+        {% endif %}
+    </div>
+
+    {# Note list #}
+    <div class="col-12 col-md-9 ps-md-3">
+        <div class="d-flex align-items-center mb-3">
+            <h6 class="mb-0 me-auto text-muted">
+                {% if selected_notebook %}
+                    <i class="bi bi-folder text-warning"></i> {{ selected_notebook.name }}
+                {% else %}
+                    All Notes
+                {% endif %}
+            </h6>
+        </div>
+
+        {% if notes %}
+        <div class="row g-2">
+            {% for note in notes %}
+            <div class="col-12 col-md-6 col-lg-4">
+                <a href="{% url 'note-edit' note.pk %}" class="text-decoration-none">
+                    <div class="card h-100 card-hover">
+                        <div class="card-body py-2 px-3">
+                            <div class="fw-semibold text-truncate">{{ note.title }}</div>
+                            {% if note.notebook %}
+                            <small class="text-warning">
+                                <i class="bi bi-folder"></i> {{ note.notebook.name }}
+                            </small>
+                            {% endif %}
+                            <div class="text-muted small mt-1 text-truncate"
+                                 style="max-height:2.4em; overflow:hidden">
+                                {{ note.body|truncatechars:80 }}
+                            </div>
+                        </div>
+                        <div class="card-footer py-1 text-muted" style="font-size:.75rem">
+                            {{ note.updated_at|date:"d/m/Y H:i" }}
+                            {% if note.shares.exists %}
+                            <i class="bi bi-people ms-1" title="Shared"></i>
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No notes yet.
+            <a href="{% url 'note-new' %}">Create your first note</a>.
+        </p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{% if note %}{{ note.title }}{% else %}New Note{% endif %} – Notes – Itiano{% endblock %}
+
+{% block content %}
+
+{# Header #}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+    <a href="{% url 'notes-list' %}" class="btn btn-outline-secondary btn-sm" title="All notes">
+        <i class="bi bi-house"></i>
+    </a>
+    <input type="text" id="note-title" class="form-control form-control-sm fw-semibold me-auto"
+           style="max-width:400px"
+           value="{% if note %}{{ note.title }}{% endif %}"
+           placeholder="Note title">
+    <button class="btn btn-primary btn-sm" onclick="saveNote()">
+        <i class="bi bi-floppy"></i> Save
+    </button>
+    {% if note and perm == 'owner' %}
+    <a href="{% url 'note-share' note.pk %}" class="btn btn-outline-secondary btn-sm" title="Share">
+        <i class="bi bi-people"></i>
+        {% if note.shares.exists %}<span class="badge bg-secondary">{{ note.shares.count }}</span>{% endif %}
+    </a>
+    <form method="post" action="{% url 'note-delete' note.pk %}"
+          onsubmit="return confirm('Delete this note?')" class="m-0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+            <i class="bi bi-trash"></i>
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+{# Notebook selector (owner only) #}
+{% if perm == 'owner' %}
+<div class="d-flex align-items-center gap-2 mb-2">
+    <i class="bi bi-folder text-warning"></i>
+    <select id="note-notebook" class="form-select form-select-sm" style="max-width:220px">
+        <option value="">No notebook</option>
+        {% for nb in notebooks %}
+        <option value="{{ nb.pk }}" {% if note.notebook.pk == nb.pk %}selected{% endif %}>
+            {{ nb.name }}
+        </option>
+        {% endfor %}
+    </select>
+    <small id="save-status" class="text-muted"></small>
+</div>
+{% else %}
+<small class="text-muted d-block mb-2">
+    <i class="bi bi-person-lines-fill text-info"></i>
+    Shared by {{ note.owner.username }}
+    {% if note.notebook %} · <i class="bi bi-folder text-warning"></i> {{ note.notebook.name }}{% endif %}
+    <span class="badge bg-light text-dark border ms-1">{{ perm }}</span>
+</small>
+{% endif %}
+
+{# Write / Preview tabs #}
+<ul class="nav nav-tabs mb-0" id="editorTabs">
+    <li class="nav-item">
+        <button class="nav-link active" id="tab-write" data-bs-toggle="tab"
+                data-bs-target="#panel-write" type="button">
+            <i class="bi bi-pencil"></i> Write
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" id="tab-preview" data-bs-toggle="tab"
+                data-bs-target="#panel-preview" type="button"
+                onclick="renderPreview()">
+            <i class="bi bi-eye"></i> Preview
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content border border-top-0 rounded-bottom">
+    <div class="tab-pane fade show active p-0" id="panel-write">
+        <textarea id="note-body" class="form-control font-monospace border-0 rounded-0 rounded-bottom"
+                  style="min-height:65vh; resize:vertical"
+                  spellcheck="false"
+                  placeholder="Write markdown here...">{% if note %}{{ note.body }}{% endif %}</textarea>
+    </div>
+    <div class="tab-pane fade p-3" id="panel-preview" style="min-height:65vh">
+        <div id="preview-content" class="prose"></div>
+    </div>
+</div>
+
+{# Hidden form for save #}
+<form id="save-form" method="post"
+      action="{% if note %}{% url 'note-edit' note.pk %}{% else %}{% url 'note-new' %}{% endif %}"
+      style="display:none">
+    {% csrf_token %}
+    <input type="hidden" name="title" id="f-title">
+    <input type="hidden" name="body" id="f-body">
+    <input type="hidden" name="notebook" id="f-notebook">
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function saveNote() {
+    document.getElementById('f-title').value = document.getElementById('note-title').value || 'Untitled';
+    document.getElementById('f-body').value = document.getElementById('note-body').value;
+    const nb = document.getElementById('note-notebook');
+    if (nb) document.getElementById('f-notebook').value = nb.value;
+    document.getElementById('save-form').submit();
+}
+
+function renderPreview() {
+    const body = document.getElementById('note-body').value;
+    document.getElementById('preview-content').innerHTML = marked.parse(body || '');
+}
+
+document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveNote();
+    }
+});
+</script>
+{% endblock %}

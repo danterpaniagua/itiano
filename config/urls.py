@@ -12,6 +12,7 @@ urlpatterns = [
     path('automations/', include('automations.urls')),
     path('clipboard/', include('clipboard.urls')),
     path('vault/', include('vault.urls')),
+    path('notes/', include('notes.urls')),
     path('', include('core.urls')),
 ]
 

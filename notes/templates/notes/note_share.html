@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Share – {{ note.title }} – Notes – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <a href="{% url 'note-edit' note.pk %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Back to note
+    </a>
+    <a href="{% url 'notes-list' %}" class="btn btn-outline-secondary btn-sm" title="All notes">
+        <i class="bi bi-house"></i>
+    </a>
+    <h6 class="mb-0 ms-1 me-auto text-truncate">Share: {{ note.title }}</h6>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-md-6">
+
+        {# Current shares #}
+        <h6 class="text-muted">Shared with</h6>
+        {% if shares %}
+        <ul class="list-group mb-3">
+            {% for share in shares %}
+            <li class="list-group-item d-flex align-items-center gap-2 py-2">
+                <i class="bi bi-person"></i>
+                <span class="me-auto">{{ share.shared_with.username }}</span>
+
+                <form method="post" class="d-flex gap-1 align-items-center m-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update">
+                    <input type="hidden" name="share_id" value="{{ share.pk }}">
+                    <select name="permission" class="form-select form-select-sm" style="width:90px"
+                            onchange="this.form.submit()">
+                        <option value="read" {% if share.permission == 'read' %}selected{% endif %}>Read</option>
+                        <option value="write" {% if share.permission == 'write' %}selected{% endif %}>Write</option>
+                    </select>
+                </form>
+
+                <form method="post" class="m-0"
+                      onsubmit="return confirm('Remove access for {{ share.shared_with.username }}?')">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="remove">
+                    <input type="hidden" name="share_id" value="{{ share.pk }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted small">Not shared with anyone yet.</p>
+        {% endif %}
+
+        {# Add share #}
+        {% if other_users %}
+        <h6 class="text-muted">Add user</h6>
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-center">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add">
+            <select name="user_id" class="form-select form-select-sm" style="max-width:200px">
+                {% for u in other_users %}
+                <option value="{{ u.pk }}">{{ u.username }}</option>
+                {% endfor %}
+            </select>
+            <select name="permission" class="form-select form-select-sm" style="width:90px">
+                <option value="read">Read</option>
+                <option value="write">Write</option>
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary">Share</button>
+        </form>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
