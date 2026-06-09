@@ -80,6 +80,17 @@ class TicketDetailView(LoginRequiredMixin, View):
         assigned_tag_ids = {tt.tag_id for tt in ticket_tags}
         addable_tags = Tag.objects.exclude(pk__in=assigned_tag_ids)
 
+        jira_ticket = None
+        jira_attachments = []
+        if ticket.external_id:
+            from jira_integration.models import JiraTicket
+            jira_ticket = JiraTicket.objects.filter(issue_key=ticket.external_id).first()
+            if jira_ticket:
+                last_payload = jira_ticket.events.order_by('-received_at').values_list('payload', flat=True).first()
+                if last_payload:
+                    fields = (last_payload.get('issue') or {}).get('fields') or {}
+                    jira_attachments = fields.get('attachment') or []
+
         return render(request, 'itsm/ticket_detail.html', {
             'ticket': ticket,
             'events': ticket.events.select_related('actor').all(),
@@ -91,6 +102,8 @@ class TicketDetailView(LoginRequiredMixin, View):
             'ticket_tags': ticket_tags,
             'addable_tags': addable_tags,
             'attachments': ticket.attachments.select_related('uploaded_by').all(),
+            'jira_ticket': jira_ticket,
+            'jira_attachments': jira_attachments,
         })
 
 

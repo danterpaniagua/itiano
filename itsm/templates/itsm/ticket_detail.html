@@ -138,6 +138,14 @@
             {% if attachments %}<span class="badge bg-secondary ms-1">{{ attachments|length }}</span>{% endif %}
         </button>
     </li>
+    {% if jira_ticket %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-jira" data-bs-toggle="tab"
+                data-bs-target="#panel-jira" type="button" role="tab">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Jira
+        </button>
+    </li>
+    {% endif %}
 </ul>
 
 <div class="tab-content">
@@ -321,6 +329,91 @@
             </div>
         </div>
     </div>
+
+    {% if jira_ticket %}
+    {# --- Jira tab --- #}
+    <div class="tab-pane fade" id="panel-jira" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-2 mb-3">
+                    <div class="col-6 col-md-2">
+                        <small class="text-muted d-block">Issue</small>
+                        <a href="{% url 'jira-ticket-detail' jira_ticket.issue_key %}" class="fw-semibold font-monospace">
+                            {{ jira_ticket.issue_key }}
+                        </a>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <small class="text-muted d-block">Project</small>
+                        <span>{{ jira_ticket.project_key }}</span>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <small class="text-muted d-block">Type</small>
+                        <span>{{ jira_ticket.issue_type }}</span>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <small class="text-muted d-block">Status</small>
+                        <span class="badge bg-secondary">{{ jira_ticket.status }}</span>
+                    </div>
+                    {% if jira_ticket.labels %}
+                    <div class="col-12 col-md-4">
+                        <small class="text-muted d-block">Labels</small>
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                            {% for label in jira_ticket.labels %}
+                            <span class="badge bg-light text-dark border">{{ label }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if jira_attachments %}
+                <hr>
+                <h6 class="text-muted">Attachments in Jira ({{ jira_attachments|length }})</h6>
+                {# Desktop #}
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>File</th>
+                                <th>Size</th>
+                                <th>Uploaded by</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for att in jira_attachments %}
+                            <tr>
+                                <td>
+                                    <a href="{{ att.content }}" target="_blank" rel="noopener" class="font-monospace small">
+                                        <i class="bi bi-paperclip"></i> {{ att.filename }}
+                                    </a>
+                                </td>
+                                <td class="text-muted small">{{ att.size|filesizeformat }}</td>
+                                <td class="small">{{ att.author.displayName|default:"—" }}</td>
+                                <td class="text-muted small text-nowrap">{{ att.created|slice:":16"|default:"—" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {# Mobile #}
+                <div class="d-md-none">
+                    {% for att in jira_attachments %}
+                    <div class="d-flex justify-content-between align-items-start py-2 border-bottom">
+                        <div>
+                            <a href="{{ att.content }}" target="_blank" rel="noopener" class="font-monospace small d-block">
+                                <i class="bi bi-paperclip"></i> {{ att.filename }}
+                            </a>
+                            <small class="text-muted">{{ att.author.displayName|default:"—" }} · {{ att.created|slice:":16"|default:"—" }} · {{ att.size|filesizeformat }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
 </div>
 
