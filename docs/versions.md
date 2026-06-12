@@ -59,3 +59,4 @@
 | v5.2.1 | Apply Button on Actions and Triggers | Delivered | [v5/v5.2.1.md](v5/v5.2.1.md) |
 | v5.2.2 | Jira Description Table Formatting Toggle | Delivered | [v5/v5.2.2.md](v5/v5.2.2.md) |
 | v5.2.3 | Fix +Tag Button on Ticket Detail | Delivered | [v5/v5.2.3.md](v5/v5.2.3.md) |
+| v5.2.4 | Ticket Title Filter + Jira Attachment Sort | Delivered | [v5/v5.2.4.md](v5/v5.2.4.md) |
