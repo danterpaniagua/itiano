@@ -87,6 +87,7 @@ class TicketDetailView(LoginRequiredMixin, View):
 
         jira_ticket = None
         jira_attachments = []
+        jira_events = []
         if ticket.external_id:
             from jira_integration.models import JiraTicket
             jira_ticket = JiraTicket.objects.filter(issue_key=ticket.external_id).first()
@@ -99,6 +100,7 @@ class TicketDetailView(LoginRequiredMixin, View):
                         key=lambda a: a.get('created', ''),
                         reverse=True,
                     )
+                jira_events = list(jira_ticket.events.order_by('-received_at'))
 
         return render(request, 'itsm/ticket_detail.html', {
             'ticket': ticket,
@@ -113,6 +115,7 @@ class TicketDetailView(LoginRequiredMixin, View):
             'attachments': ticket.attachments.select_related('uploaded_by').all(),
             'jira_ticket': jira_ticket,
             'jira_attachments': jira_attachments,
+            'jira_events': jira_events,
         })
 
 
