@@ -57,3 +57,5 @@
 | v5.1.1 | Variables Reference (Docs) | Delivered | [v5/v5.1.1.md](v5/v5.1.1.md) |
 | v5.2.0 | Tag Colors & Manual Ticket Tags | Delivered | [v5/v5.2.0.md](v5/v5.2.0.md) |
 | v5.2.1 | Apply Button on Actions and Triggers | Delivered | [v5/v5.2.1.md](v5/v5.2.1.md) |
+| v5.2.2 | Jira Description Table Formatting Toggle | Delivered | [v5/v5.2.2.md](v5/v5.2.2.md) |
+| v5.2.3 | Fix +Tag Button on Ticket Detail | Delivered | [v5/v5.2.3.md](v5/v5.2.3.md) |
