@@ -24,6 +24,7 @@ class Note(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_notes')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_system = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-updated_at']

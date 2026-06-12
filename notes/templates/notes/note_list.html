@@ -103,7 +103,9 @@
                         </div>
                         <div class="card-footer py-1 text-muted" style="font-size:.75rem">
                             {{ note.updated_at|date:"d/m/Y H:i" }}
-                            {% if note.shares.exists %}
+                            {% if note.is_system %}
+                            <i class="bi bi-lock ms-1" title="Private system note"></i>
+                            {% elif note.shares.exists %}
                             <i class="bi bi-people ms-1" title="Shared"></i>
                             {% endif %}
                         </div>

@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
@@ -77,6 +78,9 @@ class NoteEditView(LoginRequiredMixin, View):
 class NoteDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         note = get_object_or_404(Note, pk=pk, owner=request.user)
+        if note.is_system:
+            messages.error(request, 'System notes cannot be deleted.')
+            return redirect('note-edit', pk=pk)
         note.delete()
         return redirect('notes-list')
 
@@ -84,6 +88,9 @@ class NoteDeleteView(LoginRequiredMixin, View):
 class NoteShareView(LoginRequiredMixin, View):
     def get(self, request, pk):
         note = get_object_or_404(Note, pk=pk, owner=request.user)
+        if note.is_system:
+            messages.error(request, 'System notes cannot be shared.')
+            return redirect('note-edit', pk=pk)
         shares = note.shares.select_related('shared_with')
         shared_ids = shares.values_list('shared_with_id', flat=True)
         other_users = User.objects.exclude(pk=request.user.pk).exclude(
@@ -97,6 +104,9 @@ class NoteShareView(LoginRequiredMixin, View):
 
     def post(self, request, pk):
         note = get_object_or_404(Note, pk=pk, owner=request.user)
+        if note.is_system:
+            messages.error(request, 'System notes cannot be shared.')
+            return redirect('note-edit', pk=pk)
         action = request.POST.get('action')
 
         if action == 'add':

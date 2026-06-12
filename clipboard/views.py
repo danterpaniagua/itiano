@@ -1,38 +1,25 @@
 import json
 
-from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import ClipboardEntry
+from .utils import get_or_create_clipboard_note
 
 
 @login_required
 def clipboard(request):
-    entry, _ = ClipboardEntry.objects.get_or_create(user=request.user)
-
-    if request.method == 'POST':
-        new_content = request.POST.get('content', '')
-        if new_content != entry.get_decrypted():
-            entry.set_content(new_content)
-            entry.save()
-            messages.success(request, 'Saved.')
-        else:
-            messages.info(request, 'No changes detected.')
-        return redirect('clipboard')
-
-    return render(request, 'clipboard/clipboard.html', {
-        'content': entry.get_decrypted(),
-    })
+    note = get_or_create_clipboard_note(request.user)
+    return redirect(reverse('note-edit', args=[note.pk]))
 
 
 @login_required
 @require_GET
 def clipboard_content(request):
-    entry, _ = ClipboardEntry.objects.get_or_create(user=request.user)
-    return JsonResponse({'content': entry.get_decrypted()})
+    note = get_or_create_clipboard_note(request.user)
+    return JsonResponse({'content': note.body})
 
 
 @login_required
@@ -42,10 +29,10 @@ def clipboard_save(request):
         data = json.loads(request.body)
     except (json.JSONDecodeError, ValueError):
         return JsonResponse({'ok': False, 'error': 'Invalid JSON'}, status=400)
-    entry, _ = ClipboardEntry.objects.get_or_create(user=request.user)
+    note = get_or_create_clipboard_note(request.user)
     new_content = data.get('content', '')
-    if new_content == entry.get_decrypted():
+    if new_content == note.body:
         return JsonResponse({'ok': True, 'changed': False})
-    entry.set_content(new_content)
-    entry.save()
+    note.body = new_content
+    note.save(update_fields=['body', 'updated_at'])
     return JsonResponse({'ok': True, 'changed': True})
