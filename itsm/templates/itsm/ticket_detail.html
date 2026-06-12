@@ -534,13 +534,13 @@
     });
 
     btnAdd.addEventListener('click', function () {
-        document.getElementById('tag-add-form').parentElement.classList.remove('d-none');
+        document.getElementById('tag-add-form').classList.remove('d-none');
         btnAdd.classList.add('d-none');
         nameInput.focus();
     });
 
     document.getElementById('btn-cancel-tag').addEventListener('click', function () {
-        document.getElementById('tag-add-form').parentElement.classList.add('d-none');
+        document.getElementById('tag-add-form').classList.add('d-none');
         btnAdd.classList.remove('d-none');
         suggestions.style.display = 'none';
     });
