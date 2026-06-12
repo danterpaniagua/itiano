@@ -4,19 +4,22 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <h5 class="mb-0 me-auto">Tickets</h5>
-    {% if all_tags %}
-    <form method="get" class="d-flex gap-2 align-items-center">
+    <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
+        <input type="text" name="q" value="{{ q_filter }}"
+               class="form-control form-control-sm" placeholder="Search title…" style="width:160px">
+        {% if all_tags %}
         <select name="tag" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
             <option value="">All tags</option>
             {% for tag in all_tags %}
             <option value="{{ tag.name }}" {% if tag.name == tag_filter %}selected{% endif %}>{{ tag.name }}</option>
             {% endfor %}
         </select>
-        {% if tag_filter %}
+        {% endif %}
+        <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
+        {% if tag_filter or q_filter %}
         <a href="{% url 'ticket-list' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
         {% endif %}
     </form>
-    {% endif %}
     <a href="" class="btn btn-outline-secondary btn-sm" title="Refresh"><i class="bi bi-arrow-clockwise"></i></a>
     <a href="{% url 'ticket-create' %}" class="btn btn-primary btn-sm">
         <i class="bi bi-plus-lg"></i> New Ticket

@@ -31,14 +31,18 @@ class TicketListView(LoginRequiredMixin, View):
             tickets = Ticket.objects.filter(requester=request.user)
 
         tag_filter = request.GET.get('tag', '')
+        q_filter = request.GET.get('q', '').strip()
         if tag_filter:
             tickets = tickets.filter(tags__name=tag_filter)
+        if q_filter:
+            tickets = tickets.filter(title__icontains=q_filter)
 
         tickets = tickets.select_related('requester', 'assigned_to').prefetch_related('tags').order_by('-created_at')
         return render(request, 'itsm/ticket_list.html', {
             'tickets': tickets,
             'all_tags': Tag.objects.all(),
             'tag_filter': tag_filter,
+            'q_filter': q_filter,
         })
 
 
@@ -90,7 +94,11 @@ class TicketDetailView(LoginRequiredMixin, View):
                 last_payload = jira_ticket.events.order_by('-received_at').values_list('payload', flat=True).first()
                 if last_payload:
                     fields = (last_payload.get('issue') or {}).get('fields') or {}
-                    jira_attachments = fields.get('attachment') or []
+                    jira_attachments = sorted(
+                        fields.get('attachment') or [],
+                        key=lambda a: a.get('created', ''),
+                        reverse=True,
+                    )
 
         return render(request, 'itsm/ticket_detail.html', {
             'ticket': ticket,
