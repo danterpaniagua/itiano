@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
@@ -24,8 +24,17 @@ class SettingsIndexView(StaffRequiredMixin, View):
 
 class TagListView(StaffRequiredMixin, View):
     def get(self, request):
-        tags = Tag.objects.annotate(usage=Count('ticket_tags')).order_by('name')
-        return render(request, 'settings_hub/tag_list.html', {'tags': tags, 'active': 'tags'})
+        qs = Tag.objects.annotate(
+            usage=Count('ticket_tags'),
+            auto_count=Count('ticket_tags', filter=Q(ticket_tags__source='automation')),
+        ).order_by('name')
+        manual_tags = [t for t in qs if t.auto_count == 0]
+        jira_tags = [t for t in qs if t.auto_count > 0]
+        return render(request, 'settings_hub/tag_list.html', {
+            'manual_tags': manual_tags,
+            'jira_tags': jira_tags,
+            'active': 'tags',
+        })
 
 
 class TagCreateView(StaffRequiredMixin, View):
@@ -43,13 +52,23 @@ class TagCreateView(StaffRequiredMixin, View):
         return redirect('settings-tags')
 
 
+def _tag_is_jira_owned(tag):
+    return tag.ticket_tags.filter(source='automation').exists()
+
+
 class TagEditView(StaffRequiredMixin, View):
     def get(self, request, pk):
         tag = get_object_or_404(Tag, pk=pk)
+        if _tag_is_jira_owned(tag):
+            messages.error(request, f'El tag "{tag.name}" es gestionado por Jira y no puede editarse.')
+            return redirect('settings-tags')
         return render(request, 'settings_hub/tag_form.html', {'tag': tag, 'active': 'tags'})
 
     def post(self, request, pk):
         tag = get_object_or_404(Tag, pk=pk)
+        if _tag_is_jira_owned(tag):
+            messages.error(request, f'El tag "{tag.name}" es gestionado por Jira y no puede editarse.')
+            return redirect('settings-tags')
         name = request.POST.get('name', '').strip()
         color = request.POST.get('color', '').strip()
         if not name:
@@ -68,6 +87,9 @@ class TagEditView(StaffRequiredMixin, View):
 class TagDeleteView(StaffRequiredMixin, View):
     def post(self, request, pk):
         tag = get_object_or_404(Tag, pk=pk)
+        if _tag_is_jira_owned(tag):
+            messages.error(request, f'El tag "{tag.name}" es gestionado por Jira y no puede eliminarse.')
+            return redirect('settings-tags')
         if tag.ticket_tags.exists():
             messages.error(request, f'El tag "{tag.name}" está en uso y no puede eliminarse.')
             return redirect('settings-tags')
