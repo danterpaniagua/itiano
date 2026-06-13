@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Settings – Edit Tag – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-gear"></i> Settings</h5>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-2 mb-3 mb-md-0">
+        <div class="list-group">
+            <a href="{% url 'settings-tags' %}"
+               class="list-group-item list-group-item-action active">
+                <i class="bi bi-tags me-1"></i> Tags
+            </a>
+            <a href="{% url 'settings-categories' %}"
+               class="list-group-item list-group-item-action">
+                <i class="bi bi-folder2 me-1"></i> Categories
+            </a>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+        <h6 class="mb-3">Edit Tag</h6>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <input type="text" name="name" class="form-control"
+                       value="{{ tag.name }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Color</label>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="color" name="color" class="form-control form-control-color"
+                           value="{{ tag.display_color }}" style="width:60px">
+                    <span class="badge" style="background:{{ tag.display_color }}">{{ tag.name }}</span>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <a href="{% url 'settings-tags' %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

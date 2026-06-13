@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'vault',
     'notes',
     'contacts',
+    'settings_hub',
 ]
 
 MIDDLEWARE = [

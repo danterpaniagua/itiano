@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Settings – Categories – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-gear"></i> Settings</h5>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-2 mb-3 mb-md-0">
+        <div class="list-group">
+            <a href="{% url 'settings-tags' %}"
+               class="list-group-item list-group-item-action{% if active == 'tags' %} active{% endif %}">
+                <i class="bi bi-tags me-1"></i> Tags
+            </a>
+            <a href="{% url 'settings-categories' %}"
+               class="list-group-item list-group-item-action{% if active == 'categories' %} active{% endif %}">
+                <i class="bi bi-folder2 me-1"></i> Categories
+            </a>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-10">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <h6 class="mb-0 me-auto"><i class="bi bi-folder2"></i> Categories</h6>
+            <button class="btn btn-sm btn-primary" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#create-form">
+                <i class="bi bi-plus-lg"></i> New Category
+            </button>
+        </div>
+
+        <div class="collapse mb-3" id="create-form">
+            <div class="card card-body">
+                <form method="post" action="{% url 'settings-category-create' %}">
+                    {% csrf_token %}
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small mb-1">Name</label>
+                            <input type="text" name="name" class="form-control form-control-sm"
+                                   placeholder="Category name" required>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <button type="submit" class="btn btn-sm btn-success w-100">Create</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if categories %}
+        <div class="table-responsive d-none d-md-block">
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Usage</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for cat in categories %}
+                <tr>
+                    <td>{{ cat.name }}</td>
+                    <td class="text-muted small">{{ cat.usage }} ticket{{ cat.usage|pluralize }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'settings-category-edit' cat.pk %}"
+                           class="btn btn-sm btn-outline-secondary me-1">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form method="post" action="{% url 'settings-category-delete' cat.pk %}"
+                              class="d-inline"
+                              onsubmit="return confirm('Delete category {{ cat.name }}? Tickets will keep their data but lose this category.')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-md-none">
+            {% for cat in categories %}
+            <div class="card mb-2">
+                <div class="card-body py-2 d-flex align-items-center gap-2">
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">{{ cat.name }}</div>
+                        <div class="text-muted small">{{ cat.usage }} ticket{{ cat.usage|pluralize }}</div>
+                    </div>
+                    <a href="{% url 'settings-category-edit' cat.pk %}"
+                       class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" action="{% url 'settings-category-delete' cat.pk %}"
+                          onsubmit="return confirm('Delete {{ cat.name }}?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No categories yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

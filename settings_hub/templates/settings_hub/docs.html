@@ -1,0 +1,21 @@
+<h5>Settings Hub</h5>
+<p>Staff-only section to manage cross-app configuration from the frontend without needing Django admin.</p>
+
+<h6 class="mt-4">Tags</h6>
+<p>Tags can be applied to tickets manually or automatically via the Automations engine.</p>
+<ul>
+    <li>Each tag has a name and an optional color.</li>
+    <li>Tags in use (assigned to one or more tickets) cannot be deleted.</li>
+    <li>Rename or recolor a tag at any time — changes apply immediately to all tickets.</li>
+</ul>
+
+<h6 class="mt-4">Categories</h6>
+<p>Categories classify tickets by service area or topic.</p>
+<ul>
+    <li>Deleting a category does not affect tickets — their category field is set to <em>None</em>.</li>
+    <li>Categories can be assigned when creating or editing a ticket.</li>
+</ul>
+
+<p class="mt-3">
+    <a href="{% url 'settings-tags' %}">Open Settings Hub &rarr;</a>
+</p>

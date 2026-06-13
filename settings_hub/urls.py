@@ -1,0 +1,15 @@
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path('', views.SettingsIndexView.as_view(), name='settings-index'),
+    path('tags/', views.TagListView.as_view(), name='settings-tags'),
+    path('tags/create/', views.TagCreateView.as_view(), name='settings-tag-create'),
+    path('tags/<int:pk>/edit/', views.TagEditView.as_view(), name='settings-tag-edit'),
+    path('tags/<int:pk>/delete/', views.TagDeleteView.as_view(), name='settings-tag-delete'),
+    path('categories/', views.CategoryListView.as_view(), name='settings-categories'),
+    path('categories/create/', views.CategoryCreateView.as_view(), name='settings-category-create'),
+    path('categories/<int:pk>/edit/', views.CategoryEditView.as_view(), name='settings-category-edit'),
+    path('categories/<int:pk>/delete/', views.CategoryDeleteView.as_view(), name='settings-category-delete'),
+]
