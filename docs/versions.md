@@ -62,3 +62,5 @@
 | v5.2.4 | Ticket Title Filter + Jira Attachment Sort | Delivered | [v5/v5.2.4.md](v5/v5.2.4.md) |
 | v5.3.0 | Jira Activity Log + Tab Persistence | Delivered | [v5/v5.3.0.md](v5/v5.3.0.md) |
 | v5.3.1 | Clipboard as Private System Note | Delivered | [v5/v5.3.1.md](v5/v5.3.1.md) |
+| v5.4.0 | Settings Hub — Tags & Categories Frontend | Delivered | [v5/v5.4.0.md](v5/v5.4.0.md) |
+| v5.4.1 | Read-only Automation Tags in Settings Hub | Delivered | [v5/v5.4.1.md](v5/v5.4.1.md) |
