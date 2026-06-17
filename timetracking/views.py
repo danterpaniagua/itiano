@@ -183,57 +183,42 @@ class TimeEntryDeleteView(LoginRequiredMixin, View):
 
 class DailyReportView(LoginRequiredMixin, View):
     def get(self, request):
+        import datetime as dt_module
         from collections import defaultdict
+        from django.utils import timezone
         from jira_integration.models import JiraEvent
-        from jira_integration.views import _build_status_timeline
+        from itsm.models import TicketTag
 
         schedule = WorkSchedule.objects.filter(user=request.user).first()
         jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
 
-        my_tickets = []
-        if jira_username:
-            my_tickets = list(
-                JiraTicket.objects.filter(assignee__iexact=jira_username, is_deleted=False).order_by('issue_key')
-            )
-
-        # Build timeline per ticket
-        timelines = {}
-        for ticket in my_tickets:
-            events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
-            timelines[ticket.issue_key] = _build_status_timeline(ticket, events)
-
-        # --- C: total seconds per status across all tickets ---
-        status_seconds = defaultdict(int)
-        for issue_key, timeline in timelines.items():
-            for row in timeline:
-                if not row['status']:
-                    continue
-                secs = int(row.get('_seconds', 0))
-                status_seconds[row['status']] += secs
-
-        # Recompute timelines with raw seconds for totals
-        status_seconds = defaultdict(int)
-        from django.utils import timezone
+        # --- Range ---
+        range_param = request.GET.get('range', 'today')
+        if range_param not in ('today', 'week', 'month'):
+            range_param = 'today'
         now = timezone.now()
-        for ticket in my_tickets:
-            events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
-            transitions = []
-            for event in sorted(events, key=lambda e: e.received_at):
-                items = event.payload.get('changelog', {}).get('items', [])
-                for item in items:
-                    if item.get('field') == 'status':
-                        transitions.append({'from_status': item.get('fromString', ''), 'to_status': item.get('toString', ''), 'at': event.received_at})
-            if not transitions:
-                continue
-            segments = [{'status': transitions[0]['from_status'], 'entered_at': None, 'exited_at': transitions[0]['at']}]
-            for i, t in enumerate(transitions):
-                exited_at = transitions[i + 1]['at'] if i + 1 < len(transitions) else None
-                segments.append({'status': t['to_status'], 'entered_at': t['at'], 'exited_at': exited_at})
-            for seg in segments:
-                if not seg['status'] or not seg['entered_at']:
-                    continue
-                end = seg['exited_at'] or now
-                status_seconds[seg['status']] += int((end - seg['entered_at']).total_seconds())
+        if range_param == 'today':
+            start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif range_param == 'week':
+            start_dt = (now - dt_module.timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            start_dt = (now - dt_module.timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        def range_seconds(entered_at, exited_at, ongoing_in_progress=False):
+            """
+            Count seconds from this segment that count toward the selected range.
+            Only counts if the transition INTO this status happened within [start_dt, now],
+            or if the segment is an ongoing In Progress that started before the range
+            (the ticket is actively being worked on).
+            """
+            if not entered_at:
+                return 0
+            if entered_at >= start_dt:
+                seg_end = min(exited_at or now, now)
+                return max(0, int((seg_end - entered_at).total_seconds()))
+            if ongoing_in_progress and exited_at is None:
+                return max(0, int((now - start_dt).total_seconds()))
+            return 0
 
         def fmt(seconds):
             seconds = max(0, int(seconds))
@@ -246,43 +231,147 @@ class DailyReportView(LoginRequiredMixin, View):
                 return f"{hours}h {minutes}m"
             return f"{minutes}m"
 
+        my_tickets = []
+        if jira_username:
+            my_tickets = list(
+                JiraTicket.objects.filter(assignee__iexact=jira_username, is_deleted=False).order_by('issue_key')
+            )
+
+        # Build raw segments per ticket (single event fetch)
+        ticket_segments = {}
+        for ticket in my_tickets:
+            events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
+            transitions = []
+            for event in events:
+                for item in event.payload.get('changelog', {}).get('items', []):
+                    if item.get('field') == 'status':
+                        transitions.append({
+                            'from_status': item.get('fromString', ''),
+                            'to_status': item.get('toString', ''),
+                            'at': event.received_at,
+                        })
+            if not transitions:
+                ticket_segments[ticket.issue_key] = []
+                continue
+            segs = [{'status': transitions[0]['from_status'], 'entered_at': None, 'exited_at': transitions[0]['at']}]
+            for i, t in enumerate(transitions):
+                exited_at = transitions[i + 1]['at'] if i + 1 < len(transitions) else None
+                segs.append({'status': t['to_status'], 'entered_at': t['at'], 'exited_at': exited_at})
+            ticket_segments[ticket.issue_key] = segs
+
+        # Compute range seconds per segment, respecting the new semantics:
+        # - segments entered within the range count normally
+        # - ongoing In Progress segments entered before the range count from start_dt
+        # - all other pre-range segments contribute 0
+        def ticket_seg_secs(ticket):
+            is_ip = ticket.status.lower() == 'in progress'
+            result = []
+            for seg in ticket_segments[ticket.issue_key]:
+                if not seg['status'] or not seg['entered_at']:
+                    result.append(0)
+                    continue
+                ongoing_ip = is_ip and seg['exited_at'] is None
+                result.append(range_seconds(seg['entered_at'], seg['exited_at'], ongoing_ip))
+            return result
+
+        # Per-ticket total range seconds (used for filtering and tag attribution)
+        ticket_range_secs = {}
+        ticket_seg_secs_map = {}
+        for ticket in my_tickets:
+            seg_secs = ticket_seg_secs(ticket)
+            ticket_seg_secs_map[ticket.issue_key] = seg_secs
+            ticket_range_secs[ticket.issue_key] = sum(seg_secs)
+
+        # --- Tag filter (global — filters all panels) ---
+        selected_tags = request.GET.getlist('tags')
+
+        # Collect all available tags from active tickets (before tag filter) for the UI
+        active_keys_all = [k for k, v in ticket_range_secs.items() if v > 0]
+        all_tags = sorted(set(
+            tt.tag.name
+            for tt in TicketTag.objects.filter(
+                ticket__external_id__in=active_keys_all
+            ).select_related('tag')
+        ))
+
+        # Apply tag filter: keep only tickets that have ALL selected tags
+        if selected_tags:
+            tagged_per_tag = []
+            for tag_name in selected_tags:
+                keys = set(TicketTag.objects.filter(
+                    ticket__external_id__in=active_keys_all,
+                    tag__name=tag_name,
+                ).values_list('ticket__external_id', flat=True))
+                tagged_per_tag.append(keys)
+            # AND: intersection of all tag sets
+            matching_keys = set.intersection(*tagged_per_tag) if tagged_per_tag else set(active_keys_all)
+            filtered_tickets = [t for t in my_tickets if t.issue_key in matching_keys]
+        else:
+            filtered_tickets = [t for t in my_tickets if ticket_range_secs.get(t.issue_key, 0) > 0]
+
+        # --- Time by Status (range-scoped, tag-filtered) ---
+        status_seconds = defaultdict(int)
+        for ticket in filtered_tickets:
+            segs = ticket_segments[ticket.issue_key]
+            for seg, secs in zip(segs, ticket_seg_secs_map[ticket.issue_key]):
+                if seg['status'] and secs > 0:
+                    status_seconds[seg['status']] += secs
+
         status_totals = [
             {'status': s, 'display': fmt(secs)}
             for s, secs in sorted(status_seconds.items())
+            if secs > 0
         ]
 
-        # --- A: active In Progress tickets with ongoing duration ---
+        # --- Time by Tag (range-scoped, tag-filtered) ---
+        filtered_keys = [t.issue_key for t in filtered_tickets]
+        tag_seconds = defaultdict(int)
+        for tt in TicketTag.objects.filter(
+            ticket__external_id__in=filtered_keys
+        ).select_related('tag', 'ticket'):
+            tag_seconds[tt.tag.name] += ticket_range_secs.get(tt.ticket.external_id, 0)
+        tag_totals = [
+            {'tag': name, 'display': fmt(secs)}
+            for name, secs in sorted(tag_seconds.items(), key=lambda x: -x[1])
+            if secs > 0
+        ]
+
+        # --- In Progress / Now (unaffected by range or tag filter) ---
         today_rows = []
         for ticket in my_tickets:
             if ticket.status.lower() != 'in progress':
                 continue
-            timeline = timelines[ticket.issue_key]
-            ongoing = next((r for r in timeline if r.get('ongoing')), None)
-            today_rows.append({
-                'ticket': ticket,
-                'jira_ongoing': ongoing['duration'] if ongoing else '—',
-            })
+            ongoing_seg = next(
+                (seg for seg in ticket_segments[ticket.issue_key] if seg['entered_at'] and seg['exited_at'] is None),
+                None,
+            )
+            duration = fmt(int((now - ongoing_seg['entered_at']).total_seconds())) if ongoing_seg else '—'
+            today_rows.append({'ticket': ticket, 'jira_ongoing': duration})
 
-        # --- B: pivot all tickets × all statuses ---
+        # --- Status history pivot (range-scoped, tag-filtered) ---
         all_statuses = []
-        for timeline in timelines.values():
-            for row in timeline:
-                if row['status'] and row['status'] not in all_statuses:
-                    all_statuses.append(row['status'])
+        for segs in ticket_segments.values():
+            for seg in segs:
+                if seg['status'] and seg['status'] not in all_statuses:
+                    all_statuses.append(seg['status'])
 
         pivot_rows = []
-        for ticket in my_tickets:
-            timeline = timelines[ticket.issue_key]
-            if not timeline:
-                continue
-            by_status = {row['status']: row for row in timeline}
+        for ticket in filtered_tickets:
+            by_status = defaultdict(lambda: {'secs': 0, 'ongoing': False})
+            segs = ticket_segments[ticket.issue_key]
+            for seg, secs in zip(segs, ticket_seg_secs_map[ticket.issue_key]):
+                if not seg['status'] or not seg['entered_at'] or secs == 0:
+                    continue
+                by_status[seg['status']]['secs'] += secs
+                if seg['exited_at'] is None:
+                    by_status[seg['status']]['ongoing'] = True
             cells = []
             for status in all_statuses:
                 entry = by_status.get(status)
-                cells.append({
-                    'duration': entry['duration'] if entry else '—',
-                    'ongoing': entry['ongoing'] if entry else False,
-                })
+                if entry and entry['secs'] > 0:
+                    cells.append({'duration': fmt(entry['secs']), 'ongoing': entry['ongoing']})
+                else:
+                    cells.append({'duration': '—', 'ongoing': False})
             pivot_rows.append({'ticket': ticket, 'cells': cells})
 
         return render(request, 'timetracking/report.html', {
@@ -291,6 +380,10 @@ class DailyReportView(LoginRequiredMixin, View):
             'pivot_rows': pivot_rows,
             'all_statuses': all_statuses,
             'jira_username': jira_username,
+            'range_param': range_param,
+            'tag_totals': tag_totals,
+            'selected_tags': selected_tags,
+            'all_tags': all_tags,
         })
 
 
