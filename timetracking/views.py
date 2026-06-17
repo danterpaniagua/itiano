@@ -18,9 +18,23 @@ class TimeEntryListView(LoginRequiredMixin, View):
         ticket_filter = request.GET.get('ticket', '').strip()
         if ticket_filter:
             entries = entries.filter(jira_ticket__issue_key__icontains=ticket_filter)
+
+        schedule = WorkSchedule.objects.filter(user=request.user).first()
+        jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
+        active_tickets = []
+        if jira_username:
+            active_tickets = list(
+                JiraTicket.objects.filter(
+                    status__iexact='In Progress',
+                    assignee__iexact=jira_username,
+                ).order_by('issue_key')
+            )
+
         return render(request, 'timetracking/entry_list.html', {
             'entries': entries,
             'ticket_filter': ticket_filter,
+            'active_tickets': active_tickets,
+            'jira_username': jira_username,
         })
 
 
@@ -220,6 +234,7 @@ class WorkScheduleView(LoginRequiredMixin, View):
         schedule = self._get_or_create(request.user)
         for attr, _ in self.DAYS:
             setattr(schedule, attr, attr in request.POST)
+        schedule.jira_username = request.POST.get('jira_username', '').strip()
         start = request.POST.get('start_time', '').strip()
         end = request.POST.get('end_time', '').strip()
         import datetime as dt

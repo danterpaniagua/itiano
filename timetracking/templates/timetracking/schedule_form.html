@@ -54,6 +54,14 @@
                 </div>
             </div>
 
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Jira display name</label>
+                <input type="text" name="jira_username" class="form-control"
+                       value="{{ schedule.jira_username }}"
+                       placeholder="e.g. dantep">
+                <div class="form-text">Must match your display name in Jira exactly. Used to show your active tickets in Time Tracking.</div>
+            </div>
+
             <button type="submit" class="btn btn-primary">Save schedule</button>
         </form>
 
