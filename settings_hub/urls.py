@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
@@ -12,4 +13,5 @@ urlpatterns = [
     path('categories/create/', views.CategoryCreateView.as_view(), name='settings-category-create'),
     path('categories/<int:pk>/edit/', views.CategoryEditView.as_view(), name='settings-category-edit'),
     path('categories/<int:pk>/delete/', views.CategoryDeleteView.as_view(), name='settings-category-delete'),
+    path('schedule/', RedirectView.as_view(pattern_name='timetracking-schedule'), name='settings-schedule'),
 ]

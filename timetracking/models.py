@@ -4,6 +4,30 @@ from django.db import models
 from jira_integration.models import JiraTicket
 
 
+class WorkSchedule(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='work_schedule')
+    mon = models.BooleanField(default=True)
+    tue = models.BooleanField(default=True)
+    wed = models.BooleanField(default=True)
+    thu = models.BooleanField(default=True)
+    fri = models.BooleanField(default=True)
+    sat = models.BooleanField(default=False)
+    sun = models.BooleanField(default=False)
+    start_time = models.TimeField(default='08:00')
+    end_time = models.TimeField(default='18:00')
+
+    def __str__(self):
+        return f"{self.user.username} schedule"
+
+    @property
+    def working_days(self):
+        days = []
+        for attr, label in [('mon','Mon'),('tue','Tue'),('wed','Wed'),('thu','Thu'),('fri','Fri'),('sat','Sat'),('sun','Sun')]:
+            if getattr(self, attr):
+                days.append(label)
+        return days
+
+
 class TimeEntry(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='time_entries')
     jira_ticket = models.ForeignKey(JiraTicket, on_delete=models.CASCADE, related_name='time_entries')

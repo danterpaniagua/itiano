@@ -9,7 +9,7 @@ from django.views import View
 
 from jira_integration.models import JiraTicket
 
-from .models import TimeEntry
+from .models import TimeEntry, WorkSchedule
 
 
 class TimeEntryListView(LoginRequiredMixin, View):
@@ -190,3 +190,60 @@ class DailyReportView(LoginRequiredMixin, View):
             })
 
         return render(request, 'timetracking/report.html', {'report': report})
+
+
+class WorkScheduleView(LoginRequiredMixin, View):
+    DAYS = [
+        ('mon', 'Monday'),
+        ('tue', 'Tuesday'),
+        ('wed', 'Wednesday'),
+        ('thu', 'Thursday'),
+        ('fri', 'Friday'),
+        ('sat', 'Saturday'),
+        ('sun', 'Sunday'),
+    ]
+
+    def _get_or_create(self, user):
+        schedule, _ = WorkSchedule.objects.get_or_create(user=user)
+        return schedule
+
+    def get(self, request):
+        schedule = self._get_or_create(request.user)
+        active_days = {attr for attr, _ in self.DAYS if getattr(schedule, attr)}
+        return render(request, 'timetracking/schedule_form.html', {
+            'schedule': schedule,
+            'days': self.DAYS,
+            'active_days': active_days,
+        })
+
+    def post(self, request):
+        schedule = self._get_or_create(request.user)
+        for attr, _ in self.DAYS:
+            setattr(schedule, attr, attr in request.POST)
+        start = request.POST.get('start_time', '').strip()
+        end = request.POST.get('end_time', '').strip()
+        import datetime as dt
+        try:
+            schedule.start_time = dt.time.fromisoformat(start)
+        except ValueError:
+            messages.error(request, 'Hora de inicio inválida.')
+            return self._render(request, schedule)
+        try:
+            schedule.end_time = dt.time.fromisoformat(end)
+        except ValueError:
+            messages.error(request, 'Hora de fin inválida.')
+            return self._render(request, schedule)
+        if schedule.start_time >= schedule.end_time:
+            messages.error(request, 'La hora de fin debe ser posterior a la de inicio.')
+            return self._render(request, schedule)
+        schedule.save()
+        messages.success(request, 'Horario guardado.')
+        return redirect('timetracking-schedule')
+
+    def _render(self, request, schedule):
+        active_days = {attr for attr, _ in self.DAYS if getattr(schedule, attr)}
+        return render(request, 'timetracking/schedule_form.html', {
+            'schedule': schedule,
+            'days': self.DAYS,
+            'active_days': active_days,
+        })

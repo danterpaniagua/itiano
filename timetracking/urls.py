@@ -8,4 +8,5 @@ urlpatterns = [
     path('<int:pk>/edit/', views.TimeEntryEditView.as_view(), name='timetracking-edit'),
     path('<int:pk>/delete/', views.TimeEntryDeleteView.as_view(), name='timetracking-delete'),
     path('report/', views.DailyReportView.as_view(), name='timetracking-report'),
+    path('schedule/', views.WorkScheduleView.as_view(), name='timetracking-schedule'),
 ]
