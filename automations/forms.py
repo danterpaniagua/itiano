@@ -33,10 +33,19 @@ class ActionForm(forms.ModelForm):
 
 
 class TriggerForm(forms.ModelForm):
+    tag_name = forms.CharField(
+        required=False,
+        label='Trigger Tag',
+        widget=forms.TextInput(attrs={'placeholder': 'Tag name…'}),
+        help_text='Stamped on every ticket this trigger creates. Leave blank for none.',
+    )
+
     class Meta:
         model = Trigger
         fields = ['name', 'source', 'filter', 'action', 'is_active']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.tag:
+            self.initial['tag_name'] = self.instance.tag.name
         _apply_bootstrap(self)

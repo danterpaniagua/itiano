@@ -1,20 +1,29 @@
 <h5>Time Tracking</h5>
-<p>Log the time you spend working on Jira tickets. Each user's entries are private.</p>
+<p>Track time spent on Jira tickets. The report is derived entirely from Jira status history received via webhooks — no manual entry is required for the report.</p>
 
-<h6 class="mt-4">Logging time</h6>
+<h6 class="mt-4">Setup</h6>
+<ol>
+    <li>Go to <a href="{% url 'timetracking-schedule' %}">Settings</a> and set your <strong>Jira Username</strong>. It must match your display name in Jira exactly (e.g. <code>John Smith</code>).</li>
+    <li>Set your work schedule (days and hours) so the system knows your availability.</li>
+</ol>
+
+<h6 class="mt-4">Active Tickets Panel</h6>
+<p>The Time Tracking home page shows all your Jira tickets currently in <strong>In Progress</strong> status. This panel updates automatically as Jira webhooks arrive.</p>
+
+<h6 class="mt-4">Time Report</h6>
+<p>The <a href="{% url 'timetracking-report' %}">Report</a> has three sections:</p>
 <ul>
-    <li>Use <strong>Log Time</strong> from the top nav or directly from a Jira ticket's detail page.</li>
-    <li>Enter the ticket, date, minutes spent, and a brief description of the activity.</li>
+    <li><strong>Time by Status (C)</strong> — total time accumulated in each Jira status across all your tickets.</li>
+    <li><strong>In Progress / Now (A)</strong> — tickets currently in progress with their ongoing duration.</li>
+    <li><strong>Status History by Ticket (B)</strong> — pivot table of all your tickets vs. all statuses, showing time in each cell. Ongoing durations are marked with a badge.</li>
 </ul>
+<p class="text-muted small">Tickets marked as deleted are excluded from all report sections.</p>
 
-<h6 class="mt-4">Report</h6>
-<ul>
-    <li>The <strong>Daily Report</strong> groups all your entries by date and shows a total per day.</li>
-    <li>Access it from the Time Tracking list page or the navbar.</li>
-</ul>
+<h6 class="mt-4">Manual Time Log</h6>
+<p>You can also log time manually against any Jira ticket. Entries appear on the Jira ticket detail page and in the Time Tracking list. Manual entries are separate from the status-history report.</p>
 
-<h6 class="mt-4">Ticket integration</h6>
-<p>Each Jira ticket detail page shows your time entries for that ticket and a quick-log form.</p>
+<h6 class="mt-4">Deleted Tickets</h6>
+<p>If a Jira ticket is deleted on the Jira side, staff can mark it as deleted in Itiano via the trash button on the ticket detail page. Deleted tickets are hidden from the active panel and report but remain visible in the Jira ticket list with a <span class="badge bg-danger">Deleted</span> badge.</p>
 
 <p class="mt-3">
     <a href="{% url 'timetracking-list' %}">Open Time Tracking &rarr;</a>

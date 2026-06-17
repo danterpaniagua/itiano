@@ -113,6 +113,16 @@ def action_toggle(request, pk):
 
 # ── Triggers ───────────────────────────────────────────────────────────────────
 
+def _save_trigger_tag(trigger, form):
+    from itsm.models import Tag
+    tag_name = form.cleaned_data.get('tag_name', '').strip()
+    if tag_name:
+        tag, _ = Tag.objects.get_or_create(name=tag_name)
+        trigger.tag = tag
+    else:
+        trigger.tag = None
+    trigger.save(update_fields=['tag'])
+
 @staff_required
 def trigger_list(request):
     triggers = Trigger.objects.select_related('action')
@@ -126,7 +136,8 @@ def trigger_list(request):
 def trigger_create(request):
     form = TriggerForm(request.POST or None)
     if form.is_valid():
-        form.save()
+        trigger = form.save()
+        _save_trigger_tag(trigger, form)
         messages.success(request, 'Trigger created.')
         return redirect('automations-trigger-list')
     return render(request, 'automations/trigger_form.html', {
@@ -149,6 +160,7 @@ def trigger_edit(request, pk):
             return redirect('automations-trigger-edit', pk=pk) if stay else redirect('automations-trigger-list')
         before = _snapshot(trigger, _TRIGGER_TRACKED)
         form.save()
+        _save_trigger_tag(trigger, form)
         trigger.refresh_from_db()
         _record_history(TriggerHistory, 'trigger', trigger, request.user, before, _snapshot(trigger, _TRIGGER_TRACKED))
         messages.success(request, 'Trigger updated.')

@@ -47,6 +47,15 @@
     <li>Tags created by automations are marked with 🤖 on the ticket.</li>
 </ul>
 
+<h6 class="text-muted mt-3">Trigger Identity Tag</h6>
+<p>Each Trigger can have a single <strong>Trigger Tag</strong> — a static ITSM tag stamped on every ticket the trigger creates or updates.</p>
+<ul>
+    <li>Set it in the <em>Trigger Tag</em> field on the trigger edit form. The field pre-fills with the current tag name on reopen.</li>
+    <li>Leave blank to remove the tag association.</li>
+    <li>On the ticket, automation tags (both dynamic from <em>tag_expressions</em> and the trigger identity tag) are marked with 🤖.</li>
+    <li>Use this to identify which automation originated a ticket — e.g. <code>auto-infradevops</code>.</li>
+</ul>
+
 <h6 class="text-muted mt-3">Save vs Apply</h6>
 <p>The Action and Trigger edit forms have two submit buttons:</p>
 <ul>

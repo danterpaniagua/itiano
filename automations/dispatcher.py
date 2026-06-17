@@ -41,7 +41,7 @@ def _dispatch(source, payload):
 
         try:
             with transaction.atomic():
-                _execute_action(trigger.action, payload)
+                _execute_action(trigger, trigger.action, payload)
             TriggerLog.objects.create(
                 trigger=trigger,
                 action=trigger.action,
@@ -66,9 +66,9 @@ def _dispatch(source, payload):
             )
 
 
-def _execute_action(action, payload):
+def _execute_action(trigger, action, payload):
     if action.action_type == 'create_ticket':
-        _upsert_ticket(action, payload)
+        _upsert_ticket(trigger, action, payload)
     else:
         raise ValueError(f"Unknown action_type: {action.action_type}")
 
@@ -160,13 +160,15 @@ def _normalize_description(text, fmt):
     return text
 
 
-def _upsert_ticket(action, payload):
+def _upsert_ticket(trigger, action, payload):
     from itsm.models import Ticket
     from .resolver import resolve_value
 
     fields = _resolve_fields(action.field_mappings, payload)
     fields['description'] = _normalize_description(fields['description'], action.description_format)
-    tag_names = _resolve_tags(action, payload)
+    dynamic_tags = _resolve_tags(action, payload)
+    static_tags = [(trigger.tag.name, trigger.tag.color)] if trigger.tag_id else []
+    tag_names = dynamic_tags + static_tags
 
     # external_id: prefer field_mappings["key"], fall back to dedup_expression
     external_id = fields['key']

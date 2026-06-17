@@ -89,6 +89,14 @@ class Trigger(models.Model):
         )
     )
     action = models.ForeignKey(Action, on_delete=models.CASCADE, related_name='triggers')
+    tag = models.ForeignKey(
+        'itsm.Tag',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='triggers',
+        help_text='Tag stamped on every ticket created by this trigger.',
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
