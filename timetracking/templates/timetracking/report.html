@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Time Report – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Daily Time Report</h5>
+    <a href="{% url 'timetracking-list' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-list"></i> All Entries
+    </a>
+    <a href="{% url 'timetracking-create' %}" class="btn btn-sm btn-primary">
+        <i class="bi bi-plus-lg"></i> Log Time
+    </a>
+</div>
+
+{% if report %}
+{% for day in report %}
+<div class="card mb-3">
+    <div class="card-header d-flex align-items-center">
+        <span class="fw-semibold me-auto">{{ day.date|date:"l, d F Y" }}</span>
+        <span class="badge bg-primary">{{ day.total_display }}</span>
+    </div>
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Ticket</th>
+                    <th>Time</th>
+                    <th>Activity</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for entry in day.entries %}
+            <tr>
+                <td class="text-nowrap">
+                    <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}" class="text-decoration-none">
+                        {{ entry.jira_ticket.issue_key }}
+                    </a>
+                </td>
+                <td class="fw-semibold text-nowrap">{{ entry.hours_display }}</td>
+                <td class="text-muted small">{{ entry.activity }}</td>
+                <td class="text-end">
+                    <a href="{% url 'timetracking-edit' entry.pk %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="d-md-none">
+        {% for entry in day.entries %}
+        <div class="card-body border-bottom py-2">
+            <div class="d-flex gap-2 align-items-baseline">
+                <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}"
+                   class="fw-semibold text-decoration-none">{{ entry.jira_ticket.issue_key }}</a>
+                <span class="badge bg-secondary">{{ entry.hours_display }}</span>
+                <a href="{% url 'timetracking-edit' entry.pk %}" class="btn btn-sm btn-outline-secondary ms-auto p-0 px-1">
+                    <i class="bi bi-pencil"></i>
+                </a>
+            </div>
+            <div class="text-muted small mt-1">{{ entry.activity }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<p class="text-muted">No entries yet. <a href="{% url 'timetracking-create' %}">Log your first entry</a>.</p>
+{% endif %}
+{% endblock %}

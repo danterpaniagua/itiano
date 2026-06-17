@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{% if entry %}Edit Entry{% else %}Log Time{% endif %} – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">
+        <i class="bi bi-clock-history"></i>
+        {% if entry %}Edit Time Entry{% else %}Log Time{% endif %}
+    </h5>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-7 col-lg-5">
+        <form method="post">
+            {% csrf_token %}
+            {% if request.GET.next or request.POST.next %}
+            <input type="hidden" name="next" value="{{ request.GET.next|default:request.POST.next }}">
+            {% endif %}
+
+            <div class="mb-3">
+                <label class="form-label">Jira Ticket</label>
+                <select name="jira_ticket" class="form-select" required>
+                    <option value="">— select —</option>
+                    {% for t in tickets %}
+                    <option value="{{ t.issue_key }}"
+                        {% if preselected_ticket.pk == t.pk or post.jira_ticket == t.issue_key %}selected{% endif %}>
+                        {{ t.issue_key }}{% if t.title %} — {{ t.title|truncatechars:60 }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Date</label>
+                <input type="date" name="date" class="form-control"
+                       value="{{ post.date|default:today }}" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Time spent (minutes)</label>
+                <input type="number" name="minutes" class="form-control"
+                       value="{% if post.minutes %}{{ post.minutes }}{% elif entry %}{{ entry.minutes }}{% endif %}"
+                       min="1" placeholder="e.g. 90 for 1h 30m" required>
+                <div class="form-text">Enter total minutes. 60 = 1 hour, 90 = 1h 30m.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Activity</label>
+                <textarea name="activity" class="form-control" rows="3"
+                          placeholder="What did you work on?" required>{% if post.activity %}{{ post.activity }}{% elif entry %}{{ entry.activity }}{% endif %}</textarea>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    {% if entry %}Save{% else %}Log{% endif %}
+                </button>
+                <a href="{% url 'timetracking-list' %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

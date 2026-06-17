@@ -70,6 +70,27 @@
         </a>
     </div>
 
+    <div class="col-12 col-md-6">
+        <a href="{% url 'timetracking-report' %}" class="text-decoration-none">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Time Tracking</h6>
+                    <div class="d-flex gap-4 mt-1">
+                        <div>
+                            <div class="display-6 fw-bold">{{ today_hours|floatformat:1 }}h</div>
+                            <div class="text-muted small">Today</div>
+                        </div>
+                        <div>
+                            <div class="display-6 fw-bold">{{ weekly_hours|floatformat:1 }}h</div>
+                            <div class="text-muted small">This week</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer text-muted small">View report →</div>
+            </div>
+        </a>
+    </div>
+
     {% if request.user.is_staff %}
     <div class="col-12 col-md-6">
         <a href="{% url 'contact-list' %}" class="text-decoration-none">

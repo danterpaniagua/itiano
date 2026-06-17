@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'notes',
     'contacts',
     'settings_hub',
+    'timetracking',
 ]
 
 MIDDLEWARE = [

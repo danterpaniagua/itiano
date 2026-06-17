@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Time Tracking – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-clock-history"></i> Time Tracking</h5>
+    <a href="{% url 'timetracking-report' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-bar-chart"></i> Report
+    </a>
+    <a href="{% url 'timetracking-create' %}" class="btn btn-sm btn-primary">
+        <i class="bi bi-plus-lg"></i> Log Time
+    </a>
+</div>
+
+<form method="get" class="mb-3 d-flex gap-2">
+    <input type="text" name="ticket" value="{{ ticket_filter }}"
+           class="form-control form-control-sm" placeholder="Filter by ticket key…" style="max-width:200px">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button>
+    {% if ticket_filter %}
+    <a href="{% url 'timetracking-list' %}" class="btn btn-sm btn-outline-danger">Clear</a>
+    {% endif %}
+</form>
+
+{% if entries %}
+<div class="table-responsive d-none d-md-block">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Ticket</th>
+                <th>Time</th>
+                <th>Activity</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for entry in entries %}
+        <tr>
+            <td class="text-nowrap">{{ entry.date|date:"d/m/Y" }}</td>
+            <td>
+                <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}" class="text-decoration-none">
+                    {{ entry.jira_ticket.issue_key }}
+                </a>
+                <div class="text-muted small text-truncate" style="max-width:200px">{{ entry.jira_ticket.title }}</div>
+            </td>
+            <td class="text-nowrap fw-semibold">{{ entry.hours_display }}</td>
+            <td class="text-muted small" style="max-width:300px">{{ entry.activity|truncatechars:80 }}</td>
+            <td class="text-end text-nowrap">
+                <a href="{% url 'timetracking-edit' entry.pk %}" class="btn btn-sm btn-outline-secondary me-1">
+                    <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="{% url 'timetracking-delete' entry.pk %}"
+                      class="d-inline" onsubmit="return confirm('Delete this entry?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="d-md-none">
+    {% for entry in entries %}
+    <div class="card mb-2">
+        <div class="card-body py-2">
+            <div class="d-flex align-items-start gap-2">
+                <div class="flex-grow-1">
+                    <div class="d-flex gap-2 align-items-baseline">
+                        <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}"
+                           class="fw-semibold text-decoration-none">{{ entry.jira_ticket.issue_key }}</a>
+                        <span class="badge bg-secondary">{{ entry.hours_display }}</span>
+                        <span class="text-muted small ms-auto">{{ entry.date|date:"d/m/Y" }}</span>
+                    </div>
+                    <div class="text-muted small mt-1">{{ entry.activity|truncatechars:100 }}</div>
+                </div>
+                <div class="d-flex gap-1 flex-shrink-0">
+                    <a href="{% url 'timetracking-edit' entry.pk %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" action="{% url 'timetracking-delete' entry.pk %}"
+                          onsubmit="return confirm('Delete?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">No time entries yet. <a href="{% url 'timetracking-create' %}">Log your first entry</a>.</p>
+{% endif %}
+{% endblock %}

@@ -15,6 +15,7 @@ urlpatterns = [
     path('notes/', include('notes.urls')),
     path('contacts/', include('contacts.urls')),
     path('settings/', include('settings_hub.urls')),
+    path('time/', include('timetracking.urls')),
     path('', include('core.urls')),
 ]
 

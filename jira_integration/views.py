@@ -175,8 +175,14 @@ def ticket_detail(request, issue_key):
 
     last_event = events[0] if events else None
 
+    from timetracking.models import TimeEntry
+    my_entries = TimeEntry.objects.filter(
+        user=request.user, jira_ticket=ticket
+    ).order_by('-date', '-created_at')
+
     return render(request, 'jira_integration/ticket_detail.html', {
         'ticket': ticket,
         'events': events,
         'last_event': last_event,
+        'my_time_entries': my_entries,
     })
