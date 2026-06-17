@@ -97,6 +97,7 @@ def action_edit(request, pk):
         'section': 'actions',
         'cancel_url': 'automations-action-list',
         'history': history,
+        'buttons_enabled': True,
     })
 
 
@@ -159,6 +160,7 @@ def trigger_edit(request, pk):
         'section': 'triggers',
         'cancel_url': 'automations-trigger-list',
         'history': history,
+        'buttons_enabled': True,
     })
 
 
