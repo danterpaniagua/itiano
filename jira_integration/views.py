@@ -165,6 +165,58 @@ def ticket_list(request):
     return render(request, 'jira_integration/ticket_list.html', {'tickets': tickets})
 
 
+def _format_duration(delta):
+    total_seconds = int(delta.total_seconds())
+    if total_seconds < 0:
+        return '—'
+    days, rem = divmod(total_seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes = rem // 60
+    if days:
+        return f"{days}d {hours}h {minutes}m"
+    if hours:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
+
+def _build_status_timeline(ticket, events):
+    from django.utils import timezone
+    transitions = []
+    for event in sorted(events, key=lambda e: e.received_at):
+        items = event.payload.get('changelog', {}).get('items', [])
+        for item in items:
+            if item.get('field') == 'status':
+                transitions.append({
+                    'from_status': item.get('fromString', ''),
+                    'to_status': item.get('toString', ''),
+                    'at': event.received_at,
+                })
+
+    if not transitions:
+        return []
+
+    timeline = []
+    first = transitions[0]
+    timeline.append({'status': first['from_status'], 'entered_at': None, 'exited_at': first['at']})
+    for i, t in enumerate(transitions):
+        exited_at = transitions[i + 1]['at'] if i + 1 < len(transitions) else None
+        timeline.append({'status': t['to_status'], 'entered_at': t['at'], 'exited_at': exited_at})
+
+    now = timezone.now()
+    for entry in timeline:
+        if entry['entered_at'] and entry['exited_at']:
+            entry['duration'] = _format_duration(entry['exited_at'] - entry['entered_at'])
+            entry['ongoing'] = False
+        elif entry['entered_at'] and not entry['exited_at']:
+            entry['duration'] = _format_duration(now - entry['entered_at'])
+            entry['ongoing'] = True
+        else:
+            entry['duration'] = '—'
+            entry['ongoing'] = False
+
+    return list(reversed(timeline))
+
+
 @login_required
 def ticket_detail(request, issue_key):
     ticket = get_object_or_404(JiraTicket, issue_key=issue_key)
@@ -174,6 +226,7 @@ def ticket_detail(request, issue_key):
         event.payload_pretty = json.dumps(event.payload, indent=2)
 
     last_event = events[0] if events else None
+    status_timeline = _build_status_timeline(ticket, events)
 
     from timetracking.models import TimeEntry
     my_entries = TimeEntry.objects.filter(
@@ -184,5 +237,6 @@ def ticket_detail(request, issue_key):
         'ticket': ticket,
         'events': events,
         'last_event': last_event,
+        'status_timeline': status_timeline,
         'my_time_entries': my_entries,
     })

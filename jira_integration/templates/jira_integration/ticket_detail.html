@@ -71,6 +71,36 @@
 </div>
 {% endif %}
 
+{# Status history #}
+{% if status_timeline %}
+<div class="card mb-3">
+    <div class="card-header d-flex align-items-center">
+        <span class="me-auto"><i class="bi bi-arrow-left-right"></i> Status History</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr><th>Status</th><th>Entered</th><th>Duration</th></tr>
+            </thead>
+            <tbody>
+            {% for entry in status_timeline %}
+            <tr{% if entry.ongoing %} class="table-primary"{% endif %}>
+                <td class="fw-semibold">
+                    {{ entry.status }}
+                    {% if entry.ongoing %}<span class="badge bg-primary ms-1">ongoing</span>{% endif %}
+                </td>
+                <td class="text-muted small text-nowrap">
+                    {% if entry.entered_at %}{{ entry.entered_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}
+                </td>
+                <td class="text-nowrap">{{ entry.duration }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 {# Event log #}
 <div class="card">
     <div class="card-header">Event Log</div>
