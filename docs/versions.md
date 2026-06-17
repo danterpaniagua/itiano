@@ -69,3 +69,4 @@
 | v5.5.2 | Jira Status Duration | Delivered | [v5/v5.5.2.md](v5/v5.5.2.md) |
 | v5.6.0 | Jira User Mapping + Active Ticket Panel | Delivered | [v5/v5.6.0.md](v5/v5.6.0.md) |
 | v5.7.0 | Time Report Dashboard | Delivered | [v5/v5.7.0.md](v5/v5.7.0.md) |
+| v5.7.1 | Jira Deleted Ticket Flag | Delivered | [v5/v5.7.1.md](v5/v5.7.1.md) |

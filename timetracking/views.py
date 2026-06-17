@@ -27,6 +27,7 @@ class TimeEntryListView(LoginRequiredMixin, View):
                 JiraTicket.objects.filter(
                     status__iexact='In Progress',
                     assignee__iexact=jira_username,
+                    is_deleted=False,
                 ).order_by('issue_key')
             )
 
@@ -192,7 +193,7 @@ class DailyReportView(LoginRequiredMixin, View):
         my_tickets = []
         if jira_username:
             my_tickets = list(
-                JiraTicket.objects.filter(assignee__iexact=jira_username).order_by('issue_key')
+                JiraTicket.objects.filter(assignee__iexact=jira_username, is_deleted=False).order_by('issue_key')
             )
 
         # Build timeline per ticket

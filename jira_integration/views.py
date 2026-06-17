@@ -136,6 +136,18 @@ def _build_summary(event_type, payload):
 
 
 @login_required
+def toggle_deleted(request, issue_key):
+    if not request.user.is_staff:
+        raise PermissionDenied
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    ticket = get_object_or_404(JiraTicket, issue_key=issue_key)
+    ticket.is_deleted = not ticket.is_deleted
+    ticket.save(update_fields=['is_deleted'])
+    return redirect(reverse('jira-ticket-detail', args=[issue_key]))
+
+
+@login_required
 def resend_event(request, issue_key, event_pk):
     if not request.user.is_staff:
         raise PermissionDenied
