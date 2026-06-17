@@ -182,28 +182,115 @@ class TimeEntryDeleteView(LoginRequiredMixin, View):
 
 class DailyReportView(LoginRequiredMixin, View):
     def get(self, request):
-        entries = TimeEntry.objects.filter(user=request.user).select_related('jira_ticket').order_by('date', 'jira_ticket__issue_key')
-
-        # Group by date
         from collections import defaultdict
-        days = defaultdict(list)
-        day_totals = defaultdict(int)
-        for entry in entries:
-            days[entry.date].append(entry)
-            day_totals[entry.date] += entry.minutes
+        from jira_integration.models import JiraEvent
+        from jira_integration.views import _build_status_timeline
 
-        report = []
-        for date in sorted(days.keys(), reverse=True):
-            total = day_totals[date]
-            h, m = divmod(total, 60)
-            report.append({
-                'date': date,
-                'entries': days[date],
-                'total_minutes': total,
-                'total_display': f"{h}h {m}m" if m else f"{h}h",
+        schedule = WorkSchedule.objects.filter(user=request.user).first()
+        jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
+
+        my_tickets = []
+        if jira_username:
+            my_tickets = list(
+                JiraTicket.objects.filter(assignee__iexact=jira_username).order_by('issue_key')
+            )
+
+        # Build timeline per ticket
+        timelines = {}
+        for ticket in my_tickets:
+            events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
+            timelines[ticket.issue_key] = _build_status_timeline(ticket, events)
+
+        # --- C: total seconds per status across all tickets ---
+        status_seconds = defaultdict(int)
+        for issue_key, timeline in timelines.items():
+            for row in timeline:
+                if not row['status']:
+                    continue
+                secs = int(row.get('_seconds', 0))
+                status_seconds[row['status']] += secs
+
+        # Recompute timelines with raw seconds for totals
+        status_seconds = defaultdict(int)
+        from django.utils import timezone
+        now = timezone.now()
+        for ticket in my_tickets:
+            events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
+            transitions = []
+            for event in sorted(events, key=lambda e: e.received_at):
+                items = event.payload.get('changelog', {}).get('items', [])
+                for item in items:
+                    if item.get('field') == 'status':
+                        transitions.append({'from_status': item.get('fromString', ''), 'to_status': item.get('toString', ''), 'at': event.received_at})
+            if not transitions:
+                continue
+            segments = [{'status': transitions[0]['from_status'], 'entered_at': None, 'exited_at': transitions[0]['at']}]
+            for i, t in enumerate(transitions):
+                exited_at = transitions[i + 1]['at'] if i + 1 < len(transitions) else None
+                segments.append({'status': t['to_status'], 'entered_at': t['at'], 'exited_at': exited_at})
+            for seg in segments:
+                if not seg['status'] or not seg['entered_at']:
+                    continue
+                end = seg['exited_at'] or now
+                status_seconds[seg['status']] += int((end - seg['entered_at']).total_seconds())
+
+        def fmt(seconds):
+            seconds = max(0, int(seconds))
+            days, rem = divmod(seconds, 86400)
+            hours, rem = divmod(rem, 3600)
+            minutes = rem // 60
+            if days:
+                return f"{days}d {hours}h {minutes}m"
+            if hours:
+                return f"{hours}h {minutes}m"
+            return f"{minutes}m"
+
+        status_totals = [
+            {'status': s, 'display': fmt(secs)}
+            for s, secs in sorted(status_seconds.items())
+        ]
+
+        # --- A: active In Progress tickets with ongoing duration ---
+        today_rows = []
+        for ticket in my_tickets:
+            if ticket.status.lower() != 'in progress':
+                continue
+            timeline = timelines[ticket.issue_key]
+            ongoing = next((r for r in timeline if r.get('ongoing')), None)
+            today_rows.append({
+                'ticket': ticket,
+                'jira_ongoing': ongoing['duration'] if ongoing else '—',
             })
 
-        return render(request, 'timetracking/report.html', {'report': report})
+        # --- B: pivot all tickets × all statuses ---
+        all_statuses = []
+        for timeline in timelines.values():
+            for row in timeline:
+                if row['status'] and row['status'] not in all_statuses:
+                    all_statuses.append(row['status'])
+
+        pivot_rows = []
+        for ticket in my_tickets:
+            timeline = timelines[ticket.issue_key]
+            if not timeline:
+                continue
+            by_status = {row['status']: row for row in timeline}
+            cells = []
+            for status in all_statuses:
+                entry = by_status.get(status)
+                cells.append({
+                    'duration': entry['duration'] if entry else '—',
+                    'ongoing': entry['ongoing'] if entry else False,
+                })
+            pivot_rows.append({'ticket': ticket, 'cells': cells})
+
+        return render(request, 'timetracking/report.html', {
+            'status_totals': status_totals,
+            'today_rows': today_rows,
+            'pivot_rows': pivot_rows,
+            'all_statuses': all_statuses,
+            'jira_username': jira_username,
+        })
 
 
 class WorkScheduleView(LoginRequiredMixin, View):

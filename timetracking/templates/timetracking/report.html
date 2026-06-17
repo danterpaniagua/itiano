@@ -3,70 +3,143 @@
 
 {% block content %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-    <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Daily Time Report</h5>
+    <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Time Report</h5>
     <a href="{% url 'timetracking-list' %}" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-list"></i> All Entries
     </a>
-    <a href="{% url 'timetracking-create' %}" class="btn btn-sm btn-primary">
-        <i class="bi bi-plus-lg"></i> Log Time
-    </a>
 </div>
 
-{% if report %}
-{% for day in report %}
-<div class="card mb-3">
-    <div class="card-header d-flex align-items-center">
-        <span class="fw-semibold me-auto">{{ day.date|date:"l, d F Y" }}</span>
-        <span class="badge bg-primary">{{ day.total_display }}</span>
+{% if not jira_username %}
+<div class="alert alert-light border small">
+    <i class="bi bi-info-circle me-1"></i>
+    Set your <a href="{% url 'timetracking-schedule' %}">Jira display name in Settings</a> to see your report.
+</div>
+{% else %}
+
+{# ── UP: C + A ── #}
+<div class="row g-3 mb-3">
+
+    {# C: Totals per status #}
+    <div class="col-12 col-md-4">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Time by status</div>
+            <div class="card-body d-flex flex-column gap-2">
+                {% if status_totals %}
+                {% for item in status_totals %}
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="small">{{ item.status }}</span>
+                    <span class="badge bg-secondary rounded-pill px-3">{{ item.display }}</span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted small mb-0">No status history found.</p>
+                {% endif %}
+            </div>
+        </div>
     </div>
-    <div class="table-responsive d-none d-md-block">
-        <table class="table table-sm mb-0 align-middle">
+
+    {# A: In Progress now #}
+    <div class="col-12 col-md-8">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center gap-2">
+                <span class="fw-semibold">In Progress</span>
+                <span class="badge bg-primary ms-1">now</span>
+                <span class="text-muted small ms-auto">{{ jira_username }}</span>
+            </div>
+            {% if today_rows %}
+            <div class="table-responsive d-none d-md-block">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Ticket</th>
+                            <th>Title</th>
+                            <th class="text-nowrap">Time in progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in today_rows %}
+                    <tr>
+                        <td class="text-nowrap">
+                            <a href="{% url 'jira-ticket-detail' row.ticket.issue_key %}" class="text-decoration-none fw-semibold">
+                                {{ row.ticket.issue_key }}
+                            </a>
+                        </td>
+                        <td class="text-muted small">{{ row.ticket.title|truncatechars:70 }}</td>
+                        <td class="text-nowrap">
+                            <span class="text-primary fw-semibold">{{ row.jira_ongoing }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="d-md-none">
+                {% for row in today_rows %}
+                <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                    <div class="flex-grow-1">
+                        <div class="d-flex gap-2 align-items-baseline">
+                            <a href="{% url 'jira-ticket-detail' row.ticket.issue_key %}" class="fw-semibold text-decoration-none">
+                                {{ row.ticket.issue_key }}
+                            </a>
+                            <span class="text-primary fw-semibold ms-auto">{{ row.jira_ongoing }}</span>
+                        </div>
+                        <div class="text-muted small">{{ row.ticket.title|truncatechars:60 }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="card-body text-muted small">No tickets in progress assigned to you.</div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>{# /row #}
+
+{# ── DOWN: B — Status history pivot ── #}
+{% if pivot_rows %}
+<div class="card mb-3">
+    <div class="card-header fw-semibold">Status history by ticket</div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
             <thead class="table-light">
                 <tr>
                     <th>Ticket</th>
-                    <th>Time</th>
-                    <th>Activity</th>
-                    <th></th>
+                    {% for status in all_statuses %}
+                    <th class="text-nowrap">{{ status }}</th>
+                    {% endfor %}
                 </tr>
             </thead>
             <tbody>
-            {% for entry in day.entries %}
+            {% for row in pivot_rows %}
             <tr>
                 <td class="text-nowrap">
-                    <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}" class="text-decoration-none">
-                        {{ entry.jira_ticket.issue_key }}
+                    <a href="{% url 'jira-ticket-detail' row.ticket.issue_key %}" class="text-decoration-none fw-semibold">
+                        {{ row.ticket.issue_key }}
                     </a>
+                    <div class="text-muted small" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                        {{ row.ticket.title|truncatechars:30 }}
+                    </div>
                 </td>
-                <td class="fw-semibold text-nowrap">{{ entry.hours_display }}</td>
-                <td class="text-muted small">{{ entry.activity }}</td>
-                <td class="text-end">
-                    <a href="{% url 'timetracking-edit' entry.pk %}" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-pencil"></i>
-                    </a>
+                {% for cell in row.cells %}
+                <td class="text-nowrap small">
+                    {% if cell.ongoing %}
+                    <span class="text-primary fw-semibold">{{ cell.duration }}</span>
+                    <span class="badge bg-primary ms-1" style="font-size:0.6rem">now</span>
+                    {% elif cell.duration != '—' %}
+                    {{ cell.duration }}
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
                 </td>
+                {% endfor %}
             </tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
-    <div class="d-md-none">
-        {% for entry in day.entries %}
-        <div class="card-body border-bottom py-2">
-            <div class="d-flex gap-2 align-items-baseline">
-                <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}"
-                   class="fw-semibold text-decoration-none">{{ entry.jira_ticket.issue_key }}</a>
-                <span class="badge bg-secondary">{{ entry.hours_display }}</span>
-                <a href="{% url 'timetracking-edit' entry.pk %}" class="btn btn-sm btn-outline-secondary ms-auto p-0 px-1">
-                    <i class="bi bi-pencil"></i>
-                </a>
-            </div>
-            <div class="text-muted small mt-1">{{ entry.activity }}</div>
-        </div>
-        {% endfor %}
-    </div>
 </div>
-{% endfor %}
-{% else %}
-<p class="text-muted">No entries yet. <a href="{% url 'timetracking-create' %}">Log your first entry</a>.</p>
 {% endif %}
+
+{% endif %}{# jira_username #}
 {% endblock %}

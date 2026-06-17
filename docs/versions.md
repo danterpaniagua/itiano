@@ -64,3 +64,8 @@
 | v5.3.1 | Clipboard as Private System Note | Delivered | [v5/v5.3.1.md](v5/v5.3.1.md) |
 | v5.4.0 | Settings Hub — Tags & Categories Frontend | Delivered | [v5/v5.4.0.md](v5/v5.4.0.md) |
 | v5.4.1 | Read-only Automation Tags in Settings Hub | Delivered | [v5/v5.4.1.md](v5/v5.4.1.md) |
+| v5.5.0 | Time Tracking | Delivered | [v5/v5.5.0.md](v5/v5.5.0.md) |
+| v5.5.1 | Work Schedule | Delivered | [v5/v5.5.1.md](v5/v5.5.1.md) |
+| v5.5.2 | Jira Status Duration | Delivered | [v5/v5.5.2.md](v5/v5.5.2.md) |
+| v5.6.0 | Jira User Mapping + Active Ticket Panel | Delivered | [v5/v5.6.0.md](v5/v5.6.0.md) |
+| v5.7.0 | Time Report Dashboard | Delivered | [v5/v5.7.0.md](v5/v5.7.0.md) |
