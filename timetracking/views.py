@@ -443,6 +443,14 @@ class WorkScheduleView(LoginRequiredMixin, View):
         for attr, _ in self.DAYS:
             setattr(schedule, attr, attr in request.POST)
         schedule.jira_username = request.POST.get('jira_username', '').strip()
+        tz = request.POST.get('timezone', 'UTC').strip() or 'UTC'
+        try:
+            import zoneinfo
+            zoneinfo.ZoneInfo(tz)
+            schedule.timezone = tz
+        except (zoneinfo.ZoneInfoNotFoundError, KeyError):
+            messages.error(request, f'Invalid timezone: {tz}')
+            return self._render(request, schedule)
         start = request.POST.get('start_time', '').strip()
         end = request.POST.get('end_time', '').strip()
         import datetime as dt
