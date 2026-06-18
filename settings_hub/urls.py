@@ -13,5 +13,8 @@ urlpatterns = [
     path('categories/create/', views.CategoryCreateView.as_view(), name='settings-category-create'),
     path('categories/<int:pk>/edit/', views.CategoryEditView.as_view(), name='settings-category-edit'),
     path('categories/<int:pk>/delete/', views.CategoryDeleteView.as_view(), name='settings-category-delete'),
-    path('schedule/', RedirectView.as_view(pattern_name='timetracking-schedule'), name='settings-schedule'),
+    path('user/', views.UserSettingsView.as_view(), name='settings-user'),
+    path('user/channels/add/', views.UserChannelCreateView.as_view(), name='settings-user-channel-add'),
+    path('user/channels/<int:pk>/edit/', views.UserChannelEditView.as_view(), name='settings-user-channel-edit'),
+    path('user/channels/<int:pk>/delete/', views.UserChannelDeleteView.as_view(), name='settings-user-channel-delete'),
 ]

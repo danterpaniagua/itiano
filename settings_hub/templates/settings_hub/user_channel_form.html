@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Edit Channel – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-pencil"></i> Edit Channel</h5>
+    <a href="{% url 'settings-user' %}#channels" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-5 col-lg-4">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Type</label>
+                <select name="type" class="form-select" required>
+                    {% for val, display in channel_types %}
+                    <option value="{{ val }}" {% if channel.type == val %}selected{% endif %}>{{ display }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Label</label>
+                <input type="text" name="label" class="form-control"
+                       value="{{ channel.label }}" placeholder="Work, Personal…">
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Value</label>
+                <input type="text" name="value" class="form-control"
+                       value="{{ channel.value }}" placeholder="address / handle">
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a href="{% url 'settings-user' %}#channels" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

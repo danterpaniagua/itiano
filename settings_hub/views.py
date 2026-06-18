@@ -1,3 +1,6 @@
+import datetime as dt
+import zoneinfo
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
@@ -5,7 +8,19 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
+from contacts.models import Contact, ContactChannel
 from itsm.models import Category, Tag
+from timetracking.models import WorkSchedule
+
+_DAYS = [
+    ('mon', 'Monday'),
+    ('tue', 'Tuesday'),
+    ('wed', 'Wednesday'),
+    ('thu', 'Thursday'),
+    ('fri', 'Friday'),
+    ('sat', 'Saturday'),
+    ('sun', 'Sunday'),
+]
 
 
 class StaffRequiredMixin(LoginRequiredMixin):
@@ -156,3 +171,121 @@ class CategoryDeleteView(StaffRequiredMixin, View):
         category.delete()
         messages.success(request, f'Categoría "{name}" eliminada.')
         return redirect('settings-categories')
+
+
+class UserSettingsView(LoginRequiredMixin, View):
+    def _get_schedule(self, user):
+        schedule, _ = WorkSchedule.objects.get_or_create(user=user)
+        return schedule
+
+    def _ctx(self, request, schedule, editing_channel=None):
+        active_days = {attr for attr, _ in _DAYS if getattr(schedule, attr)}
+        contact = getattr(request.user, 'contact', None)
+        channels = list(contact.channels.all()) if contact else []
+        return {
+            'schedule': schedule,
+            'days': _DAYS,
+            'active_days': active_days,
+            'contact': contact,
+            'channels': channels,
+            'channel_types': ContactChannel.TYPES,
+            'editing_channel': editing_channel,
+        }
+
+    def get(self, request):
+        schedule = self._get_schedule(request.user)
+        return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+
+    def post(self, request):
+        schedule = self._get_schedule(request.user)
+        for attr, _ in _DAYS:
+            setattr(schedule, attr, attr in request.POST)
+        schedule.jira_username = request.POST.get('jira_username', '').strip()
+        tz = request.POST.get('timezone', 'UTC').strip() or 'UTC'
+        try:
+            zoneinfo.ZoneInfo(tz)
+            schedule.timezone = tz
+        except (zoneinfo.ZoneInfoNotFoundError, KeyError):
+            messages.error(request, f'Invalid timezone: {tz}')
+            return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+        start = request.POST.get('start_time', '').strip()
+        end = request.POST.get('end_time', '').strip()
+        try:
+            schedule.start_time = dt.time.fromisoformat(start)
+        except ValueError:
+            messages.error(request, 'Start time is invalid.')
+            return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+        try:
+            schedule.end_time = dt.time.fromisoformat(end)
+        except ValueError:
+            messages.error(request, 'End time is invalid.')
+            return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+        if schedule.start_time >= schedule.end_time:
+            messages.error(request, 'End time must be after start time.')
+            return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+        schedule.save()
+        messages.success(request, 'Schedule saved.')
+        return redirect('settings-user')
+
+
+class UserChannelCreateView(LoginRequiredMixin, View):
+    def post(self, request):
+        contact = getattr(request.user, 'contact', None)
+        if not contact:
+            contact = Contact.objects.create(
+                user=request.user,
+                first_name=request.user.first_name or request.user.username,
+                last_name=request.user.last_name or '',
+            )
+        ch_type = request.POST.get('type', '').strip()
+        label = request.POST.get('label', '').strip()
+        value = request.POST.get('value', '').strip()
+        valid_types = {t for t, _ in ContactChannel.TYPES}
+        if ch_type not in valid_types:
+            messages.error(request, 'Invalid channel type.')
+            return redirect('settings-user')
+        ContactChannel.objects.create(contact=contact, type=ch_type, label=label, value=value)
+        messages.success(request, 'Channel added.')
+        return redirect('settings-user')
+
+
+class UserChannelEditView(LoginRequiredMixin, View):
+    def _get_channel(self, request, pk):
+        contact = getattr(request.user, 'contact', None)
+        if not contact:
+            raise PermissionDenied
+        return get_object_or_404(ContactChannel, pk=pk, contact=contact)
+
+    def get(self, request, pk):
+        channel = self._get_channel(request, pk)
+        return render(request, 'settings_hub/user_channel_form.html', {
+            'channel': channel,
+            'channel_types': ContactChannel.TYPES,
+        })
+
+    def post(self, request, pk):
+        channel = self._get_channel(request, pk)
+        ch_type = request.POST.get('type', '').strip()
+        label = request.POST.get('label', '').strip()
+        value = request.POST.get('value', '').strip()
+        valid_types = {t for t, _ in ContactChannel.TYPES}
+        if ch_type not in valid_types:
+            messages.error(request, 'Invalid channel type.')
+            return redirect('settings-user')
+        channel.type = ch_type
+        channel.label = label
+        channel.value = value
+        channel.save(update_fields=['type', 'label', 'value'])
+        messages.success(request, 'Channel updated.')
+        return redirect('settings-user')
+
+
+class UserChannelDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        contact = getattr(request.user, 'contact', None)
+        if not contact:
+            raise PermissionDenied
+        channel = get_object_or_404(ContactChannel, pk=pk, contact=contact)
+        channel.delete()
+        messages.success(request, 'Channel removed.')
+        return redirect('settings-user')

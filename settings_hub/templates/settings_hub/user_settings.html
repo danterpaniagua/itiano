@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}User Settings – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-person-gear"></i> User Settings</h5>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-2 mb-3 mb-md-0">
+        <div class="list-group">
+            <a href="#schedule" class="list-group-item list-group-item-action">
+                <i class="bi bi-calendar-week me-1"></i> Schedule
+            </a>
+            <a href="#channels" class="list-group-item list-group-item-action">
+                <i class="bi bi-chat-dots me-1"></i> Contact Channels
+            </a>
+            {% if request.user.is_staff %}
+            <hr class="my-1">
+            <a href="{% url 'settings-tags' %}" class="list-group-item list-group-item-action text-muted small">
+                <i class="bi bi-gear me-1"></i> App Settings
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-12 col-md-8 col-lg-6">
+
+        {# --- Schedule section --- #}
+        <h6 class="fw-semibold mb-3" id="schedule"><i class="bi bi-calendar-week me-1"></i> Schedule &amp; Work Hours</h6>
+
+        <form method="post" action="{% url 'settings-user' %}">
+            {% csrf_token %}
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Working days</label>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for attr, label in days %}
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox"
+                               name="{{ attr }}" id="day-{{ attr }}"
+                               {% if attr in active_days %}checked{% endif %}>
+                        <label class="form-check-label" for="day-{{ attr }}">{{ label }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-6">
+                    <label class="form-label fw-semibold">Start time</label>
+                    <input type="time" name="start_time" class="form-control"
+                           value="{{ schedule.start_time|time:'H:i' }}" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-semibold">End time</label>
+                    <input type="time" name="end_time" class="form-control"
+                           value="{{ schedule.end_time|time:'H:i' }}" required>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Jira display name</label>
+                <input type="text" name="jira_username" class="form-control"
+                       value="{{ schedule.jira_username }}"
+                       placeholder="e.g. dantep">
+                <div class="form-text">Must match your display name in Jira exactly.</div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Timezone</label>
+                <input type="text" name="timezone" class="form-control"
+                       value="{{ schedule.timezone }}"
+                       placeholder="e.g. America/New_York">
+                <div class="form-text">IANA timezone name (e.g. America/Bogota, Europe/Madrid).</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save schedule</button>
+        </form>
+
+        <hr class="my-4">
+
+        {# --- Contact Channels section --- #}
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3" id="channels">
+            <h6 class="fw-semibold mb-0 me-auto"><i class="bi bi-chat-dots me-1"></i> Contact Channels</h6>
+            <button class="btn btn-sm btn-outline-primary" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#add-channel-form">
+                <i class="bi bi-plus-lg"></i> Add
+            </button>
+        </div>
+
+        <div class="collapse mb-3" id="add-channel-form">
+            <div class="card card-body">
+                <form method="post" action="{% url 'settings-user-channel-add' %}">
+                    {% csrf_token %}
+                    <div class="row g-2 mb-2">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label form-label-sm">Type</label>
+                            <select name="type" class="form-select form-select-sm" required>
+                                {% for val, display in channel_types %}
+                                <option value="{{ val }}">{{ display }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label form-label-sm">Label</label>
+                            <input type="text" name="label" class="form-control form-control-sm" placeholder="Work, Personal…">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label form-label-sm">Value</label>
+                            <input type="text" name="value" class="form-control form-control-sm" placeholder="address / handle">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Add channel</button>
+                </form>
+            </div>
+        </div>
+
+        {% if channels %}
+        <div class="table-responsive d-none d-md-block">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Type</th>
+                        <th>Label</th>
+                        <th>Value</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ch in channels %}
+                    <tr>
+                        <td><span class="badge bg-secondary">{{ ch.get_type_display }}</span></td>
+                        <td>{{ ch.label|default:"—" }}</td>
+                        <td class="text-truncate" style="max-width:200px">{{ ch.value|default:"—" }}</td>
+                        <td class="text-end text-nowrap">
+                            <a href="{% url 'settings-user-channel-edit' ch.pk %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="post" action="{% url 'settings-user-channel-delete' ch.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('Remove this channel?')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-md-none">
+            {% for ch in channels %}
+            <div class="card mb-2">
+                <div class="card-body py-2 d-flex align-items-center gap-2">
+                    <div class="flex-grow-1">
+                        <span class="badge bg-secondary me-1">{{ ch.get_type_display }}</span>
+                        {% if ch.label %}<span class="text-muted small me-1">{{ ch.label }}</span>{% endif %}
+                        <span class="small">{{ ch.value|default:"—" }}</span>
+                    </div>
+                    <a href="{% url 'settings-user-channel-edit' ch.pk %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" action="{% url 'settings-user-channel-delete' ch.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Remove this channel?')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted small">No channels yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

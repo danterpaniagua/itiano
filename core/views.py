@@ -45,6 +45,12 @@ def dashboard(request):
     })
 
 
+@login_required
+def profile(request):
+    contact = getattr(request.user, 'contact', None)
+    return render(request, 'core/profile.html', {'contact': contact})
+
+
 def health(request):
     try:
         from django.db import connection

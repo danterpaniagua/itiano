@@ -430,13 +430,7 @@ class WorkScheduleView(LoginRequiredMixin, View):
         return schedule
 
     def get(self, request):
-        schedule = self._get_or_create(request.user)
-        active_days = {attr for attr, _ in self.DAYS if getattr(schedule, attr)}
-        return render(request, 'timetracking/schedule_form.html', {
-            'schedule': schedule,
-            'days': self.DAYS,
-            'active_days': active_days,
-        })
+        return redirect('settings-user')
 
     def post(self, request):
         schedule = self._get_or_create(request.user)
@@ -469,7 +463,7 @@ class WorkScheduleView(LoginRequiredMixin, View):
             return self._render(request, schedule)
         schedule.save()
         messages.success(request, 'Horario guardado.')
-        return redirect('timetracking-schedule')
+        return redirect('settings-user')
 
     def _render(self, request, schedule):
         active_days = {attr for attr, _ in self.DAYS if getattr(schedule, attr)}
