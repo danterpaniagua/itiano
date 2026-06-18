@@ -3,6 +3,17 @@
 
 {% block content %}
 
+{# Back link #}
+{% if request.GET.back %}
+{% with back=request.GET.back %}
+{% if back|slice:":6" == "/time/" %}
+<a href="{{ back }}" class="btn btn-sm btn-outline-secondary mb-3">
+    <i class="bi bi-arrow-left"></i> Back
+</a>
+{% endif %}
+{% endwith %}
+{% endif %}
+
 {# Header #}
 <div class="d-flex flex-wrap gap-2 align-items-start mb-3">
     <div class="me-auto">

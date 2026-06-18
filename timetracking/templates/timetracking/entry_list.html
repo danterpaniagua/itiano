@@ -36,7 +36,7 @@
             {% for ticket in active_tickets %}
             <tr>
                 <td class="text-nowrap">
-                    <a href="{% url 'jira-ticket-detail' ticket.issue_key %}" class="text-decoration-none fw-semibold">
+                    <a href="{% url 'jira-ticket-detail' ticket.issue_key %}?back=/time/" class="text-decoration-none fw-semibold">
                         {{ ticket.issue_key }}
                     </a>
                 </td>
@@ -56,7 +56,7 @@
         {% for ticket in active_tickets %}
         <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
             <div class="flex-grow-1">
-                <a href="{% url 'jira-ticket-detail' ticket.issue_key %}" class="fw-semibold text-decoration-none">
+                <a href="{% url 'jira-ticket-detail' ticket.issue_key %}?back=/time/" class="fw-semibold text-decoration-none">
                     {{ ticket.issue_key }}
                 </a>
                 <div class="text-muted small">{{ ticket.title|truncatechars:60 }}</div>
@@ -105,7 +105,7 @@
         <tr>
             <td class="text-nowrap">{{ entry.date|date:"d/m/Y" }}</td>
             <td>
-                <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}" class="text-decoration-none">
+                <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}?back=/time/" class="text-decoration-none">
                     {{ entry.jira_ticket.issue_key }}
                 </a>
                 <div class="text-muted small text-truncate" style="max-width:200px">{{ entry.jira_ticket.title }}</div>
@@ -137,7 +137,7 @@
             <div class="d-flex align-items-start gap-2">
                 <div class="flex-grow-1">
                     <div class="d-flex gap-2 align-items-baseline">
-                        <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}"
+                        <a href="{% url 'jira-ticket-detail' entry.jira_ticket.issue_key %}?back=/time/"
                            class="fw-semibold text-decoration-none">{{ entry.jira_ticket.issue_key }}</a>
                         <span class="badge bg-secondary">{{ entry.hours_display }}</span>
                         <span class="text-muted small ms-auto">{{ entry.date|date:"d/m/Y" }}</span>
