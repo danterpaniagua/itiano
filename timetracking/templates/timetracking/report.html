@@ -192,8 +192,9 @@
                     <a href="{% url 'jira-ticket-detail' row.ticket.issue_key %}?back=/time/report/?range={{ range_param }}" class="text-decoration-none fw-semibold">
                         {{ row.ticket.issue_key }}
                     </a>
-                    <div class="text-muted small" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                        {{ row.ticket.title|truncatechars:30 }}
+                    <div class="text-muted small" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                         title="{{ row.ticket.title }}">
+                        {{ row.ticket.title|truncatechars:60 }}
                     </div>
                 </td>
                 {% for cell in row.cells %}
