@@ -285,8 +285,9 @@ class DailyReportView(LoginRequiredMixin, View):
             ticket_seg_secs_map[ticket.issue_key] = seg_secs
             ticket_range_secs[ticket.issue_key] = sum(seg_secs)
 
-        # --- Tag filter (global — filters all panels) ---
+        # --- Filters (global — applied to all panels) ---
         selected_tags = request.GET.getlist('tags')
+        selected_statuses = request.GET.getlist('statuses')
 
         # Collect all available tags from active tickets (before tag filter) for the UI
         active_keys_all = [k for k, v in ticket_range_secs.items() if v > 0]
@@ -296,6 +297,13 @@ class DailyReportView(LoginRequiredMixin, View):
                 ticket__external_id__in=active_keys_all
             ).select_related('tag')
         ))
+
+        # Collect all statuses that have range activity (for status dropdown UI)
+        all_statuses = []
+        for ticket in my_tickets:
+            for seg, secs in zip(ticket_segments[ticket.issue_key], ticket_seg_secs_map[ticket.issue_key]):
+                if seg['status'] and secs > 0 and seg['status'] not in all_statuses:
+                    all_statuses.append(seg['status'])
 
         # Apply tag filter: keep only tickets that have ALL selected tags
         if selected_tags:
@@ -312,7 +320,17 @@ class DailyReportView(LoginRequiredMixin, View):
         else:
             filtered_tickets = [t for t in my_tickets if ticket_range_secs.get(t.issue_key, 0) > 0]
 
-        # --- Time by Status (range-scoped, tag-filtered) ---
+        # Apply status filter: keep only tickets with activity in at least one selected status
+        if selected_statuses:
+            filtered_tickets = [
+                t for t in filtered_tickets
+                if any(
+                    seg['status'] in selected_statuses and secs > 0
+                    for seg, secs in zip(ticket_segments[t.issue_key], ticket_seg_secs_map[t.issue_key])
+                )
+            ]
+
+        # --- Time by Status (range-scoped, filters applied) ---
         status_seconds = defaultdict(int)
         for ticket in filtered_tickets:
             segs = ticket_segments[ticket.issue_key]
@@ -378,13 +396,7 @@ class DailyReportView(LoginRequiredMixin, View):
                 'jira_today': fmt(today_secs) if ongoing_seg else '—',
             })
 
-        # --- Status history pivot (range-scoped, tag-filtered) ---
-        all_statuses = []
-        for segs in ticket_segments.values():
-            for seg in segs:
-                if seg['status'] and seg['status'] not in all_statuses:
-                    all_statuses.append(seg['status'])
-
+        # --- Status history pivot (range-scoped, filters applied) ---
         pivot_rows = []
         for ticket in filtered_tickets:
             by_status = defaultdict(lambda: {'secs': 0, 'ongoing': False})
@@ -414,6 +426,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'tag_totals': tag_totals,
             'selected_tags': selected_tags,
             'all_tags': all_tags,
+            'selected_statuses': selected_statuses,
         })
 
 

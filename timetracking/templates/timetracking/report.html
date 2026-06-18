@@ -4,9 +4,10 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Time Report</h5>
-    {# Range toggle — submits the current tag filter along with the new range #}
+    {# Range toggle — carries active filters to the new range #}
     <form method="get" class="d-flex gap-1 align-items-center" id="range-form">
         {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
+        {% for s in selected_statuses %}<input type="hidden" name="statuses" value="{{ s }}">{% endfor %}
         <div class="btn-group btn-group-sm" role="group">
             <button type="submit" name="range" value="today"
                 class="btn btn-{% if range_param == 'today' %}primary{% else %}outline-secondary{% endif %}">Today</button>
@@ -28,40 +29,98 @@
 </div>
 {% else %}
 
-{# ── Global tag filter ── #}
-{% if all_tags %}
+{# ── Filters: Tags + Status dropdowns ── #}
+{% if all_tags or all_statuses %}
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="get" id="tag-filter-form">
-            <input type="hidden" name="range" value="{{ range_param }}">
-            <div class="d-flex flex-wrap gap-2 align-items-center">
-                <span class="small fw-semibold text-muted me-1">Filter by tag:</span>
-                {% for tag in all_tags %}
-                <div class="form-check form-check-inline mb-0">
-                    <input class="form-check-input" type="checkbox" name="tags" value="{{ tag }}"
-                           id="tag-{{ forloop.counter }}"
-                           {% if tag in selected_tags %}checked{% endif %}
-                           onchange="document.getElementById('tag-filter-form').submit()">
-                    <label class="form-check-label small" for="tag-{{ forloop.counter }}">{{ tag }}</label>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+
+            {# Tags dropdown #}
+            {% if all_tags %}
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-tags"></i> Tags
+                    {% if selected_tags %}<span class="badge bg-primary ms-1">{{ selected_tags|length }}</span>{% endif %}
+                </button>
+                <div class="dropdown-menu p-2" style="min-width:200px">
+                    <form method="get" id="tags-filter-form">
+                        <input type="hidden" name="range" value="{{ range_param }}">
+                        {% for s in selected_statuses %}<input type="hidden" name="statuses" value="{{ s }}">{% endfor %}
+                        {% for tag in all_tags %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="tags" value="{{ tag }}"
+                                   id="tag-dd-{{ forloop.counter }}"
+                                   {% if tag in selected_tags %}checked{% endif %}
+                                   onchange="document.getElementById('tags-filter-form').submit()">
+                            <label class="form-check-label small" for="tag-dd-{{ forloop.counter }}">{{ tag }}</label>
+                        </div>
+                        {% endfor %}
+                    </form>
                 </div>
-                {% endfor %}
-                {% if selected_tags %}
-                <a href="?range={{ range_param }}" class="btn btn-sm btn-outline-danger ms-2">
-                    <i class="bi bi-x"></i> Clear
-                </a>
-                {% endif %}
             </div>
-        </form>
+            {% endif %}
+
+            {# Status dropdown #}
+            {% if all_statuses %}
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-funnel"></i> Status
+                    {% if selected_statuses %}<span class="badge bg-primary ms-1">{{ selected_statuses|length }}</span>{% endif %}
+                </button>
+                <div class="dropdown-menu p-2" style="min-width:200px">
+                    <form method="get" id="statuses-filter-form">
+                        <input type="hidden" name="range" value="{{ range_param }}">
+                        {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
+                        {% for status in all_statuses %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="statuses" value="{{ status }}"
+                                   id="status-dd-{{ forloop.counter }}"
+                                   {% if status in selected_statuses %}checked{% endif %}
+                                   onchange="document.getElementById('statuses-filter-form').submit()">
+                            <label class="form-check-label small" for="status-dd-{{ forloop.counter }}">{{ status }}</label>
+                        </div>
+                        {% endfor %}
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Clear buttons #}
+            {% if selected_tags %}
+            <a href="?range={{ range_param }}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
+               class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-x"></i> Clear tags
+            </a>
+            {% endif %}
+            {% if selected_statuses %}
+            <a href="?range={{ range_param }}{% for t in selected_tags %}&tags={{ t }}{% endfor %}"
+               class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-x"></i> Clear status
+            </a>
+            {% endif %}
+
+        </div>
     </div>
 </div>
 {% endif %}
 
-{# Active tag chips #}
-{% if selected_tags %}
+{# Active filter chips — click to deselect #}
+{% if selected_tags or selected_statuses %}
 <div class="d-flex flex-wrap gap-1 mb-3">
     <span class="small text-muted me-1 align-self-center">Showing:</span>
     {% for tag in selected_tags %}
-    <span class="badge bg-primary">{{ tag }}</span>
+    <a href="?range={{ range_param }}{% for t in selected_tags %}{% if t != tag %}&tags={{ t }}{% endif %}{% endfor %}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
+       class="badge bg-primary text-decoration-none">
+        {{ tag }} <i class="bi bi-x" style="font-size:0.7em"></i>
+    </a>
+    {% endfor %}
+    {% for status in selected_statuses %}
+    <a href="?range={{ range_param }}{% for t in selected_tags %}&tags={{ t }}{% endfor %}{% for s in selected_statuses %}{% if s != status %}&statuses={{ s }}{% endif %}{% endfor %}"
+       class="badge bg-secondary text-decoration-none">
+        {{ status }} <i class="bi bi-x" style="font-size:0.7em"></i>
+    </a>
     {% endfor %}
 </div>
 {% endif %}
