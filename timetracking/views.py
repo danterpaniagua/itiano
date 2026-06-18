@@ -323,13 +323,31 @@ class DailyReportView(LoginRequiredMixin, View):
             if secs > 0
         ]
 
-        # --- Time by Tag (range-scoped, tag-filtered) ---
+        # --- Time by Tag (In Progress only, transitions that started within the range) ---
+        # Using all-status time inflates weekly/monthly totals because N concurrent tickets
+        # each contribute the full range duration. Only IP segments with entered_at >= start_dt
+        # are counted — ongoing IP from before the range contributes 0 here.
+        ticket_ip_range_secs = {}
+        for ticket in my_tickets:
+            segs = ticket_segments[ticket.issue_key]
+            secs = sum(
+                max(0, int((min(seg['exited_at'] or now, now) - seg['entered_at']).total_seconds()))
+                for seg in segs
+                if seg['status']
+                and seg['status'].lower() == 'in progress'
+                and seg['entered_at']
+                and seg['entered_at'] >= start_dt
+            )
+            ticket_ip_range_secs[ticket.issue_key] = secs
+
         filtered_keys = [t.issue_key for t in filtered_tickets]
         tag_seconds = defaultdict(int)
         for tt in TicketTag.objects.filter(
             ticket__external_id__in=filtered_keys
         ).select_related('tag', 'ticket'):
-            tag_seconds[tt.tag.name] += ticket_range_secs.get(tt.ticket.external_id, 0)
+            secs = ticket_ip_range_secs.get(tt.ticket.external_id, 0)
+            if secs > 0:
+                tag_seconds[tt.tag.name] += secs
         tag_totals = [
             {'tag': name, 'display': fmt(secs)}
             for name, secs in sorted(tag_seconds.items(), key=lambda x: -x[1])
@@ -337,6 +355,7 @@ class DailyReportView(LoginRequiredMixin, View):
         ]
 
         # --- In Progress / Now (unaffected by range or tag filter) ---
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         today_rows = []
         for ticket in my_tickets:
             if ticket.status.lower() != 'in progress':
@@ -345,8 +364,16 @@ class DailyReportView(LoginRequiredMixin, View):
                 (seg for seg in ticket_segments[ticket.issue_key] if seg['entered_at'] and seg['exited_at'] is None),
                 None,
             )
-            duration = fmt(int((now - ongoing_seg['entered_at']).total_seconds())) if ongoing_seg else '—'
-            today_rows.append({'ticket': ticket, 'jira_ongoing': duration})
+            if ongoing_seg:
+                total_secs = int((now - ongoing_seg['entered_at']).total_seconds())
+                today_secs = int((now - max(ongoing_seg['entered_at'], today_start)).total_seconds())
+            else:
+                total_secs = today_secs = 0
+            today_rows.append({
+                'ticket': ticket,
+                'jira_ongoing': fmt(total_secs) if ongoing_seg else '—',
+                'jira_today': fmt(today_secs) if ongoing_seg else '—',
+            })
 
         # --- Status history pivot (range-scoped, tag-filtered) ---
         all_statuses = []
