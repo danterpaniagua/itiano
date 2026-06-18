@@ -88,11 +88,14 @@ class TicketDetailView(LoginRequiredMixin, View):
         jira_ticket = None
         jira_attachments = []
         jira_events = []
+        jira_parent_data = None
+        jira_children = []
         if ticket.external_id:
             from jira_integration.models import JiraTicket
             jira_ticket = JiraTicket.objects.filter(issue_key=ticket.external_id).first()
             if jira_ticket:
-                last_payload = jira_ticket.events.order_by('-received_at').values_list('payload', flat=True).first()
+                last_event = jira_ticket.events.order_by('-received_at').first()
+                last_payload = last_event.payload if last_event else None
                 if last_payload:
                     fields = (last_payload.get('issue') or {}).get('fields') or {}
                     jira_attachments = sorted(
@@ -101,6 +104,48 @@ class TicketDetailView(LoginRequiredMixin, View):
                         reverse=True,
                     )
                 jira_events = list(jira_ticket.events.order_by('-received_at'))
+
+                if jira_ticket.parent_key:
+                    parent_obj = JiraTicket.objects.filter(issue_key=jira_ticket.parent_key).first()
+                    if parent_obj:
+                        jira_parent_data = {
+                            'ticket': parent_obj,
+                            'issue_key': parent_obj.issue_key,
+                            'title': parent_obj.title,
+                            'status': parent_obj.status,
+                            'issue_type': parent_obj.issue_type,
+                        }
+                    else:
+                        raw = {}
+                        if last_payload:
+                            raw = (last_payload.get('issue') or {}).get('fields', {}).get('parent') or {}
+                        jira_parent_data = {
+                            'ticket': None,
+                            'issue_key': jira_ticket.parent_key,
+                            'title': (raw.get('fields') or {}).get('summary', ''),
+                            'status': ((raw.get('fields') or {}).get('status') or {}).get('name', ''),
+                            'issue_type': ((raw.get('fields') or {}).get('issuetype') or {}).get('name', ''),
+                        }
+
+                children_in_db = list(JiraTicket.objects.filter(parent_key=jira_ticket.issue_key))
+                children_in_db_keys = {c.issue_key for c in children_in_db}
+                jira_children = [
+                    {'ticket': c, 'issue_key': c.issue_key, 'title': c.title,
+                     'status': c.status, 'issue_type': c.issue_type}
+                    for c in children_in_db
+                ]
+                if last_payload:
+                    for sub in (last_payload.get('issue') or {}).get('fields', {}).get('subtasks') or []:
+                        key = sub.get('key', '')
+                        if key and key not in children_in_db_keys:
+                            f = sub.get('fields') or {}
+                            jira_children.append({
+                                'ticket': None,
+                                'issue_key': key,
+                                'title': f.get('summary', ''),
+                                'status': (f.get('status') or {}).get('name', ''),
+                                'issue_type': (f.get('issuetype') or {}).get('name', ''),
+                            })
 
         return render(request, 'itsm/ticket_detail.html', {
             'ticket': ticket,
@@ -116,6 +161,8 @@ class TicketDetailView(LoginRequiredMixin, View):
             'jira_ticket': jira_ticket,
             'jira_attachments': jira_attachments,
             'jira_events': jira_events,
+            'jira_parent_data': jira_parent_data,
+            'jira_children': jira_children,
         })
 
 

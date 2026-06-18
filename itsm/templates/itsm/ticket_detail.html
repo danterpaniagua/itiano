@@ -379,6 +379,44 @@
                     {% endif %}
                 </div>
 
+                {% if jira_parent_data or jira_children %}
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr><th>Relation</th><th>Key</th><th>Summary</th><th>Type</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            {% if jira_parent_data %}
+                            <tr>
+                                <td class="text-muted small text-nowrap">Parent</td>
+                                <td class="font-monospace text-nowrap">
+                                    {% if jira_parent_data.ticket %}
+                                    <a href="{% url 'jira-ticket-detail' jira_parent_data.issue_key %}">{{ jira_parent_data.issue_key }}</a>
+                                    {% else %}{{ jira_parent_data.issue_key }}{% endif %}
+                                </td>
+                                <td class="small">{{ jira_parent_data.title|default:"—"|truncatechars:60 }}</td>
+                                <td class="small text-nowrap">{{ jira_parent_data.issue_type|default:"—" }}</td>
+                                <td><span class="badge bg-secondary">{{ jira_parent_data.status|default:"—" }}</span></td>
+                            </tr>
+                            {% endif %}
+                            {% for child in jira_children %}
+                            <tr>
+                                <td class="text-muted small text-nowrap">Subtask</td>
+                                <td class="font-monospace text-nowrap">
+                                    {% if child.ticket %}
+                                    <a href="{% url 'jira-ticket-detail' child.issue_key %}">{{ child.issue_key }}</a>
+                                    {% else %}{{ child.issue_key }}{% endif %}
+                                </td>
+                                <td class="small">{{ child.title|default:"—"|truncatechars:60 }}</td>
+                                <td class="small text-nowrap">{{ child.issue_type|default:"—" }}</td>
+                                <td><span class="badge bg-secondary">{{ child.status|default:"—" }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
                 {% if jira_attachments or jira_events %}
                 <ul class="nav nav-tabs mt-3 mb-3" id="jiraSubTabs" role="tablist">
                     <li class="nav-item" role="presentation">

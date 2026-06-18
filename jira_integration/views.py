@@ -77,6 +77,7 @@ def webhook(request):
     assignee_obj = fields.get('assignee') or {}
     assignee = assignee_obj.get('displayName', '')
     labels = [l for l in (fields.get('labels') or []) if isinstance(l, str)]
+    parent_key = (fields.get('parent') or {}).get('key', '')
 
     ticket, created = JiraTicket.objects.update_or_create(
         issue_key=issue_key,
@@ -87,6 +88,7 @@ def webhook(request):
             'status': status[:100],
             'assignee': assignee[:200],
             'labels': labels,
+            'parent_key': parent_key[:50],
         },
     )
 
@@ -264,10 +266,57 @@ def ticket_detail(request, issue_key):
         user=request.user, jira_ticket=ticket
     ).order_by('-date', '-created_at')
 
+    # Parent
+    parent_data = None
+    if ticket.parent_key:
+        parent_obj = JiraTicket.objects.filter(issue_key=ticket.parent_key).first()
+        if parent_obj:
+            parent_data = {
+                'ticket': parent_obj,
+                'issue_key': parent_obj.issue_key,
+                'title': parent_obj.title,
+                'status': parent_obj.status,
+                'issue_type': parent_obj.issue_type,
+            }
+        else:
+            raw = {}
+            if last_event:
+                raw = (last_event.payload.get('issue') or {}).get('fields', {}).get('parent') or {}
+            parent_data = {
+                'ticket': None,
+                'issue_key': ticket.parent_key,
+                'title': (raw.get('fields') or {}).get('summary', ''),
+                'status': ((raw.get('fields') or {}).get('status') or {}).get('name', ''),
+                'issue_type': ((raw.get('fields') or {}).get('issuetype') or {}).get('name', ''),
+            }
+
+    # Children
+    children_in_db = list(JiraTicket.objects.filter(parent_key=ticket.issue_key))
+    children_in_db_keys = {c.issue_key for c in children_in_db}
+    children = [
+        {'ticket': c, 'issue_key': c.issue_key, 'title': c.title,
+         'status': c.status, 'issue_type': c.issue_type}
+        for c in children_in_db
+    ]
+    if last_event:
+        for sub in (last_event.payload.get('issue') or {}).get('fields', {}).get('subtasks') or []:
+            key = sub.get('key', '')
+            if key and key not in children_in_db_keys:
+                f = sub.get('fields') or {}
+                children.append({
+                    'ticket': None,
+                    'issue_key': key,
+                    'title': f.get('summary', ''),
+                    'status': (f.get('status') or {}).get('name', ''),
+                    'issue_type': (f.get('issuetype') or {}).get('name', ''),
+                })
+
     return render(request, 'jira_integration/ticket_detail.html', {
         'ticket': ticket,
         'events': events,
         'last_event': last_event,
         'status_timeline': status_timeline,
         'my_time_entries': my_entries,
+        'parent_data': parent_data,
+        'children': children,
     })

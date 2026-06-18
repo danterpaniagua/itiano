@@ -9,6 +9,7 @@ class JiraTicket(models.Model):
     status = models.CharField(max_length=100, blank=True)
     assignee = models.CharField(max_length=200, blank=True)
     labels = models.JSONField(default=list, blank=True)
+    parent_key = models.CharField(max_length=50, blank=True)
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

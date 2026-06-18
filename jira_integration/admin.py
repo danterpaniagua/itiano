@@ -12,8 +12,8 @@ class JiraEventInline(admin.TabularInline):
 
 @admin.register(JiraTicket)
 class JiraTicketAdmin(admin.ModelAdmin):
-    list_display = ('issue_key', 'title', 'project_key', 'issue_type', 'status', 'updated_at')
-    search_fields = ('issue_key', 'title')
+    list_display = ('issue_key', 'title', 'project_key', 'issue_type', 'status', 'parent_key', 'updated_at')
+    search_fields = ('issue_key', 'title', 'parent_key')
     readonly_fields = ('created_at', 'updated_at')
     inlines = [JiraEventInline]
 

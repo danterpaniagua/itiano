@@ -123,6 +123,48 @@
 </div>
 {% endif %}
 
+{# Related Issues #}
+{% if parent_data or children %}
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-diagram-2 me-1"></i> Related Issues</div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr><th>Relation</th><th>Key</th><th>Summary</th><th>Type</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                {% if parent_data %}
+                <tr>
+                    <td class="text-muted small text-nowrap">Parent</td>
+                    <td class="font-monospace text-nowrap">
+                        {% if parent_data.ticket %}
+                        <a href="{% url 'jira-ticket-detail' parent_data.issue_key %}">{{ parent_data.issue_key }}</a>
+                        {% else %}{{ parent_data.issue_key }}{% endif %}
+                    </td>
+                    <td class="small">{{ parent_data.title|default:"—"|truncatechars:60 }}</td>
+                    <td class="small text-nowrap">{{ parent_data.issue_type|default:"—" }}</td>
+                    <td><span class="badge bg-secondary">{{ parent_data.status|default:"—" }}</span></td>
+                </tr>
+                {% endif %}
+                {% for child in children %}
+                <tr>
+                    <td class="text-muted small text-nowrap">Subtask</td>
+                    <td class="font-monospace text-nowrap">
+                        {% if child.ticket %}
+                        <a href="{% url 'jira-ticket-detail' child.issue_key %}">{{ child.issue_key }}</a>
+                        {% else %}{{ child.issue_key }}{% endif %}
+                    </td>
+                    <td class="small">{{ child.title|default:"—"|truncatechars:60 }}</td>
+                    <td class="small text-nowrap">{{ child.issue_type|default:"—" }}</td>
+                    <td><span class="badge bg-secondary">{{ child.status|default:"—" }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 {# Event log #}
 <div class="card">
     <div class="card-header">Event Log</div>
