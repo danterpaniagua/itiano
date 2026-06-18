@@ -7,7 +7,7 @@ from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
-from jira_integration.models import JiraTicket
+from jira_integration.models import JiraEvent, JiraTicket
 
 from .models import TimeEntry, WorkSchedule
 
@@ -416,6 +416,118 @@ class DailyReportView(LoginRequiredMixin, View):
                     cells.append({'duration': '—', 'ongoing': False})
             pivot_rows.append({'ticket': ticket, 'cells': cells})
 
+        # --- Gantt timeline ---
+        _status_colors = {
+            'in progress': '#0d6efd',
+            'bloqueado': '#dc3545',
+            'blocked': '#dc3545',
+            'done': '#198754',
+            'backlog': '#6c757d',
+            'testing': '#fd7e14',
+            'in review': '#6f42c1',
+            'review': '#6f42c1',
+        }
+        _fallback_colors = ['#20c997', '#0dcaf0', '#ffc107', '#d63384', '#adb5bd']
+        _fallback_idx = {}
+
+        def status_color(s):
+            key = s.lower()
+            if key in _status_colors:
+                return _status_colors[key]
+            if key not in _fallback_idx:
+                _fallback_idx[key] = len(_fallback_idx) % len(_fallback_colors)
+            return _fallback_colors[_fallback_idx[key]]
+
+        range_total_secs = max(1, (now - start_dt).total_seconds())
+
+        def bar_pos(entered_at, exited_at):
+            eff_start = max(entered_at, start_dt)
+            eff_end = min(exited_at or now, now)
+            left = max(0.0, (eff_start - start_dt).total_seconds() / range_total_secs * 100)
+            width = max(0.0, (eff_end - eff_start).total_seconds() / range_total_secs * 100)
+            return round(left, 3), round(width, 3)
+
+        _terminal_statuses = {'done', 'closed', 'cancelled', 'canceled', 'resolved', 'cerrado', 'terminado'}
+
+        gantt_rows = []
+        for ticket in filtered_tickets:
+            bars = []
+            for seg in ticket_segments[ticket.issue_key]:
+                if not seg['entered_at'] or not seg['status']:
+                    continue
+                is_terminal = seg['status'].lower() in _terminal_statuses
+                if seg['exited_at'] is None and is_terminal:
+                    continue
+                # When status filter is active, only render bars for selected statuses
+                if selected_statuses and seg['status'] not in selected_statuses:
+                    continue
+                exited = seg['exited_at'] or now
+                if seg['entered_at'] >= now or exited <= start_dt:
+                    continue
+                left, width = bar_pos(seg['entered_at'], seg['exited_at'])
+                if width < 0.05:
+                    continue
+                bars.append({
+                    'status': seg['status'],
+                    'color': status_color(seg['status']),
+                    'left': left,
+                    'width': width,
+                    'ongoing': seg['exited_at'] is None,
+                })
+            if bars:
+                gantt_rows.append({'ticket': ticket, 'bars': bars})
+
+        # X axis ticks
+        gantt_ticks = []
+        if range_param == 'today':
+            tick = start_dt
+            while tick <= now:
+                left = (tick - start_dt).total_seconds() / range_total_secs * 100
+                gantt_ticks.append({'label': tick.astimezone(user_tz).strftime('%H:%M'), 'left': round(left, 2)})
+                tick += datetime.timedelta(hours=2)
+        elif range_param == 'week':
+            tick = start_dt
+            while tick <= now:
+                left = (tick - start_dt).total_seconds() / range_total_secs * 100
+                gantt_ticks.append({'label': tick.astimezone(user_tz).strftime('%a %d'), 'left': round(left, 2)})
+                tick += datetime.timedelta(days=1)
+        else:
+            tick = start_dt
+            while tick <= now:
+                left = (tick - start_dt).total_seconds() / range_total_secs * 100
+                gantt_ticks.append({'label': tick.astimezone(user_tz).strftime('%d/%m'), 'left': round(left, 2)})
+                tick += datetime.timedelta(days=3)
+
+        # Working hour boundary lines on the Gantt (dashed vertical lines at start/end of each working day)
+        work_lines = []
+        if schedule and schedule.start_time and schedule.end_time:
+            _weekday_map = {0: 'mon', 1: 'tue', 2: 'wed', 3: 'thu', 4: 'fri', 5: 'sat', 6: 'sun'}
+            d = start_dt.astimezone(user_tz).date()
+            end_date = now.astimezone(user_tz).date()
+            while d <= end_date:
+                if getattr(schedule, _weekday_map[d.weekday()], False):
+                    ws = dt_module.datetime(d.year, d.month, d.day,
+                                            schedule.start_time.hour, schedule.start_time.minute,
+                                            tzinfo=user_tz).astimezone(dt_module.timezone.utc)
+                    we = dt_module.datetime(d.year, d.month, d.day,
+                                            schedule.end_time.hour, schedule.end_time.minute,
+                                            tzinfo=user_tz).astimezone(dt_module.timezone.utc)
+                    if start_dt <= ws <= now:
+                        left = (ws - start_dt).total_seconds() / range_total_secs * 100
+                        work_lines.append({'left': round(left, 3)})
+                    if start_dt <= we <= now:
+                        left = (we - start_dt).total_seconds() / range_total_secs * 100
+                        work_lines.append({'left': round(left, 3)})
+                d += dt_module.timedelta(days=1)
+
+        # Color legend (unique statuses across all gantt bars)
+        seen = {}
+        for row in gantt_rows:
+            for bar in row['bars']:
+                if bar['status'] not in seen:
+                    seen[bar['status']] = bar['color']
+        gantt_legend = [{'status': s, 'color': c} for s, c in seen.items()]
+
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
             'today_rows': today_rows,
@@ -427,6 +539,10 @@ class DailyReportView(LoginRequiredMixin, View):
             'selected_tags': selected_tags,
             'all_tags': all_tags,
             'selected_statuses': selected_statuses,
+            'gantt_rows': gantt_rows,
+            'gantt_ticks': gantt_ticks,
+            'gantt_legend': gantt_legend,
+            'work_lines': work_lines,
         })
 
 
@@ -487,4 +603,153 @@ class WorkScheduleView(LoginRequiredMixin, View):
             'schedule': schedule,
             'days': self.DAYS,
             'active_days': active_days,
+        })
+
+
+class TicketTimelineView(LoginRequiredMixin, View):
+    def get(self, request, issue_key):
+        import datetime as dt_module
+        import zoneinfo as _zi
+        from collections import defaultdict
+        from django.utils import timezone
+
+        ticket = get_object_or_404(JiraTicket, issue_key=issue_key)
+
+        schedule = WorkSchedule.objects.filter(user=request.user).first()
+        try:
+            user_tz = _zi.ZoneInfo(schedule.timezone) if schedule and schedule.timezone else _zi.ZoneInfo('UTC')
+        except Exception:
+            user_tz = _zi.ZoneInfo('UTC')
+
+        now = timezone.now()
+        today_local = now.astimezone(user_tz).date()
+
+        date_from_str = request.GET.get('date_from', '')
+        date_to_str = request.GET.get('date_to', '')
+        try:
+            date_from = dt_module.date.fromisoformat(date_from_str)
+        except ValueError:
+            date_from = today_local
+        try:
+            date_to = dt_module.date.fromisoformat(date_to_str)
+        except ValueError:
+            date_to = today_local
+
+        if date_to < date_from:
+            date_to = date_from
+
+        # Convert local date range to UTC-aware boundaries
+        start_dt = dt_module.datetime(date_from.year, date_from.month, date_from.day,
+                                      tzinfo=user_tz).astimezone(dt_module.timezone.utc)
+        end_dt = dt_module.datetime(date_to.year, date_to.month, date_to.day,
+                                    tzinfo=user_tz) + dt_module.timedelta(days=1)
+        end_dt = end_dt.astimezone(dt_module.timezone.utc)
+
+        # Fetch all Jira events for this ticket (all time — needed to compute status durations)
+        all_events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
+
+        def fmt(seconds):
+            seconds = max(0, int(seconds))
+            h, rem = divmod(seconds, 3600)
+            m = rem // 60
+            if h:
+                return f"{h}h {m}m"
+            return f"{m}m"
+
+        # Build status segments across all time (for duration calculation)
+        raw_transitions = []
+        for event in all_events:
+            for item in event.payload.get('changelog', {}).get('items', []):
+                if item.get('field') == 'status':
+                    raw_transitions.append({'to_status': item.get('toString', ''), 'at': event.received_at})
+
+        segments = {}  # entered_at → {status, exited_at}
+        for i, t in enumerate(raw_transitions):
+            exited_at = raw_transitions[i + 1]['at'] if i + 1 < len(raw_transitions) else None
+            segments[t['at']] = {'status': t['to_status'], 'exited_at': exited_at}
+
+        # Build timeline: all activity events within the date range
+        timeline = []
+        status_seconds = defaultdict(int)
+
+        for event in all_events:
+            if event.received_at < start_dt or event.received_at >= end_dt:
+                continue
+            at_local = event.received_at.astimezone(user_tz)
+            items = event.payload.get('changelog', {}).get('items', [])
+            for item in items:
+                field = item.get('field', '')
+                if field == 'status':
+                    seg = segments.get(event.received_at)
+                    if seg:
+                        exited = seg['exited_at'] or now
+                        effective_start = max(event.received_at, start_dt)
+                        effective_end = min(exited, now)
+                        secs = max(0, int((effective_end - effective_start).total_seconds()))
+                        ongoing = seg['exited_at'] is None
+                        status_seconds[seg['status']] += secs
+                        timeline.append({
+                            'type': 'transition',
+                            'at': at_local,
+                            'from_status': item.get('fromString', ''),
+                            'status': seg['status'],
+                            'duration': fmt(secs),
+                            'ongoing': ongoing,
+                            'sort_key': event.received_at,
+                        })
+                else:
+                    from_val = item.get('fromString') or item.get('from') or ''
+                    to_val = item.get('toString') or item.get('to') or ''
+                    timeline.append({
+                        'type': 'activity',
+                        'at': at_local,
+                        'field': field,
+                        'from_val': from_val,
+                        'to_val': to_val,
+                        'sort_key': event.received_at,
+                    })
+
+        # Fetch manual TimeEntry records in the date range
+        manual_entries = list(
+            TimeEntry.objects.filter(
+                user=request.user,
+                jira_ticket=ticket,
+                date__gte=date_from,
+                date__lte=date_to,
+            ).order_by('date', 'created_at')
+        )
+        total_manual_minutes = 0
+        for entry in manual_entries:
+            total_manual_minutes += entry.minutes
+            timeline.append({
+                'type': 'manual',
+                'at': dt_module.datetime(entry.date.year, entry.date.month, entry.date.day, tzinfo=user_tz),
+                'entry': entry,
+                'sort_key': dt_module.datetime(entry.date.year, entry.date.month, entry.date.day,
+                                               tzinfo=user_tz).astimezone(dt_module.timezone.utc),
+            })
+
+        timeline.sort(key=lambda x: x['sort_key'])
+
+        status_totals = [
+            {'status': s, 'display': fmt(secs)}
+            for s, secs in sorted(status_seconds.items())
+            if secs > 0
+        ]
+
+        back_range = request.GET.get('back_range', 'today')
+        back_tags = request.GET.getlist('back_tags')
+        back_statuses = request.GET.getlist('back_statuses')
+
+        return render(request, 'timetracking/ticket_timeline.html', {
+            'ticket': ticket,
+            'date_from': date_from.isoformat(),
+            'date_to': date_to.isoformat(),
+            'timeline': timeline,
+            'status_totals': status_totals,
+            'total_manual_minutes': total_manual_minutes,
+            'total_manual_display': fmt(total_manual_minutes * 60),
+            'back_range': back_range,
+            'back_tags': back_tags,
+            'back_statuses': back_statuses,
         })

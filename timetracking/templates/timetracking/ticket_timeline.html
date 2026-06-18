@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.issue_key }} Timeline – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">
+        <i class="bi bi-clock-history"></i>
+        <span class="text-muted fw-normal">Timeline /</span> {{ ticket.issue_key }}
+    </h5>
+    <a href="{% url 'timetracking-report' %}?range={{ back_range }}{% for t in back_tags %}&tags={{ t }}{% endfor %}{% for s in back_statuses %}&statuses={{ s }}{% endfor %}"
+       class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Report
+    </a>
+</div>
+
+<div class="text-muted small mb-3">{{ ticket.title }}</div>
+
+{# ── Date range picker ── #}
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
+            <input type="hidden" name="back_range" value="{{ back_range }}">
+            {% for t in back_tags %}<input type="hidden" name="back_tags" value="{{ t }}">{% endfor %}
+            {% for s in back_statuses %}<input type="hidden" name="back_statuses" value="{{ s }}">{% endfor %}
+            <label class="small fw-semibold text-muted mb-0">From</label>
+            <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm" style="width:auto">
+            <label class="small fw-semibold text-muted mb-0">To</label>
+            <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm" style="width:auto">
+            <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+        </form>
+    </div>
+</div>
+
+{# ── Summary ── #}
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Time by Status</div>
+            <div class="card-body d-flex flex-column gap-2">
+                {% if status_totals %}
+                {% for item in status_totals %}
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="small">{{ item.status }}</span>
+                    <span class="badge bg-secondary rounded-pill px-3">{{ item.display }}</span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted small mb-0">No status activity in this period.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Manual Entries</div>
+            <div class="card-body d-flex align-items-center">
+                {% if total_manual_minutes %}
+                <span class="badge bg-secondary rounded-pill px-3">{{ total_manual_display }}</span>
+                <span class="small text-muted ms-2">logged manually</span>
+                {% else %}
+                <p class="text-muted small mb-0">No manual entries in this period.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Timeline ── #}
+{% if timeline %}
+
+{# Desktop table #}
+<div class="card d-none d-md-block mb-3">
+    <div class="card-header fw-semibold">Timeline</div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-nowrap">When</th>
+                    <th>Event</th>
+                    <th class="text-nowrap">Duration / Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in timeline %}
+            {% if item.type == 'transition' %}
+            <tr>
+                <td class="text-nowrap small text-muted">{{ item.at|date:"d/m/Y H:i" }}</td>
+                <td class="small">
+                    {% if item.from_status %}<span class="text-muted">{{ item.from_status }}</span> <i class="bi bi-arrow-right text-muted mx-1"></i>{% endif %}
+                    <span class="badge bg-light text-dark border">{{ item.status }}</span>
+                    {% if item.ongoing %}<span class="badge bg-primary ms-1" style="font-size:0.6rem">now</span>{% endif %}
+                </td>
+                <td class="text-nowrap small {% if item.ongoing %}text-primary fw-semibold{% endif %}">{{ item.duration }}</td>
+            </tr>
+            {% elif item.type == 'activity' %}
+            <tr class="table-secondary">
+                <td class="text-nowrap small text-muted">{{ item.at|date:"d/m/Y H:i" }}</td>
+                <td class="small">
+                    <span class="text-muted me-1">{{ item.field }}</span>
+                    {% if item.from_val %}<span class="text-muted fst-italic">{{ item.from_val|truncatechars:30 }}</span> <i class="bi bi-arrow-right text-muted mx-1"></i>{% endif %}
+                    <span>{{ item.to_val|truncatechars:50 }}</span>
+                </td>
+                <td></td>
+            </tr>
+            {% else %}
+            <tr class="table-light">
+                <td class="text-nowrap small text-muted">{{ item.entry.date|date:"d/m/Y" }}</td>
+                <td class="small">
+                    <i class="bi bi-pencil-square text-muted me-1"></i>{{ item.entry.activity|truncatechars:80 }}
+                </td>
+                <td class="text-nowrap small fw-semibold">{{ item.entry.hours_display }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{# Mobile cards #}
+<div class="d-md-none mb-3">
+    {% for item in timeline %}
+    {% if item.type == 'transition' %}
+    <div class="d-flex gap-2 px-3 py-2 border-bottom align-items-start">
+        <div class="text-muted small text-nowrap" style="min-width:75px">{{ item.at|date:"d/m H:i" }}</div>
+        <div class="flex-grow-1 small">
+            {% if item.from_status %}<span class="text-muted">{{ item.from_status }}</span> <i class="bi bi-arrow-right text-muted mx-1"></i>{% endif %}
+            <span class="badge bg-light text-dark border">{{ item.status }}</span>
+            {% if item.ongoing %}<span class="badge bg-primary ms-1" style="font-size:0.6rem">now</span>{% endif %}
+        </div>
+        <div class="small text-nowrap {% if item.ongoing %}text-primary fw-semibold{% endif %}">{{ item.duration }}</div>
+    </div>
+    {% elif item.type == 'activity' %}
+    <div class="d-flex gap-2 px-3 py-2 border-bottom align-items-start bg-light">
+        <div class="text-muted small text-nowrap" style="min-width:75px">{{ item.at|date:"d/m H:i" }}</div>
+        <div class="flex-grow-1 small text-muted">
+            <span class="fw-semibold">{{ item.field }}</span>
+            {% if item.from_val %} · {{ item.from_val|truncatechars:20 }} →{% endif %}
+            {{ item.to_val|truncatechars:35 }}
+        </div>
+    </div>
+    {% else %}
+    <div class="d-flex gap-2 px-3 py-2 border-bottom align-items-start" style="background:#f0f7ff">
+        <div class="text-muted small text-nowrap" style="min-width:75px">{{ item.entry.date|date:"d/m/Y" }}</div>
+        <div class="flex-grow-1 small">
+            <i class="bi bi-pencil-square text-muted me-1"></i>{{ item.entry.activity|truncatechars:60 }}
+        </div>
+        <div class="small fw-semibold text-nowrap">{{ item.entry.hours_display }}</div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="card mb-3">
+    <div class="card-body text-muted small">No activity found for this ticket in the selected period.</div>
+</div>
+{% endif %}
+
+{% endblock %}

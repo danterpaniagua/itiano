@@ -190,7 +190,7 @@
             {% for row in today_rows %}
             <tr>
                 <td class="text-nowrap">
-                    <a href="{% url 'jira-ticket-detail' row.ticket.issue_key %}?back=/time/report/?range={{ range_param }}" class="text-decoration-none fw-semibold">
+                    <a href="{% url 'timetracking-ticket-timeline' row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}" class="text-decoration-none fw-semibold">
                         {{ row.ticket.issue_key }}
                     </a>
                 </td>
@@ -212,7 +212,7 @@
         <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
             <div class="flex-grow-1">
                 <div class="d-flex gap-2 align-items-baseline">
-                    <a href="{% url 'jira-ticket-detail' row.ticket.issue_key %}?back=/time/report/?range={{ range_param }}" class="fw-semibold text-decoration-none">
+                    <a href="{% url 'timetracking-ticket-timeline' row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}" class="fw-semibold text-decoration-none">
                         {{ row.ticket.issue_key }}
                     </a>
                     <div class="ms-auto text-end">
@@ -229,6 +229,79 @@
     <div class="card-body text-muted small">No tickets in progress assigned to you.</div>
     {% endif %}
 </div>
+
+{# ── Gantt Timeline ── #}
+{% if gantt_rows %}
+<div class="card mb-3">
+    <div class="card-header fw-semibold"><i class="bi bi-bar-chart-steps me-1"></i>Timeline</div>
+    <div class="card-body p-0">
+
+        {# Scrollable chart area #}
+        <div style="overflow-x:auto">
+            <div style="min-width:480px;padding:0.75rem 1rem">
+
+                {# X axis ticks #}
+                <div class="position-relative mb-1" style="height:1.2rem;margin-left:110px">
+                    {% for tick in gantt_ticks %}
+                    <span class="position-absolute small text-muted" style="left:{{ tick.left }}%;transform:translateX(-50%);font-size:0.65rem;white-space:nowrap">
+                        {{ tick.label }}
+                    </span>
+                    {% endfor %}
+                </div>
+
+                {# Tick grid lines + rows #}
+                <div class="position-relative">
+
+                    {# Vertical grid lines #}
+                    {% for tick in gantt_ticks %}
+                    <div class="position-absolute top-0 bottom-0" style="left:calc(110px + {{ tick.left }}% * (100% - 110px) / 100);width:1px;background:#e9ecef;pointer-events:none"></div>
+                    {% endfor %}
+
+
+                    {# Ticket rows #}
+                    {% for row in gantt_rows %}
+                    <div class="d-flex align-items-center mb-1" style="height:28px">
+                        {# Ticket label #}
+                        <div style="width:110px;min-width:110px;padding-right:8px;text-align:right">
+                            <a href="{% url 'timetracking-ticket-timeline' row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                               class="text-decoration-none fw-semibold small">{{ row.ticket.issue_key }}</a>
+                        </div>
+                        {# Bar track #}
+                        <div class="position-relative flex-grow-1" style="height:20px;background:#f8f9fa;border-radius:3px;overflow:visible">
+                            {% for bar in row.bars %}
+                            <div class="position-absolute"
+                                 style="left:{{ bar.left }}%;width:{{ bar.width }}%;height:100%;background:{{ bar.color }};border-radius:3px;{% if bar.ongoing %}opacity:0.9;{% else %}opacity:0.75;{% endif %}"
+                                 title="{{ bar.status }}">
+                            </div>
+                            {% endfor %}
+                            {# Working hour boundary lines — inside track so left:X% is simply X% of track width #}
+                            {% for line in work_lines %}
+                            <div class="position-absolute" style="left:{{ line.left }}%;top:-4px;bottom:-4px;width:2px;background:repeating-linear-gradient(to bottom,rgba(25,135,84,0.9) 0,rgba(25,135,84,0.9) 5px,transparent 5px,transparent 9px);pointer-events:none;z-index:2"></div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                </div>{# /grid #}
+
+            </div>
+        </div>
+
+        {# Legend #}
+        {% if gantt_legend %}
+        <div class="d-flex flex-wrap gap-3 px-3 pb-3 pt-1">
+            {% for item in gantt_legend %}
+            <div class="d-flex align-items-center gap-1">
+                <div style="width:12px;height:12px;border-radius:2px;background:{{ item.color }}"></div>
+                <span class="small text-muted">{{ item.status }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endif %}
 
 {# ── Status history pivot ── #}
 {% if pivot_rows %}
@@ -248,7 +321,7 @@
             {% for row in pivot_rows %}
             <tr>
                 <td class="text-nowrap">
-                    <a href="{% url 'jira-ticket-detail' row.ticket.issue_key %}?back=/time/report/?range={{ range_param }}" class="text-decoration-none fw-semibold">
+                    <a href="{% url 'timetracking-ticket-timeline' row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}" class="text-decoration-none fw-semibold">
                         {{ row.ticket.issue_key }}
                     </a>
                     <div class="text-muted small" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
