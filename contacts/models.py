@@ -25,10 +25,16 @@ class ContactChannel(models.Model):
     TYPE_EMAIL = 'email'
     TYPE_POST = 'post'
     TYPE_PHONE = 'phone'
+    TYPE_HANGOUTS = 'hangouts'
+    TYPE_JIRA = 'jira'
+    TYPE_TELEGRAM = 'telegram'
     TYPES = [
         (TYPE_EMAIL, 'Email'),
         (TYPE_POST, 'POST'),
         (TYPE_PHONE, 'Phone'),
+        (TYPE_HANGOUTS, 'Hangouts'),
+        (TYPE_JIRA, 'Jira'),
+        (TYPE_TELEGRAM, 'Telegram'),
     ]
 
     contact = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name='channels')

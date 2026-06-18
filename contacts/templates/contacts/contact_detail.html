@@ -52,7 +52,16 @@
         <tbody>
             {% for ch in contact.channels.all %}
             <tr>
-                <td><span class="badge bg-secondary">{{ ch.get_type_display }}</span></td>
+                <td>
+                    {% if ch.type == 'email' %}<i class="bi bi-envelope text-muted me-1"></i>
+                    {% elif ch.type == 'phone' %}<i class="bi bi-telephone text-muted me-1"></i>
+                    {% elif ch.type == 'post' %}<i class="bi bi-send text-muted me-1"></i>
+                    {% elif ch.type == 'hangouts' %}<i class="bi bi-chat-dots text-muted me-1"></i>
+                    {% elif ch.type == 'jira' %}<i class="bi bi-bug text-muted me-1"></i>
+                    {% elif ch.type == 'telegram' %}<i class="bi bi-telegram text-muted me-1"></i>
+                    {% endif %}
+                    <span class="badge bg-secondary">{{ ch.get_type_display }}</span>
+                </td>
                 <td>{{ ch.label|default:"—" }}</td>
                 <td class="text-truncate" style="max-width:200px">
                     {% if ch.type == 'post' %}{{ ch.url|default:"—" }}
@@ -93,6 +102,13 @@
         <div class="card-body">
             <div class="d-flex align-items-center justify-content-between mb-1">
                 <div>
+                    {% if ch.type == 'email' %}<i class="bi bi-envelope text-muted me-1"></i>
+                    {% elif ch.type == 'phone' %}<i class="bi bi-telephone text-muted me-1"></i>
+                    {% elif ch.type == 'post' %}<i class="bi bi-send text-muted me-1"></i>
+                    {% elif ch.type == 'hangouts' %}<i class="bi bi-chat-dots text-muted me-1"></i>
+                    {% elif ch.type == 'jira' %}<i class="bi bi-bug text-muted me-1"></i>
+                    {% elif ch.type == 'telegram' %}<i class="bi bi-telegram text-muted me-1"></i>
+                    {% endif %}
                     <span class="badge bg-secondary me-1">{{ ch.get_type_display }}</span>
                     {% if ch.is_primary %}<i class="bi bi-star-fill text-warning"></i>{% endif %}
                     {% if ch.label %}<span class="fw-semibold">{{ ch.label }}</span>{% endif %}

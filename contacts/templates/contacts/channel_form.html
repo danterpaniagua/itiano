@@ -20,6 +20,9 @@
                         <option value="email" {% if channel.type == 'email' %}selected{% endif %}>Email</option>
                         <option value="post" {% if channel.type == 'post' %}selected{% endif %}>POST</option>
                         <option value="phone" {% if channel.type == 'phone' %}selected{% endif %}>Phone</option>
+                        <option value="hangouts" {% if channel.type == 'hangouts' %}selected{% endif %}>Hangouts</option>
+                        <option value="jira" {% if channel.type == 'jira' %}selected{% endif %}>Jira</option>
+                        <option value="telegram" {% if channel.type == 'telegram' %}selected{% endif %}>Telegram</option>
                     </select>
                 </div>
                 <div class="col-12 col-md-6">
@@ -76,13 +79,13 @@
                 <div class="mb-3">
                     <label class="form-label">Body Template</label>
                     <textarea name="body" class="form-control font-monospace" rows="6"
-                              placeholder='{"text": "Ticket {{ "{{" }} ticket.id {{ "}}" }} — {{ "{{" }} ticket.title {{ "}}" }}"}'>{{ channel.body|default:'' }}</textarea>
+                              placeholder='{"text": "Ticket {% templatetag openvariable %} ticket.id {% templatetag closevariable %} — {% templatetag openvariable %} ticket.title {% templatetag closevariable %}"}'>{{ channel.body|default:'' }}</textarea>
                     <div class="form-text">
-                        Variables: <code>{{ "{{" }} contact.first_name {{ "}}" }}</code>,
-                        <code>{{ "{{" }} contact.last_name {{ "}}" }}</code>,
-                        <code>{{ "{{" }} ticket.id {{ "}}" }}</code>,
-                        <code>{{ "{{" }} ticket.title {{ "}}" }}</code>,
-                        <code>{{ "{{" }} ticket.state {{ "}}" }}</code>
+                        Variables: <code>{% templatetag openvariable %} contact.first_name {% templatetag closevariable %}</code>,
+                        <code>{% templatetag openvariable %} contact.last_name {% templatetag closevariable %}</code>,
+                        <code>{% templatetag openvariable %} ticket.id {% templatetag closevariable %}</code>,
+                        <code>{% templatetag openvariable %} ticket.title {% templatetag closevariable %}</code>,
+                        <code>{% templatetag openvariable %} ticket.state {% templatetag closevariable %}</code>
                     </div>
                 </div>
             </div>
@@ -110,7 +113,8 @@
         } else {
             fieldValue.classList.remove('d-none');
             fieldPost.classList.add('d-none');
-            valueLabel.textContent = t === 'email' ? 'Email address' : 'Phone number';
+            const labels = {email: 'Email address', phone: 'Phone number', hangouts: 'Hangouts ID', jira: 'Jira username', telegram: 'Telegram username'};
+            valueLabel.textContent = labels[t] || 'Value';
         }
     }
 
