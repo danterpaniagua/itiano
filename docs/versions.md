@@ -72,3 +72,12 @@
 | v5.7.1 | Jira Deleted Ticket Flag | Delivered | [v5/v5.7.1.md](v5/v5.7.1.md) |
 | v5.7.2 | Fix Disabled Buttons on Trigger & Action Edit | Delivered | [v5/v5.7.2.md](v5/v5.7.2.md) |
 | v5.7.3 | Trigger Static Tags | Delivered | [v5/v5.7.3.md](v5/v5.7.3.md) |
+| v5.8.1 | In Progress Panel: Total and Today Columns | Delivered | [v5/v5.8.1.md](v5/v5.8.1.md) |
+| v5.8.2 | Contact Channel Types: Hangouts, Jira, Telegram | Delivered | [v5/v5.8.2.md](v5/v5.8.2.md) |
+| v5.8.3 | Jira Ticket List: Label Filter | Delivered | [v5/v5.8.3.md](v5/v5.8.3.md) |
+| v5.8.4 | Jira Parent/Child Issue Tree | Delivered | [v5/v5.8.4.md](v5/v5.8.4.md) |
+| v5.8.5 | Status History: Full Title Visibility | Delivered | [v5/v5.8.5.md](v5/v5.8.5.md) |
+| v5.8.6 | Fix Back Navigation from Jira Ticket to Time Report | Delivered | [v5/v5.8.6.md](v5/v5.8.6.md) |
+| v5.8.7 | Timezone Setting per User | Delivered | [v5/v5.8.7.md](v5/v5.8.7.md) |
+| v5.8.8 | Navbar User Dropdown | Delivered | [v5/v5.8.8.md](v5/v5.8.8.md) |
+| v5.8.9 | User Settings Page | Delivered | [v5/v5.8.9.md](v5/v5.8.9.md) |
