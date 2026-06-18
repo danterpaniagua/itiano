@@ -197,12 +197,18 @@ class DailyReportView(LoginRequiredMixin, View):
         if range_param not in ('today', 'week', 'month'):
             range_param = 'today'
         now = timezone.now()
+        import zoneinfo as _zi
+        try:
+            user_tz = _zi.ZoneInfo(schedule.timezone) if schedule and schedule.timezone else dt_module.timezone.utc
+        except Exception:
+            user_tz = dt_module.timezone.utc
+        now_local = now.astimezone(user_tz)
         if range_param == 'today':
-            start_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            start_dt = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(dt_module.timezone.utc)
         elif range_param == 'week':
-            start_dt = (now - dt_module.timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+            start_dt = (now_local - dt_module.timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(dt_module.timezone.utc)
         else:
-            start_dt = (now - dt_module.timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+            start_dt = (now_local - dt_module.timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(dt_module.timezone.utc)
 
         def range_seconds(entered_at, exited_at, ongoing_in_progress=False):
             """
@@ -222,11 +228,8 @@ class DailyReportView(LoginRequiredMixin, View):
 
         def fmt(seconds):
             seconds = max(0, int(seconds))
-            days, rem = divmod(seconds, 86400)
-            hours, rem = divmod(rem, 3600)
+            hours, rem = divmod(seconds, 3600)
             minutes = rem // 60
-            if days:
-                return f"{days}d {hours}h {minutes}m"
             if hours:
                 return f"{hours}h {minutes}m"
             return f"{minutes}m"
