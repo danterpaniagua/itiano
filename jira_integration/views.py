@@ -176,8 +176,24 @@ def ticket_list(request):
         ticket=OuterRef('pk')
     ).order_by('-received_at').values('pk')[:1]
 
-    tickets = JiraTicket.objects.annotate(last_event_pk=Subquery(last_event_pk))
-    return render(request, 'jira_integration/ticket_list.html', {'tickets': tickets})
+    all_tickets = JiraTicket.objects.annotate(last_event_pk=Subquery(last_event_pk))
+
+    all_labels = sorted({
+        label
+        for ticket in JiraTicket.objects.only('labels')
+        for label in (ticket.labels or [])
+    })
+
+    selected_labels = request.GET.getlist('labels')
+    tickets = all_tickets
+    for label in selected_labels:
+        tickets = tickets.filter(labels__contains=[label])
+
+    return render(request, 'jira_integration/ticket_list.html', {
+        'tickets': tickets,
+        'all_labels': all_labels,
+        'selected_labels': selected_labels,
+    })
 
 
 def _format_duration(delta):

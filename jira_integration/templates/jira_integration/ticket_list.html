@@ -8,6 +8,37 @@
     <a href="" class="btn btn-outline-secondary btn-sm" title="Refresh"><i class="bi bi-arrow-clockwise"></i></a>
 </div>
 
+{% if all_labels %}
+<form method="get" id="label-filter-form" class="mb-2">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="text-muted small fw-semibold">Labels:</span>
+        {% for label in all_labels %}
+        <div class="form-check form-check-inline mb-0">
+            <input class="form-check-input label-checkbox" type="checkbox" name="labels"
+                   value="{{ label }}" id="lbl-{{ forloop.counter }}"
+                   {% if label in selected_labels %}checked{% endif %}>
+            <label class="form-check-label small" for="lbl-{{ forloop.counter }}">{{ label }}</label>
+        </div>
+        {% endfor %}
+        {% if selected_labels %}
+        <a href="{% url 'jira-ticket-list' %}" class="btn btn-sm btn-outline-secondary ms-1">Clear</a>
+        {% endif %}
+    </div>
+</form>
+{% if selected_labels %}
+<div class="d-flex flex-wrap gap-1 mb-2">
+    {% for label in selected_labels %}
+    {% with new_labels=selected_labels|join:"&labels=" %}
+    <a href="?{% for l in selected_labels %}{% if l != label %}labels={{ l }}&{% endif %}{% endfor %}"
+       class="badge bg-primary text-decoration-none">
+        {{ label }} <span class="ms-1">×</span>
+    </a>
+    {% endwith %}
+    {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
 {% if not tickets %}
 <p class="text-muted">No Jira tickets received yet.</p>
 {% else %}
@@ -117,4 +148,12 @@
 </div>
 
 {% endif %}
+
+<script>
+document.querySelectorAll('.label-checkbox').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+        document.getElementById('label-filter-form').submit();
+    });
+});
+</script>
 {% endblock %}
