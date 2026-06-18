@@ -42,7 +42,7 @@ python manage.py runserver
 Los tests requieren la base de datos PostgreSQL. Ejecutar dentro del contenedor:
 
 ```bash
-docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault notes contacts timetracking
+docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault notes contacts timetracking settings_hub
 ```
 
 ## Variables de entorno
@@ -63,9 +63,9 @@ docker compose exec app python manage.py test itsm jira_integration json_sandbox
 
 | App | Responsabilidad |
 |---|---|
-| `core` | Autenticación, `UserProfile` con rol, base templates, footer con versión |
+| `core` | Autenticación, `UserProfile` con rol, página de perfil de usuario, base templates, footer con versión |
 | `itsm` | Modelos de tickets, máquina de estados, vistas, permisos, adjuntos, pestaña de metadatos Jira |
-| `jira_integration` | Recepción de webhooks de Jira, historial de eventos por ticket, flag de ticket eliminado |
+| `jira_integration` | Recepción de webhooks de Jira, historial de eventos, relaciones padre/hijo, flag de ticket eliminado |
 | `json_sandbox` | Evaluación interactiva de expresiones JSONPath (solo staff) |
 | `automations` | Motor de automatizaciones: Triggers con filtros JSONPath disparan Actions que crean tickets; cada Trigger puede tener un tag de identidad |
 | `clipboard` | Portapapeles cifrado por usuario, accesible desde cualquier página |
@@ -73,6 +73,7 @@ docker compose exec app python manage.py test itsm jira_integration json_sandbox
 | `notes` | Blocs de notas privados por usuario con soporte Markdown |
 | `contacts` | Directorio de contactos con canales de notificación HTTP configurables |
 | `timetracking` | Seguimiento de tiempo en tickets Jira por usuario; panel de tickets activos y reporte de tiempo por estado |
+| `settings_hub` | Configuración de app (Tags, Categorías — solo staff) y configuración de usuario (horario, timezone, Jira username, canales de contacto) en `/settings/` |
 
 Ver `.claude/architecture.md` para detalle completo de la arquitectura.
 
