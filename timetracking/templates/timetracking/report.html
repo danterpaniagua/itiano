@@ -5,7 +5,7 @@
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Time Report</h5>
     {# Range toggle — carries active filters to the new range #}
-    <form method="get" class="d-flex gap-1 align-items-center" id="range-form">
+    <form method="get" class="d-flex flex-wrap gap-1 align-items-center" id="range-form">
         {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
         {% for s in selected_statuses %}<input type="hidden" name="statuses" value="{{ s }}">{% endfor %}
         <div class="btn-group btn-group-sm" role="group">
@@ -16,6 +16,18 @@
             <button type="submit" name="range" value="month"
                 class="btn btn-{% if range_param == 'month' %}primary{% else %}outline-secondary{% endif %}">Month</button>
         </div>
+        {# Custom date range #}
+        <input type="date" name="date_from" value="{{ custom_date_from }}"
+               class="form-control form-control-sm" style="width:auto"
+               onchange="document.getElementById('range-form').querySelector('[name=range]').value='custom'">
+        <span class="small text-muted">–</span>
+        <input type="date" name="date_to" value="{{ custom_date_to }}"
+               class="form-control form-control-sm" style="width:auto"
+               onchange="document.getElementById('range-form').querySelector('[name=range]').value='custom'">
+        <input type="hidden" name="range" value="{{ range_param }}">
+        <button type="submit" class="btn btn-sm btn-{% if range_param == 'custom' %}primary{% else %}outline-secondary{% endif %}">
+            <i class="bi bi-calendar-range"></i>
+        </button>
     </form>
     <a href="{% url 'timetracking-list' %}" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-list"></i> All Entries
@@ -46,6 +58,7 @@
                 <div class="dropdown-menu p-2" style="min-width:200px">
                     <form method="get" id="tags-filter-form">
                         <input type="hidden" name="range" value="{{ range_param }}">
+                        {% if range_param == 'custom' %}<input type="hidden" name="date_from" value="{{ custom_date_from }}"><input type="hidden" name="date_to" value="{{ custom_date_to }}">{% endif %}
                         {% for s in selected_statuses %}<input type="hidden" name="statuses" value="{{ s }}">{% endfor %}
                         {% for tag in all_tags %}
                         <div class="form-check">
@@ -72,6 +85,7 @@
                 <div class="dropdown-menu p-2" style="min-width:200px">
                     <form method="get" id="statuses-filter-form">
                         <input type="hidden" name="range" value="{{ range_param }}">
+                        {% if range_param == 'custom' %}<input type="hidden" name="date_from" value="{{ custom_date_from }}"><input type="hidden" name="date_to" value="{{ custom_date_to }}">{% endif %}
                         {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
                         {% for status in all_statuses %}
                         <div class="form-check">
@@ -89,13 +103,13 @@
 
             {# Clear buttons #}
             {% if selected_tags %}
-            <a href="?range={{ range_param }}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
+            <a href="?range={{ range_param }}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
                class="btn btn-sm btn-outline-danger">
                 <i class="bi bi-x"></i> Clear tags
             </a>
             {% endif %}
             {% if selected_statuses %}
-            <a href="?range={{ range_param }}{% for t in selected_tags %}&tags={{ t }}{% endfor %}"
+            <a href="?range={{ range_param }}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for t in selected_tags %}&tags={{ t }}{% endfor %}"
                class="btn btn-sm btn-outline-danger">
                 <i class="bi bi-x"></i> Clear status
             </a>
@@ -107,17 +121,20 @@
 {% endif %}
 
 {# Active filter chips — click to deselect #}
-{% if selected_tags or selected_statuses %}
+{% if selected_tags or selected_statuses or range_param == 'custom' %}
 <div class="d-flex flex-wrap gap-1 mb-3">
     <span class="small text-muted me-1 align-self-center">Showing:</span>
+    {% if range_param == 'custom' %}
+    <span class="badge bg-dark">{{ custom_date_from }} – {{ custom_date_to }}</span>
+    {% endif %}
     {% for tag in selected_tags %}
-    <a href="?range={{ range_param }}{% for t in selected_tags %}{% if t != tag %}&tags={{ t }}{% endif %}{% endfor %}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
+    <a href="?range={{ range_param }}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for t in selected_tags %}{% if t != tag %}&tags={{ t }}{% endif %}{% endfor %}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
        class="badge bg-primary text-decoration-none">
         {{ tag }} <i class="bi bi-x" style="font-size:0.7em"></i>
     </a>
     {% endfor %}
     {% for status in selected_statuses %}
-    <a href="?range={{ range_param }}{% for t in selected_tags %}&tags={{ t }}{% endfor %}{% for s in selected_statuses %}{% if s != status %}&statuses={{ s }}{% endif %}{% endfor %}"
+    <a href="?range={{ range_param }}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for t in selected_tags %}&tags={{ t }}{% endfor %}{% for s in selected_statuses %}{% if s != status %}&statuses={{ s }}{% endif %}{% endfor %}"
        class="badge bg-secondary text-decoration-none">
         {{ status }} <i class="bi bi-x" style="font-size:0.7em"></i>
     </a>

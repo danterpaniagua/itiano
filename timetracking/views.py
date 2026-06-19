@@ -194,7 +194,7 @@ class DailyReportView(LoginRequiredMixin, View):
 
         # --- Range ---
         range_param = request.GET.get('range', 'today')
-        if range_param not in ('today', 'week', 'month'):
+        if range_param not in ('today', 'week', 'month', 'custom'):
             range_param = 'today'
         now = timezone.now()
         import zoneinfo as _zi
@@ -203,7 +203,36 @@ class DailyReportView(LoginRequiredMixin, View):
         except Exception:
             user_tz = dt_module.timezone.utc
         now_local = now.astimezone(user_tz)
-        if range_param == 'today':
+
+        custom_date_from = ''
+        custom_date_to = ''
+
+        if range_param == 'custom':
+            try:
+                custom_date_from = request.GET.get('date_from', '')
+                df = dt_module.date.fromisoformat(custom_date_from)
+            except ValueError:
+                df = now_local.date()
+                custom_date_from = df.isoformat()
+                range_param = 'today'
+            try:
+                custom_date_to = request.GET.get('date_to', '')
+                dt_val = dt_module.date.fromisoformat(custom_date_to)
+            except ValueError:
+                dt_val = df
+                custom_date_to = dt_val.isoformat()
+            if dt_val < df:
+                dt_val = df
+                custom_date_to = dt_val.isoformat()
+            start_dt = dt_module.datetime(df.year, df.month, df.day, tzinfo=user_tz).astimezone(dt_module.timezone.utc)
+            # end of range = end of date_to in user tz
+            now = dt_module.datetime(dt_val.year, dt_val.month, dt_val.day,
+                                     23, 59, 59, tzinfo=user_tz).astimezone(dt_module.timezone.utc)
+            # cap to actual now so we don't show future
+            actual_now = timezone.now()
+            if now > actual_now:
+                now = actual_now
+        elif range_param == 'today':
             start_dt = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(dt_module.timezone.utc)
         elif range_param == 'week':
             start_dt = (now_local - dt_module.timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(dt_module.timezone.utc)
@@ -478,14 +507,19 @@ class DailyReportView(LoginRequiredMixin, View):
                 gantt_rows.append({'ticket': ticket, 'bars': bars})
 
         # X axis ticks
+        # Gantt tick strategy: today or single-day custom → hourly; week or multi-day custom → daily; month → every 3 days
+        _custom_single_day = (range_param == 'custom' and custom_date_from == custom_date_to)
+        _custom_multi_day = (range_param == 'custom' and custom_date_from != custom_date_to)
+        _range_days = max(1, (now - start_dt).days)
+
         gantt_ticks = []
-        if range_param == 'today':
+        if range_param == 'today' or _custom_single_day:
             tick = start_dt
             while tick <= now:
                 left = (tick - start_dt).total_seconds() / range_total_secs * 100
                 gantt_ticks.append({'label': tick.astimezone(user_tz).strftime('%H:%M'), 'left': round(left, 2)})
                 tick += datetime.timedelta(hours=2)
-        elif range_param == 'week':
+        elif range_param == 'week' or _custom_multi_day:
             tick = start_dt
             while tick <= now:
                 left = (tick - start_dt).total_seconds() / range_total_secs * 100
@@ -543,6 +577,8 @@ class DailyReportView(LoginRequiredMixin, View):
             'gantt_ticks': gantt_ticks,
             'gantt_legend': gantt_legend,
             'work_lines': work_lines,
+            'custom_date_from': custom_date_from,
+            'custom_date_to': custom_date_to,
         })
 
 
