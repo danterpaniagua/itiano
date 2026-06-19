@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
 from jira_integration.models import JiraEvent, JiraTicket
+from settings_hub.models import get_app_setting, JiraStatusConfig
 
 from .models import TimeEntry, WorkSchedule
 
@@ -23,9 +24,11 @@ class TimeEntryListView(LoginRequiredMixin, View):
         jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
         active_tickets = []
         if jira_username:
+            _ip_names = list(JiraStatusConfig.objects.filter(
+                category='in_progress').values_list('status_name', flat=True)) or ['In Progress']
             active_tickets = list(
                 JiraTicket.objects.filter(
-                    status__iexact='In Progress',
+                    status__in=_ip_names,
                     assignee__iexact=jira_username,
                     is_deleted=False,
                 ).order_by('issue_key')
@@ -192,6 +195,14 @@ class DailyReportView(LoginRequiredMixin, View):
         schedule = WorkSchedule.objects.filter(user=request.user).first()
         jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
 
+        _jira_configs = list(JiraStatusConfig.objects.all())
+        if _jira_configs:
+            _ip_statuses       = {c.status_name.lower() for c in _jira_configs if c.category == 'in_progress'}
+            _terminal_statuses = {c.status_name.lower() for c in _jira_configs if c.category == 'done'}
+        else:
+            _ip_statuses       = {'in progress'}
+            _terminal_statuses = {'done', 'descartado'}
+
         # --- Range ---
         range_param = request.GET.get('range', 'today')
         if range_param not in ('today', 'week', 'month', 'custom'):
@@ -296,7 +307,7 @@ class DailyReportView(LoginRequiredMixin, View):
         # - ongoing In Progress segments entered before the range count from start_dt
         # - all other pre-range segments contribute 0
         def ticket_seg_secs(ticket):
-            is_ip = ticket.status.lower() == 'in progress'
+            is_ip = ticket.status.lower() in _ip_statuses
             result = []
             for seg in ticket_segments[ticket.issue_key]:
                 if not seg['status'] or not seg['entered_at']:
@@ -327,11 +338,19 @@ class DailyReportView(LoginRequiredMixin, View):
             ).select_related('tag')
         ))
 
-        _TERMINAL_STATUSES = {'done', 'descartado'}
-        _STATUS_COLUMN_ORDER = [
-            'done', 'in progress', 'bloqueado', 'testing',
-            'selected for development', 'descartado', 'backlog',
-        ]
+        _TERMINAL_STATUSES = _terminal_statuses
+        _CATEGORY_ORDER = ['done', 'in_progress', 'blocked', 'testing', 'other', 'backlog']
+        if _jira_configs:
+            _STATUS_COLUMN_ORDER = []
+            for _cat in _CATEGORY_ORDER:
+                for _c in _jira_configs:
+                    if _c.category == _cat:
+                        _STATUS_COLUMN_ORDER.append(_c.status_name.lower())
+        else:
+            _STATUS_COLUMN_ORDER = [
+                'done', 'in progress', 'bloqueado', 'testing',
+                'selected for development', 'descartado', 'backlog',
+            ]
 
         # Collect statuses: range-active for non-terminal, ever-reached for terminal
         all_statuses = []
@@ -398,7 +417,7 @@ class DailyReportView(LoginRequiredMixin, View):
                 max(0, int((min(seg['exited_at'] or now, now) - seg['entered_at']).total_seconds()))
                 for seg in segs
                 if seg['status']
-                and seg['status'].lower() == 'in progress'
+                and seg['status'].lower() in _ip_statuses
                 and seg['entered_at']
                 and seg['entered_at'] >= start_dt
             )
@@ -434,7 +453,7 @@ class DailyReportView(LoginRequiredMixin, View):
                 return ' '.join(t for t in texts if t).strip()
             return ''
 
-        ip_tickets = [t for t in my_tickets if t.status.lower() == 'in progress']
+        ip_tickets = [t for t in my_tickets if t.status.lower() in _ip_statuses]
         ip_last_comment = {}
         if ip_tickets:
             for event in JiraEvent.objects.filter(
@@ -452,7 +471,7 @@ class DailyReportView(LoginRequiredMixin, View):
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         today_rows = []
         for ticket in my_tickets:
-            if ticket.status.lower() != 'in progress':
+            if ticket.status.lower() not in _ip_statuses:
                 continue
             ongoing_seg = next(
                 (seg for seg in ticket_segments[ticket.issue_key] if seg['entered_at'] and seg['exited_at'] is None),
@@ -465,7 +484,7 @@ class DailyReportView(LoginRequiredMixin, View):
             today_ip_secs = sum(
                 max(0, int((min(seg['exited_at'] or now, now) - max(seg['entered_at'], today_start)).total_seconds()))
                 for seg in ticket_segments[ticket.issue_key]
-                if seg['status'] and seg['status'].lower() == 'in progress'
+                if seg['status'] and seg['status'].lower() in _ip_statuses
                 and seg['entered_at'] and min(seg['exited_at'] or now, now) > max(seg['entered_at'], today_start)
             )
             today_rows.append({
@@ -508,16 +527,26 @@ class DailyReportView(LoginRequiredMixin, View):
             pivot_rows.append({'ticket': ticket, 'cells': cells})
 
         # --- Gantt timeline ---
-        _status_colors = {
-            'in progress': '#0d6efd',
-            'bloqueado': '#dc3545',
-            'blocked': '#dc3545',
-            'done': '#198754',
-            'backlog': '#6c757d',
-            'testing': '#fd7e14',
-            'in review': '#6f42c1',
-            'review': '#6f42c1',
+        _category_colors = {
+            'in_progress': '#0d6efd',
+            'blocked':     '#dc3545',
+            'done':        '#198754',
+            'testing':     '#fd7e14',
+            'backlog':     '#6c757d',
+            'other':       '#6c757d',
         }
+        if _jira_configs:
+            _status_colors = {
+                c.status_name.lower(): _category_colors.get(c.category, '#6c757d')
+                for c in _jira_configs
+            }
+        else:
+            _status_colors = {
+                'in progress': '#0d6efd', 'en curso': '#0d6efd',
+                'bloqueado': '#dc3545', 'blocked': '#dc3545',
+                'done': '#198754', 'backlog': '#6c757d',
+                'testing': '#fd7e14', 'in review': '#6f42c1', 'review': '#6f42c1',
+            }
         _fallback_colors = ['#20c997', '#0dcaf0', '#ffc107', '#d63384', '#adb5bd']
         _fallback_idx = {}
 
@@ -906,7 +935,7 @@ class TicketTimelineView(LoginRequiredMixin, View):
                 'duration': duration_display,
             })
 
-        from settings_hub.models import get_app_setting
+        from settings_hub.models import get_app_setting, JiraStatusConfig
         jira_base_url = get_app_setting('jira_base_url', '').rstrip('/')
         jira_url = f'{jira_base_url}/browse/{ticket.issue_key}' if jira_base_url else ''
 

@@ -14,16 +14,100 @@
     <div class="col-12 col-md-8 col-lg-6">
 
         <h6 class="fw-semibold mb-3" id="jira"><i class="bi bi-puzzle me-1"></i> Jira Integration</h6>
-        <form method="post">
+
+        {# Base URL #}
+        <form method="post" class="mb-4">
             {% csrf_token %}
             <div class="mb-3">
-                <label class="form-label fw-semibold">Jira Base URL</label>
+                <label class="form-label fw-semibold">Base URL</label>
                 <input type="url" name="jira_base_url" class="form-control"
                        value="{{ jira_base_url }}"
                        placeholder="https://myorg.atlassian.net">
                 <div class="form-text">Used to build direct links to Jira issues. No trailing slash.</div>
             </div>
-            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+
+        <hr class="my-4">
+
+        {# Ticket Statuses #}
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <h6 class="fw-semibold mb-0">Ticket Statuses</h6>
+        </div>
+
+        {% if jira_statuses %}
+        <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Status Name</th>
+                        <th>Category</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for s in jira_statuses %}
+                <tr>
+                    <td class="small">{{ s.status_name }}</td>
+                    <td><span class="badge bg-secondary">{{ s.get_category_display }}</span></td>
+                    <td class="text-end">
+                        <form method="post" action="{% url 'settings-jira-status-delete' s.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Remove {{ s.status_name }}?')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Mobile cards #}
+        <div class="d-md-none mb-3">
+            {% for s in jira_statuses %}
+            <div class="card mb-2">
+                <div class="card-body py-2 d-flex align-items-center gap-2">
+                    <div class="flex-grow-1">
+                        <div class="small fw-semibold">{{ s.status_name }}</div>
+                        <span class="badge bg-secondary small">{{ s.get_category_display }}</span>
+                    </div>
+                    <form method="post" action="{% url 'settings-jira-status-delete' s.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Remove {{ s.status_name }}?')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted small mb-3">No statuses configured yet.</p>
+        {% endif %}
+
+        {# Add form #}
+        <form method="post" action="{% url 'settings-jira-status-add' %}" class="d-flex flex-wrap gap-2 align-items-end">
+            {% csrf_token %}
+            <div>
+                <label class="form-label form-label-sm mb-1">Status name</label>
+                <input type="text" name="status_name" class="form-control form-control-sm"
+                       placeholder="e.g. En curso" style="width:180px" required>
+            </div>
+            <div>
+                <label class="form-label form-label-sm mb-1">Category</label>
+                <select name="category" class="form-select form-select-sm" style="width:160px">
+                    {% for val, label in category_choices %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus-lg"></i> Add
+            </button>
         </form>
 
     </div>

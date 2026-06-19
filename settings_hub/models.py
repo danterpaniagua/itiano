@@ -19,3 +19,25 @@ def get_app_setting(key, default=''):
         return AppSetting.objects.get(key=key).value
     except AppSetting.DoesNotExist:
         return default
+
+
+class JiraStatusConfig(models.Model):
+    CATEGORY_CHOICES = [
+        ('in_progress', 'In Progress'),
+        ('blocked',     'Blocked'),
+        ('done',        'Done'),
+        ('testing',     'Testing'),
+        ('backlog',     'Backlog'),
+        ('other',       'Other'),
+    ]
+
+    status_name = models.CharField(max_length=100, unique=True)
+    category    = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='other')
+
+    class Meta:
+        ordering = ['category', 'status_name']
+        verbose_name = 'Jira Status Config'
+        verbose_name_plural = 'Jira Status Configs'
+
+    def __str__(self):
+        return f'{self.status_name} ({self.get_category_display()})'

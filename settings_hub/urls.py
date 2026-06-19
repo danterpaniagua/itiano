@@ -18,4 +18,6 @@ urlpatterns = [
     path('user/channels/<int:pk>/edit/', views.UserChannelEditView.as_view(), name='settings-user-channel-edit'),
     path('user/channels/<int:pk>/delete/', views.UserChannelDeleteView.as_view(), name='settings-user-channel-delete'),
     path('app/', views.AppSettingsView.as_view(), name='settings-app'),
+    path('app/jira-status/add/', views.JiraStatusAddView.as_view(), name='settings-jira-status-add'),
+    path('app/jira-status/<int:pk>/delete/', views.JiraStatusDeleteView.as_view(), name='settings-jira-status-delete'),
 ]

@@ -11,7 +11,7 @@ from django.views import View
 from contacts.models import Contact, ContactChannel
 from itsm.models import Category, Tag
 from timetracking.models import WorkSchedule
-from .models import get_app_setting, AppSetting
+from .models import get_app_setting, AppSetting, JiraStatusConfig
 
 _DAYS = [
     ('mon', 'Monday'),
@@ -293,13 +293,41 @@ class UserChannelDeleteView(LoginRequiredMixin, View):
 
 
 class AppSettingsView(StaffRequiredMixin, View):
-    def get(self, request):
-        return render(request, 'settings_hub/app_settings.html', {
+    def _ctx(self):
+        return {
             'jira_base_url': get_app_setting('jira_base_url'),
-        })
+            'jira_statuses': JiraStatusConfig.objects.all(),
+            'category_choices': JiraStatusConfig.CATEGORY_CHOICES,
+        }
+
+    def get(self, request):
+        return render(request, 'settings_hub/app_settings.html', self._ctx())
 
     def post(self, request):
         url = request.POST.get('jira_base_url', '').strip().rstrip('/')
         AppSetting.objects.update_or_create(key='jira_base_url', defaults={'value': url})
-        messages.success(request, 'App settings saved.')
+        messages.success(request, 'Settings saved.')
+        return redirect('settings-app')
+
+
+class JiraStatusAddView(StaffRequiredMixin, View):
+    def post(self, request):
+        name = request.POST.get('status_name', '').strip()
+        category = request.POST.get('category', 'other').strip()
+        valid_cats = {c for c, _ in JiraStatusConfig.CATEGORY_CHOICES}
+        if not name:
+            messages.error(request, 'Status name is required.')
+        elif category not in valid_cats:
+            messages.error(request, 'Invalid category.')
+        elif JiraStatusConfig.objects.filter(status_name__iexact=name).exists():
+            messages.error(request, f'"{name}" is already configured.')
+        else:
+            JiraStatusConfig.objects.create(status_name=name, category=category)
+            messages.success(request, f'"{name}" added.')
+        return redirect('settings-app')
+
+
+class JiraStatusDeleteView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        JiraStatusConfig.objects.filter(pk=pk).delete()
         return redirect('settings-app')
