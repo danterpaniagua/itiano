@@ -8,35 +8,92 @@
     <a href="" class="btn btn-outline-secondary btn-sm" title="Refresh"><i class="bi bi-arrow-clockwise"></i></a>
 </div>
 
-{% if all_labels %}
-<form method="get" id="label-filter-form" class="mb-2">
-    <div class="d-flex flex-wrap gap-2 align-items-center">
-        <span class="text-muted small fw-semibold">Labels:</span>
-        {% for label in all_labels %}
-        <div class="form-check form-check-inline mb-0">
-            <input class="form-check-input label-checkbox" type="checkbox" name="labels"
-                   value="{{ label }}" id="lbl-{{ forloop.counter }}"
-                   {% if label in selected_labels %}checked{% endif %}>
-            <label class="form-check-label small" for="lbl-{{ forloop.counter }}">{{ label }}</label>
+{# ── Filters ── #}
+{% if all_labels or all_statuses %}
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+
+            {% if all_labels %}
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-tags"></i> Labels
+                    {% if selected_labels %}<span class="badge bg-primary ms-1">{{ selected_labels|length }}</span>{% endif %}
+                </button>
+                <div class="dropdown-menu p-2" style="min-width:200px">
+                    <form method="get" id="labels-filter-form">
+                        {% for s in selected_statuses %}<input type="hidden" name="statuses" value="{{ s }}">{% endfor %}
+                        {% for label in all_labels %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="labels" value="{{ label }}"
+                                   id="lbl-dd-{{ forloop.counter }}"
+                                   {% if label in selected_labels %}checked{% endif %}
+                                   onchange="document.getElementById('labels-filter-form').submit()">
+                            <label class="form-check-label small" for="lbl-dd-{{ forloop.counter }}">{{ label }}</label>
+                        </div>
+                        {% endfor %}
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if all_statuses %}
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-funnel"></i> Status
+                    {% if selected_statuses %}<span class="badge bg-primary ms-1">{{ selected_statuses|length }}</span>{% endif %}
+                </button>
+                <div class="dropdown-menu p-2" style="min-width:200px">
+                    <form method="get" id="statuses-filter-form">
+                        {% for l in selected_labels %}<input type="hidden" name="labels" value="{{ l }}">{% endfor %}
+                        {% for status in all_statuses %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="statuses" value="{{ status }}"
+                                   id="st-dd-{{ forloop.counter }}"
+                                   {% if status in selected_statuses %}checked{% endif %}
+                                   onchange="document.getElementById('statuses-filter-form').submit()">
+                            <label class="form-check-label small" for="st-dd-{{ forloop.counter }}">{{ status }}</label>
+                        </div>
+                        {% endfor %}
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if selected_labels %}
+            <a href="?{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-x"></i> Clear labels
+            </a>
+            {% endif %}
+            {% if selected_statuses %}
+            <a href="?{% for l in selected_labels %}&labels={{ l }}{% endfor %}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-x"></i> Clear status
+            </a>
+            {% endif %}
+
         </div>
-        {% endfor %}
-        {% if selected_labels %}
-        <a href="{% url 'jira-ticket-list' %}" class="btn btn-sm btn-outline-secondary ms-1">Clear</a>
-        {% endif %}
     </div>
-</form>
-{% if selected_labels %}
-<div class="d-flex flex-wrap gap-1 mb-2">
-    {% for label in selected_labels %}
-    {% with new_labels=selected_labels|join:"&labels=" %}
-    <a href="?{% for l in selected_labels %}{% if l != label %}labels={{ l }}&{% endif %}{% endfor %}"
-       class="badge bg-primary text-decoration-none">
-        {{ label }} <span class="ms-1">×</span>
-    </a>
-    {% endwith %}
-    {% endfor %}
 </div>
 {% endif %}
+
+{% if selected_labels or selected_statuses %}
+<div class="d-flex flex-wrap gap-1 mb-3">
+    <span class="small text-muted me-1 align-self-center">Showing:</span>
+    {% for label in selected_labels %}
+    <a href="?{% for l in selected_labels %}{% if l != label %}labels={{ l }}&{% endif %}{% endfor %}{% for s in selected_statuses %}statuses={{ s }}&{% endfor %}"
+       class="badge bg-primary text-decoration-none">
+        {{ label }} <i class="bi bi-x" style="font-size:0.7em"></i>
+    </a>
+    {% endfor %}
+    {% for status in selected_statuses %}
+    <a href="?{% for l in selected_labels %}labels={{ l }}&{% endfor %}{% for s in selected_statuses %}{% if s != status %}statuses={{ s }}&{% endif %}{% endfor %}"
+       class="badge bg-secondary text-decoration-none">
+        {{ status }} <i class="bi bi-x" style="font-size:0.7em"></i>
+    </a>
+    {% endfor %}
+</div>
 {% endif %}
 
 {% if not tickets %}

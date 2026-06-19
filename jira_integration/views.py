@@ -186,15 +186,24 @@ def ticket_list(request):
         for label in (ticket.labels or [])
     })
 
+    all_statuses = sorted(
+        JiraTicket.objects.exclude(is_deleted=True).values_list('status', flat=True).distinct()
+    )
+
     selected_labels = request.GET.getlist('labels')
+    selected_statuses = request.GET.getlist('statuses')
     tickets = all_tickets
     for label in selected_labels:
         tickets = tickets.filter(labels__contains=[label])
+    if selected_statuses:
+        tickets = tickets.filter(status__in=selected_statuses)
 
     return render(request, 'jira_integration/ticket_list.html', {
         'tickets': tickets,
         'all_labels': all_labels,
         'selected_labels': selected_labels,
+        'all_statuses': all_statuses,
+        'selected_statuses': selected_statuses,
     })
 
 

@@ -4,27 +4,108 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <h5 class="mb-0 me-auto">Tickets</h5>
-    <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
+    <form method="get" class="d-flex flex-wrap gap-2 align-items-center" id="ticket-search-form">
+        {% for t in selected_tags %}<input type="hidden" name="tags" value="{{ t }}">{% endfor %}
+        {% for s in selected_statuses %}<input type="hidden" name="statuses" value="{{ s }}">{% endfor %}
         <input type="text" name="q" value="{{ q_filter }}"
                class="form-control form-control-sm" placeholder="Search title…" style="width:160px">
-        {% if all_tags %}
-        <select name="tag" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
-            <option value="">All tags</option>
-            {% for tag in all_tags %}
-            <option value="{{ tag.name }}" {% if tag.name == tag_filter %}selected{% endif %}>{{ tag.name }}</option>
-            {% endfor %}
-        </select>
-        {% endif %}
         <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
-        {% if tag_filter or q_filter %}
-        <a href="{% url 'ticket-list' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
-        {% endif %}
     </form>
     <a href="" class="btn btn-outline-secondary btn-sm" title="Refresh"><i class="bi bi-arrow-clockwise"></i></a>
     <a href="{% url 'ticket-create' %}" class="btn btn-primary btn-sm">
         <i class="bi bi-plus-lg"></i> New Ticket
     </a>
 </div>
+
+{# ── Filters ── #}
+{% if all_tags or all_states %}
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+
+            {% if all_tags %}
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-tags"></i> Tags
+                    {% if selected_tags %}<span class="badge bg-primary ms-1">{{ selected_tags|length }}</span>{% endif %}
+                </button>
+                <div class="dropdown-menu p-2" style="min-width:200px">
+                    <form method="get" id="tags-filter-form">
+                        <input type="hidden" name="q" value="{{ q_filter }}">
+                        {% for s in selected_statuses %}<input type="hidden" name="statuses" value="{{ s }}">{% endfor %}
+                        {% for tag in all_tags %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="tags" value="{{ tag.name }}"
+                                   id="tag-dd-{{ forloop.counter }}"
+                                   {% if tag.name in selected_tags %}checked{% endif %}
+                                   onchange="document.getElementById('tags-filter-form').submit()">
+                            <label class="form-check-label small" for="tag-dd-{{ forloop.counter }}">{{ tag.name }}</label>
+                        </div>
+                        {% endfor %}
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if all_states %}
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-funnel"></i> Status
+                    {% if selected_statuses %}<span class="badge bg-primary ms-1">{{ selected_statuses|length }}</span>{% endif %}
+                </button>
+                <div class="dropdown-menu p-2" style="min-width:200px">
+                    <form method="get" id="states-filter-form">
+                        <input type="hidden" name="q" value="{{ q_filter }}">
+                        {% for t in selected_tags %}<input type="hidden" name="tags" value="{{ t }}">{% endfor %}
+                        {% for state in all_states %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="statuses" value="{{ state.value }}"
+                                   id="st-dd-{{ forloop.counter }}"
+                                   {% if state.value in selected_statuses %}checked{% endif %}
+                                   onchange="document.getElementById('states-filter-form').submit()">
+                            <label class="form-check-label small" for="st-dd-{{ forloop.counter }}">{{ state.label }}</label>
+                        </div>
+                        {% endfor %}
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if selected_tags %}
+            <a href="?q={{ q_filter }}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-x"></i> Clear tags
+            </a>
+            {% endif %}
+            {% if selected_statuses %}
+            <a href="?q={{ q_filter }}{% for t in selected_tags %}&tags={{ t }}{% endfor %}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-x"></i> Clear status
+            </a>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if selected_tags or selected_statuses %}
+<div class="d-flex flex-wrap gap-1 mb-3">
+    <span class="small text-muted me-1 align-self-center">Showing:</span>
+    {% for tag in selected_tags %}
+    <a href="?q={{ q_filter }}{% for t in selected_tags %}{% if t != tag %}&tags={{ t }}{% endif %}{% endfor %}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
+       class="badge bg-primary text-decoration-none">
+        {{ tag }} <i class="bi bi-x" style="font-size:0.7em"></i>
+    </a>
+    {% endfor %}
+    {% for status in selected_statuses %}
+    <a href="?q={{ q_filter }}{% for t in selected_tags %}&tags={{ t }}{% endfor %}{% for s in selected_statuses %}{% if s != status %}&statuses={{ s }}{% endif %}{% endfor %}"
+       class="badge bg-secondary text-decoration-none">
+        {{ status }} <i class="bi bi-x" style="font-size:0.7em"></i>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
 
 {% if not tickets %}
 <p class="text-muted">No tickets found.</p>

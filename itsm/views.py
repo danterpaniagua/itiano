@@ -30,18 +30,28 @@ class TicketListView(LoginRequiredMixin, View):
         else:
             tickets = Ticket.objects.filter(requester=request.user)
 
-        tag_filter = request.GET.get('tag', '')
+        selected_tags = request.GET.getlist('tags')
+        selected_statuses = request.GET.getlist('statuses')
         q_filter = request.GET.get('q', '').strip()
-        if tag_filter:
-            tickets = tickets.filter(tags__name=tag_filter)
+        for tag_name in selected_tags:
+            tickets = tickets.filter(tags__name=tag_name)
+        if selected_statuses:
+            tickets = tickets.filter(state__in=selected_statuses)
         if q_filter:
             tickets = tickets.filter(title__icontains=q_filter)
+
+        all_states = [
+            {'value': v, 'label': l}
+            for v, l in Ticket.STATES
+        ]
 
         tickets = tickets.select_related('requester', 'assigned_to').prefetch_related('tags').order_by('-created_at')
         return render(request, 'itsm/ticket_list.html', {
             'tickets': tickets,
             'all_tags': Tag.objects.all(),
-            'tag_filter': tag_filter,
+            'selected_tags': selected_tags,
+            'selected_statuses': selected_statuses,
+            'all_states': all_states,
             'q_filter': q_filter,
         })
 
