@@ -140,11 +140,45 @@
 </div>
 {% endif %}
 
-{# ── Top panels: Time by Status + Time by Tag ── #}
+{# ── Top row: In Progress + Time by Status + Time by Tag ── #}
 <div class="row g-3 mb-3">
 
+    {# In Progress #}
+    <div class="col-12 col-md-4">
+        <div class="card h-100 {% if today_rows_alert %}border-warning{% endif %}">
+            <div class="card-header d-flex align-items-center gap-2 {% if today_rows_alert %}bg-warning text-dark{% endif %}">
+                {% if today_rows_alert %}<i class="bi bi-exclamation-triangle-fill"></i>{% endif %}
+                <span class="fw-semibold">In Progress</span>
+                {% if today_rows_alert %}<span class="badge bg-dark ms-1">{{ today_rows|length }}</span>{% else %}<span class="badge bg-primary ms-1">now</span>{% endif %}
+                <span class="{% if today_rows_alert %}text-dark{% else %}text-muted{% endif %} small ms-auto">{{ jira_username }}</span>
+            </div>
+            {% if today_rows %}
+            {% for row in today_rows %}
+            <div class="px-3 py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                <div class="d-flex align-items-baseline gap-2 mb-1">
+                    <a href="{% url 'timetracking-ticket-timeline' row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                       class="text-decoration-none small text-muted">{{ row.ticket.issue_key }}</a>
+                    <span class="ms-auto text-nowrap small">
+                        <span class="text-primary fw-semibold">{{ row.jira_ongoing }}</span>
+                        <span class="text-muted ms-1">/ Today: {{ row.jira_today }}</span>
+                    </span>
+                </div>
+                <div class="fw-semibold small mb-1">{{ row.ticket.title|truncatechars:60 }}</div>
+                {% if row.last_message %}
+                <div class="small text-muted text-truncate">
+                    <i class="bi bi-chat-left-text me-1"></i><span class="fw-semibold">{{ row.last_message.author }}</span> {{ row.last_message.body|truncatechars:50 }}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="card-body text-muted small">No tickets in progress.</div>
+            {% endif %}
+        </div>
+    </div>
+
     {# Time by Status #}
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-md-4">
         <div class="card h-100">
             <div class="card-header fw-semibold">Time by Status</div>
             <div class="card-body d-flex flex-column gap-2">
@@ -163,7 +197,7 @@
     </div>
 
     {# Time by Tag #}
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-md-4">
         <div class="card h-100">
             <div class="card-header fw-semibold">Time by Tag</div>
             <div class="card-body d-flex flex-column gap-2">
@@ -182,68 +216,6 @@
     </div>
 
 </div>{# /top row #}
-
-{# ── In Progress / Now ── #}
-<div class="card mb-3">
-    <div class="card-header d-flex align-items-center gap-2">
-        <span class="fw-semibold">In Progress</span>
-        <span class="badge bg-primary ms-1">now</span>
-        <span class="text-muted small ms-auto">{{ jira_username }}</span>
-    </div>
-    {% if today_rows %}
-    <div class="table-responsive d-none d-md-block">
-        <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Ticket</th>
-                    <th>Title</th>
-                    <th class="text-nowrap">Total</th>
-                    <th class="text-nowrap">Today</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for row in today_rows %}
-            <tr>
-                <td class="text-nowrap">
-                    <a href="{% url 'timetracking-ticket-timeline' row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}" class="text-decoration-none fw-semibold">
-                        {{ row.ticket.issue_key }}
-                    </a>
-                </td>
-                <td class="text-muted small">{{ row.ticket.title|truncatechars:70 }}</td>
-                <td class="text-nowrap">
-                    <span class="text-primary fw-semibold">{{ row.jira_ongoing }}</span>
-                    <span class="badge bg-success ms-1" style="font-size:0.6rem">●</span>
-                </td>
-                <td class="text-nowrap">
-                    <span class="fw-semibold">{{ row.jira_today }}</span>
-                </td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    <div class="d-md-none">
-        {% for row in today_rows %}
-        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
-            <div class="flex-grow-1">
-                <div class="d-flex gap-2 align-items-baseline">
-                    <a href="{% url 'timetracking-ticket-timeline' row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}" class="fw-semibold text-decoration-none">
-                        {{ row.ticket.issue_key }}
-                    </a>
-                    <div class="ms-auto text-end">
-                        <span class="text-primary fw-semibold">{{ row.jira_ongoing }}</span>
-                        <span class="text-muted small ms-1">/ {{ row.jira_today }} hoy</span>
-                    </div>
-                </div>
-                <div class="text-muted small">{{ row.ticket.title|truncatechars:60 }}</div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="card-body text-muted small">No tickets in progress assigned to you.</div>
-    {% endif %}
-</div>
 
 {# ── Gantt Timeline ── #}
 {% if gantt_rows %}

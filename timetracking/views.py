@@ -419,6 +419,36 @@ class DailyReportView(LoginRequiredMixin, View):
         ]
 
         # --- In Progress / Now (unaffected by range or tag filter) ---
+        def _extract_body(body):
+            if isinstance(body, str):
+                return body
+            if isinstance(body, dict):
+                texts = []
+                def _walk(node):
+                    if isinstance(node, dict):
+                        if node.get('type') == 'text':
+                            texts.append(node.get('text', ''))
+                        for child in node.get('content', []):
+                            _walk(child)
+                _walk(body)
+                return ' '.join(t for t in texts if t).strip()
+            return ''
+
+        ip_tickets = [t for t in my_tickets if t.status.lower() == 'in progress']
+        ip_last_comment = {}
+        if ip_tickets:
+            for event in JiraEvent.objects.filter(
+                ticket_id__in=[t.pk for t in ip_tickets]
+            ).order_by('-received_at'):
+                if event.ticket_id in ip_last_comment:
+                    continue
+                comment = event.payload.get('comment') or {}
+                if comment:
+                    author = (comment.get('author') or {}).get('displayName') or ''
+                    body = _extract_body(comment.get('body', ''))
+                    if body:
+                        ip_last_comment[event.ticket_id] = {'author': author, 'body': body}
+
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         today_rows = []
         for ticket in my_tickets:
@@ -430,13 +460,19 @@ class DailyReportView(LoginRequiredMixin, View):
             )
             if ongoing_seg:
                 total_secs = int((now - ongoing_seg['entered_at']).total_seconds())
-                today_secs = int((now - max(ongoing_seg['entered_at'], today_start)).total_seconds())
             else:
-                total_secs = today_secs = 0
+                total_secs = 0
+            today_ip_secs = sum(
+                max(0, int((min(seg['exited_at'] or now, now) - max(seg['entered_at'], today_start)).total_seconds()))
+                for seg in ticket_segments[ticket.issue_key]
+                if seg['status'] and seg['status'].lower() == 'in progress'
+                and seg['entered_at'] and min(seg['exited_at'] or now, now) > max(seg['entered_at'], today_start)
+            )
             today_rows.append({
                 'ticket': ticket,
                 'jira_ongoing': fmt(total_secs) if ongoing_seg else '—',
-                'jira_today': fmt(today_secs) if ongoing_seg else '—',
+                'jira_today': fmt(today_ip_secs),
+                'last_message': ip_last_comment.get(ticket.pk),
             })
 
         # --- Status history pivot (range-scoped, filters applied) ---
@@ -591,6 +627,7 @@ class DailyReportView(LoginRequiredMixin, View):
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
             'today_rows': today_rows,
+            'today_rows_alert': len(today_rows) > 1,
             'pivot_rows': pivot_rows,
             'all_statuses': all_statuses,
             'jira_username': jira_username,
