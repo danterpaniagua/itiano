@@ -32,10 +32,10 @@
     </a>
 </div>
 
-{% if not jira_username %}
+{% if not jira_account_id and not jira_username %}
 <div class="alert alert-light border small">
     <i class="bi bi-info-circle me-1"></i>
-    Set your <a href="{% url 'timetracking-schedule' %}">Jira display name in Settings</a> to see your report.
+    Link your <a href="{% url 'settings-user' %}">Jira account in Settings</a> to see your report.
 </div>
 {% else %}
 
@@ -338,5 +338,5 @@
 </div>
 {% endif %}
 
-{% endif %}{# jira_username #}
+{% endif %}{# jira_account_id or jira_username #}
 {% endblock %}

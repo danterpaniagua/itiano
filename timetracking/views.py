@@ -22,17 +22,20 @@ class TimeEntryListView(LoginRequiredMixin, View):
 
         schedule = WorkSchedule.objects.filter(user=request.user).first()
         jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
+        try:
+            jira_account_id = request.user.userprofile.jira_account_id.strip()
+        except Exception:
+            jira_account_id = ''
         active_tickets = []
-        if jira_username:
+        if jira_account_id or jira_username:
             _ip_names = list(JiraStatusConfig.objects.filter(
                 category='in_progress').values_list('status_name', flat=True)) or ['In Progress']
-            active_tickets = list(
-                JiraTicket.objects.filter(
-                    status__in=_ip_names,
-                    assignee__iexact=jira_username,
-                    is_deleted=False,
-                ).order_by('issue_key')
-            )
+            qs = JiraTicket.objects.filter(status__in=_ip_names, is_deleted=False)
+            if jira_account_id:
+                qs = qs.filter(assignee_account_id=jira_account_id)
+            else:
+                qs = qs.filter(assignee__iexact=jira_username)
+            active_tickets = list(qs.order_by('issue_key'))
 
         return render(request, 'timetracking/entry_list.html', {
             'entries': entries,
@@ -194,6 +197,10 @@ class DailyReportView(LoginRequiredMixin, View):
 
         schedule = WorkSchedule.objects.filter(user=request.user).first()
         jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
+        try:
+            jira_account_id = request.user.userprofile.jira_account_id.strip()
+        except Exception:
+            jira_account_id = ''
 
         _jira_configs = list(JiraStatusConfig.objects.all())
         if _jira_configs:
@@ -275,10 +282,13 @@ class DailyReportView(LoginRequiredMixin, View):
             return f"{minutes}m"
 
         my_tickets = []
-        if jira_username:
-            my_tickets = list(
-                JiraTicket.objects.filter(assignee__iexact=jira_username, is_deleted=False).order_by('issue_key')
-            )
+        if jira_account_id or jira_username:
+            qs = JiraTicket.objects.filter(is_deleted=False)
+            if jira_account_id:
+                qs = qs.filter(assignee_account_id=jira_account_id)
+            else:
+                qs = qs.filter(assignee__iexact=jira_username)
+            my_tickets = list(qs.order_by('issue_key'))
 
         # Build raw segments per ticket (single event fetch)
         ticket_segments = {}
@@ -660,6 +670,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'pivot_rows': pivot_rows,
             'all_statuses': all_statuses,
             'jira_username': jira_username,
+            'jira_account_id': jira_account_id,
             'range_param': range_param,
             'tag_totals': tag_totals,
             'selected_tags': selected_tags,

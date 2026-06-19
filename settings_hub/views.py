@@ -9,7 +9,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
 from contacts.models import Contact, ContactChannel
+from core.models import UserProfile
 from itsm.models import Category, Tag
+from jira_integration.models import JiraEvent
 from timetracking.models import WorkSchedule
 from .models import get_app_setting, AppSetting, JiraStatusConfig
 
@@ -160,15 +162,31 @@ class CategoryDeleteView(StaffRequiredMixin, View):
         return redirect('settings-app')
 
 
+def _jira_accounts():
+    seen = {}
+    for event in JiraEvent.objects.order_by('-received_at').iterator(chunk_size=500):
+        assignee = (event.payload or {}).get('issue', {}).get('fields', {}).get('assignee') or {}
+        aid = assignee.get('accountId', '')
+        name = assignee.get('displayName', '')
+        if aid and aid not in seen:
+            seen[aid] = name
+    return [{'accountId': k, 'displayName': v} for k, v in seen.items()]
+
+
 class UserSettingsView(LoginRequiredMixin, View):
     def _get_schedule(self, user):
         schedule, _ = WorkSchedule.objects.get_or_create(user=user)
         return schedule
 
+    def _get_profile(self, user):
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        return profile
+
     def _ctx(self, request, schedule, editing_channel=None):
         active_days = {attr for attr, _ in _DAYS if getattr(schedule, attr)}
         contact = getattr(request.user, 'contact', None)
         channels = list(contact.channels.all()) if contact else []
+        profile = self._get_profile(request.user)
         return {
             'schedule': schedule,
             'days': _DAYS,
@@ -178,6 +196,8 @@ class UserSettingsView(LoginRequiredMixin, View):
             'channel_types': ContactChannel.TYPES,
             'editing_channel': editing_channel,
             'user_obj': request.user,
+            'profile': profile,
+            'jira_accounts': _jira_accounts(),
         }
 
     def get(self, request):
@@ -186,6 +206,12 @@ class UserSettingsView(LoginRequiredMixin, View):
 
     def post(self, request):
         schedule = self._get_schedule(request.user)
+        profile = self._get_profile(request.user)
+
+        jira_account_id = request.POST.get('jira_account_id', '').strip()
+        profile.jira_account_id = jira_account_id
+        profile.save(update_fields=['jira_account_id'])
+
         for attr, _ in _DAYS:
             setattr(schedule, attr, attr in request.POST)
         schedule.jira_username = request.POST.get('jira_username', '').strip()

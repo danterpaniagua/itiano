@@ -74,8 +74,9 @@ def webhook(request):
     project_key = fields.get('project', {}).get('key', '') if fields.get('project') else ''
     issue_type = fields.get('issuetype', {}).get('name', '') if fields.get('issuetype') else ''
     status = fields.get('status', {}).get('name', '') if fields.get('status') else ''
-    assignee_obj = fields.get('assignee') or {}
-    assignee = assignee_obj.get('displayName', '')
+    assignee_obj        = fields.get('assignee') or {}
+    assignee            = assignee_obj.get('displayName', '')
+    assignee_account_id = assignee_obj.get('accountId', '')
     labels = [l for l in (fields.get('labels') or []) if isinstance(l, str)]
     parent_key = (fields.get('parent') or {}).get('key', '')
 
@@ -87,6 +88,7 @@ def webhook(request):
             'issue_type': issue_type[:100],
             'status': status[:100],
             'assignee': assignee[:200],
+            'assignee_account_id': assignee_account_id[:100],
             'labels': labels,
             'parent_key': parent_key[:50],
         },

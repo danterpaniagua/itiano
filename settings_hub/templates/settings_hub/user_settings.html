@@ -63,11 +63,17 @@
             </div>
 
             <div class="mb-4">
-                <label class="form-label fw-semibold">Jira display name</label>
-                <input type="text" name="jira_username" class="form-control"
-                       value="{{ schedule.jira_username }}"
-                       placeholder="e.g. dantep">
-                <div class="form-text">Must match your display name in Jira exactly.</div>
+                <label class="form-label fw-semibold">Jira Account</label>
+                <select name="jira_account_id" class="form-select">
+                    <option value="">— Not linked —</option>
+                    {% for acc in jira_accounts %}
+                    <option value="{{ acc.accountId }}"
+                        {% if acc.accountId == profile.jira_account_id %}selected{% endif %}>
+                        {{ acc.displayName }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Select your Jira user to link ticket tracking.</div>
             </div>
 
             <div class="mb-4">
