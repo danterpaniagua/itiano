@@ -81,3 +81,15 @@
 | v5.8.7 | Timezone Setting per User | Delivered | [v5/v5.8.7.md](v5/v5.8.7.md) |
 | v5.8.8 | Navbar User Dropdown | Delivered | [v5/v5.8.8.md](v5/v5.8.8.md) |
 | v5.8.9 | User Settings Page | Delivered | [v5/v5.8.9.md](v5/v5.8.9.md) |
+| v5.8.10 | Per-User Timezone: Range Filter + Display | Delivered | [v5/v5.8.10.md](v5/v5.8.10.md) |
+| v5.8.11 | Time Report: Filter Reorganization (Tags + Status Dropdowns) | Delivered | [v5/v5.8.11.md](v5/v5.8.11.md) |
+| v5.8.12 | Time Report: Gantt Timeline + Ticket Activity Drill-Down | Delivered | [v5/v5.8.12.md](v5/v5.8.12.md) |
+| v5.8.13 | Time Report: Custom Date Range Picker | Delivered | [v5/v5.8.13.md](v5/v5.8.13.md) |
+| v5.8.14 | Multiselect Dropdown Filters for /jira/ and /tickets/ | Delivered | [v5/v5.8.14.md](v5/v5.8.14.md) |
+| v5.8.15 | Dashboard: Jira In Progress Time | Delivered | [v5/v5.8.15.md](v5/v5.8.15.md) |
+| v5.8.16 | Ticket Timeline: Jira Comments + Messages Section | Delivered | [v5/v5.8.16.md](v5/v5.8.16.md) |
+| v5.8.17 | Security: Vault & Notes Fixes | Delivered | [v5/v5.8.17.md](v5/v5.8.17.md) |
+| v5.8.18 | Credential Vault: Search, Sort & Tags Filter | Scoped | — |
+| v5.8.19 | Credential Vault: Nested Folders | Scoped | — |
+| v5.8.20 | Credential Vault: Visual Redesign | Scoped | — |
+| v5.9.0 | Google SSO + Email Invitations | Scoped (blocked) | — |

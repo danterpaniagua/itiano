@@ -1,28 +1,23 @@
 # Itiano
 
-Plataforma de gestión de tickets ITIL simplificada. Soporta Incidentes y Solicitudes de Servicio con máquina de estados compartida, permisos por rol y arquitectura modular Django.
+Soft-ITIL ticket management platform. Supports Incidents and Service Requests with a shared state machine, role-based permissions, and a modular Django architecture.
 
-## Requisitos
-
-- Docker y Docker Compose
-- Python 3.12+ con `python3-venv` (para desarrollo local)
-
-## Inicio rápido (Docker)
+## Quick start (Docker)
 
 ```bash
 cp .env.example .env
-# Editar .env: configurar SECRET_KEY, DB_PASSWORD y ALLOWED_HOSTS
+# Edit .env: set SECRET_KEY, DB_PASSWORD, ALLOWED_HOSTS
 docker compose up --build
 ```
 
-La app queda disponible en `http://localhost:8000`.
+App runs at `http://localhost:8000`.
 
 ```bash
-# Crear superusuario
+# Create superuser
 docker compose exec app python manage.py createsuperuser
 ```
 
-## Desarrollo local
+## Local development
 
 ```bash
 python3 -m venv .venv
@@ -30,70 +25,76 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Editar .env: apuntar DB_HOST a tu instancia local de PostgreSQL
+# Edit .env: point DB_HOST to your local PostgreSQL instance
 
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
 ```
 
-## Ejecutar tests
+## Running tests
 
-Los tests requieren la base de datos PostgreSQL. Ejecutar dentro del contenedor:
+Tests require PostgreSQL. Run inside the container:
 
 ```bash
 docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault notes contacts timetracking settings_hub
 ```
 
-## Variables de entorno
+Single test:
 
-| Variable | Descripción | Ejemplo |
+```bash
+docker compose exec app python manage.py test itsm.tests.TestClassName.test_method_name
+```
+
+## Environment variables
+
+| Variable | Description | Example |
 |---|---|---|
-| `SECRET_KEY` | Clave secreta Django | cadena aleatoria larga |
-| `DEBUG` | Modo debug | `False` |
-| `ALLOWED_HOSTS` | Hosts permitidos | `localhost,127.0.0.1` |
-| `DB_NAME` | Nombre de la base de datos | `itiano` |
-| `DB_USER` | Usuario PostgreSQL | `itiano` |
-| `DB_PASSWORD` | Contraseña PostgreSQL | — |
-| `DB_HOST` | Host PostgreSQL | `db` (Docker) / `localhost` (local) |
-| `DB_PORT` | Puerto PostgreSQL | `5432` |
-| `JIRA_WEBHOOK_SECRET` | Secreto HMAC para validar webhooks de Jira | cadena aleatoria |
+| `SECRET_KEY` | Django secret key | long random string |
+| `DEBUG` | Debug mode | `False` |
+| `ALLOWED_HOSTS` | Allowed hosts | `localhost,127.0.0.1` |
+| `DB_NAME` | Database name | `itiano` |
+| `DB_USER` | PostgreSQL user | `itiano` |
+| `DB_PASSWORD` | PostgreSQL password | — |
+| `DB_HOST` | PostgreSQL host | `db` (Docker) / `localhost` (local) |
+| `DB_PORT` | PostgreSQL port | `5432` |
+| `JIRA_WEBHOOK_SECRET` | HMAC secret for Jira webhook validation | random string |
 
-## Arquitectura
+## Architecture
 
-| App | Responsabilidad |
+| App | Responsibility |
 |---|---|
-| `core` | Autenticación, `UserProfile` con rol, página de perfil de usuario, base templates, footer con versión |
-| `itsm` | Modelos de tickets, máquina de estados, vistas, permisos, adjuntos, pestaña de metadatos Jira |
-| `jira_integration` | Recepción de webhooks de Jira, historial de eventos, relaciones padre/hijo, flag de ticket eliminado |
-| `json_sandbox` | Evaluación interactiva de expresiones JSONPath (solo staff) |
-| `automations` | Motor de automatizaciones: Triggers con filtros JSONPath disparan Actions que crean tickets; cada Trigger puede tener un tag de identidad |
-| `clipboard` | Portapapeles cifrado por usuario, accesible desde cualquier página |
-| `vault` | Almacén de credenciales cifradas con versionado automático e importación KeePass |
-| `notes` | Blocs de notas privados por usuario con soporte Markdown |
-| `contacts` | Directorio de contactos con canales de notificación HTTP configurables |
-| `timetracking` | Seguimiento de tiempo en tickets Jira por usuario; panel de tickets activos y reporte de tiempo por estado |
-| `settings_hub` | Configuración de app (Tags, Categorías — solo staff) y configuración de usuario (horario, timezone, Jira username, canales de contacto) en `/settings/` |
+| `core` | Auth, `UserProfile` with role, dashboard with Jira In Progress time, base templates |
+| `itsm` | Ticket models, state machine, views, permissions, attachments, Jira metadata tab |
+| `jira_integration` | Jira webhook ingestion, event history, parent/child relationships, label and status filters |
+| `json_sandbox` | Interactive JSONPath expression evaluator (staff only) |
+| `automations` | Automation engine: Triggers with JSONPath filters fire Actions that create tickets |
+| `clipboard` | Per-user encrypted clipboard, accessible from any page |
+| `vault` | Encrypted credential store with versioning, KeePass import, per-user PBKDF2 key derivation |
+| `notes` | Private notebooks per user with Markdown support and note sharing |
+| `contacts` | Contact directory with configurable HTTP notification channels |
+| `timetracking` | Jira time tracking per user: In Progress Gantt timeline, custom date range report, ticket activity drill-down with Jira comments |
+| `settings_hub` | App settings (Tags, Categories — staff only) and user settings (schedule, timezone, Jira username) |
 
-Ver `.claude/architecture.md` para detalle completo de la arquitectura.
+See `.claude/architecture.md` for full architecture detail.
 
 ## Roles
 
-| Rol | Acceso |
+| Role | Access |
 |---|---|
-| `requester` | Crea y consulta sus propios tickets |
-| `agent` | Atiende tickets asignados y sin asignar |
-| `manager` | Acceso completo, puede reasignar y cancelar |
-| `admin` | Control total incluyendo configuración |
+| `requester` | Creates and views their own tickets |
+| `agent` | Handles assigned and unassigned tickets |
+| `manager` | Full access, can reassign and cancel |
+| `admin` | Full control including configuration |
 
-## Versión
+## Version
 
-La versión activa se lee del archivo `VERSION` en la raíz del proyecto y se muestra en el footer de la aplicación.
+The active version is read from the `VERSION` file at the project root and shown in the app footer.
 
 ## Logs
 
-Los logs de acceso y errores de gunicorn se generan en `logs/` (bind mount desde el host).
+Gunicorn access and error logs are written to `logs/` (bind-mounted from the host).
 
-## Archivos adjuntos
+## Media files
 
-Los archivos subidos a tickets se almacenan en `media/` (bind mount desde el host, creado automáticamente). En entornos de desarrollo (`DEBUG=True`) Django sirve los archivos directamente en `/media/`. En producción se requiere un servidor de archivos externo (nginx u equivalente) para servir `MEDIA_ROOT`.
+Files attached to tickets are stored in `media/` (bind-mounted from the host, created automatically). In development (`DEBUG=True`) Django serves them directly at `/media/`. In production a front-end web server (nginx or equivalent) is required to serve `MEDIA_ROOT`.

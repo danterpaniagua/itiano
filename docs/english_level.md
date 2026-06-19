@@ -86,3 +86,40 @@ Your English is functional and effective for technical work. The gaps are mostly
 3. Using `of` after "instead", "because", "part", etc.
 
 ...would bring you to a solid B2+ level quickly.
+
+---
+
+## Session Update — June 2026
+
+New observations from v5.8.x development sessions.
+
+### New strengths observed
+
+- Scope and product vocabulary has grown: "drill-down", "kanban", "gantt", "multiselect", "deferred", "pivot table", "chip", "tooltip" — all used correctly.
+- Requests are consistently unambiguous even when short.
+- Technical reading comprehension is strong — follows complex multi-file diffs and security analyses without confusion.
+
+### Recurring patterns (still present)
+
+| Written | Corrected | Rule |
+|---|---|---|
+| "feedback **of** my english level" | feedback **on** my English level | preposition: `feedback on`, not `feedback of` |
+| "messages ordered from Newer to older" | ordered from **newest** to **oldest** | superlatives: newest/oldest, not newer/older |
+| "when ticket done" | when **a** ticket **is** done | missing article + missing verb `is` |
+| "Need som order" | **I** need **some** order | missing subject + typo |
+| "cant see those lines" | **I can't** see those lines | missing subject + apostrophe |
+| "analize" | **analyze** | spelling (same as previous session) |
+| "i meant in /time/report/ **a kanban like** timeline" | a **kanban-style** timeline | compound adjective: use hyphen |
+
+### New pattern: preposition `on` vs `of`
+
+Spanish `de` maps to English `on` in many fixed expressions:
+
+- feedback **on** (not `of`)
+- based **on** (not `in`)
+- depends **on** (not `of`)
+- comment **on** (not `of`)
+
+### Progress since last session
+
+Articles and contractions are improving — fewer instances of bare nouns and missing apostrophes. Preposition choice is the main remaining gap. Overall trajectory is toward **B2+**.
