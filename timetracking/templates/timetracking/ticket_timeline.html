@@ -82,7 +82,16 @@
             </thead>
             <tbody>
             {% for item in timeline %}
-            {% if item.type == 'transition' %}
+            {% if item.type == 'comment' %}
+            <tr class="table-info">
+                <td class="text-nowrap small text-muted">{{ item.at|date:"d/m/Y H:i" }}</td>
+                <td class="small">
+                    <i class="bi bi-chat-left-text text-primary me-1"></i>
+                    <span class="fw-semibold me-1">{{ item.author }}</span>{{ item.body }}
+                </td>
+                <td></td>
+            </tr>
+            {% elif item.type == 'transition' %}
             <tr>
                 <td class="text-nowrap small text-muted">{{ item.at|date:"d/m/Y H:i" }}</td>
                 <td class="small">
@@ -120,7 +129,15 @@
 {# Mobile cards #}
 <div class="d-md-none mb-3">
     {% for item in timeline %}
-    {% if item.type == 'transition' %}
+    {% if item.type == 'comment' %}
+    <div class="d-flex gap-2 px-3 py-2 border-bottom align-items-start" style="background:#cff4fc">
+        <div class="text-muted small text-nowrap" style="min-width:75px">{{ item.at|date:"d/m H:i" }}</div>
+        <div class="flex-grow-1 small">
+            <i class="bi bi-chat-left-text text-primary me-1"></i>
+            <span class="fw-semibold me-1">{{ item.author }}</span>{{ item.body }}
+        </div>
+    </div>
+    {% elif item.type == 'transition' %}
     <div class="d-flex gap-2 px-3 py-2 border-bottom align-items-start">
         <div class="text-muted small text-nowrap" style="min-width:75px">{{ item.at|date:"d/m H:i" }}</div>
         <div class="flex-grow-1 small">

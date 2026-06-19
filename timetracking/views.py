@@ -712,6 +712,27 @@ class TicketTimelineView(LoginRequiredMixin, View):
             if event.received_at < start_dt or event.received_at >= end_dt:
                 continue
             at_local = event.received_at.astimezone(user_tz)
+
+            # Comment events
+            comment = event.payload.get('comment', {})
+            if comment and comment.get('body'):
+                try:
+                    comment_at = dt_module.datetime.fromisoformat(
+                        comment['created'].replace('Z', '+00:00')
+                    ).astimezone(user_tz)
+                    comment_sort = comment_at.astimezone(dt_module.timezone.utc)
+                except Exception:
+                    comment_at = at_local
+                    comment_sort = event.received_at
+                timeline.append({
+                    'type': 'comment',
+                    'at': comment_at,
+                    'author': (comment.get('author') or {}).get('displayName', ''),
+                    'body': comment['body'],
+                    'sort_key': comment_sort,
+                })
+
+            # Changelog items
             items = event.payload.get('changelog', {}).get('items', [])
             for item in items:
                 field = item.get('field', '')
@@ -765,7 +786,7 @@ class TicketTimelineView(LoginRequiredMixin, View):
                                                tzinfo=user_tz).astimezone(dt_module.timezone.utc),
             })
 
-        timeline.sort(key=lambda x: x['sort_key'])
+        timeline.sort(key=lambda x: x['sort_key'], reverse=True)
 
         status_totals = [
             {'status': s, 'display': fmt(secs)}
