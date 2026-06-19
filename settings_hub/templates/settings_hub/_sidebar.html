@@ -1,0 +1,25 @@
+<div class="list-group">
+    <a href="{% url 'settings-user' %}#schedule"
+       class="list-group-item list-group-item-action{% if active == 'schedule' %} active{% endif %}">
+        <i class="bi bi-calendar-week me-1"></i> Schedule
+    </a>
+    <a href="{% url 'settings-user' %}#channels"
+       class="list-group-item list-group-item-action{% if active == 'channels' %} active{% endif %}">
+        <i class="bi bi-chat-dots me-1"></i> Channels
+    </a>
+    {% if request.user.is_staff %}
+    <div class="list-group-item list-group-item-action disabled small text-muted py-1" style="pointer-events:none">App</div>
+    <a href="{% url 'settings-tags' %}"
+       class="list-group-item list-group-item-action{% if active == 'tags' %} active{% endif %}">
+        <i class="bi bi-tags me-1"></i> Tags
+    </a>
+    <a href="{% url 'settings-categories' %}"
+       class="list-group-item list-group-item-action{% if active == 'categories' %} active{% endif %}">
+        <i class="bi bi-folder2 me-1"></i> Categories
+    </a>
+    <a href="{% url 'settings-app' %}"
+       class="list-group-item list-group-item-action{% if active == 'app' %} active{% endif %}">
+        <i class="bi bi-puzzle me-1"></i> Jira
+    </a>
+    {% endif %}
+</div>

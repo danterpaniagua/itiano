@@ -2,11 +2,17 @@
 {% block title %}{{ ticket.issue_key }} Timeline – Itiano{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+<div class="d-flex flex-wrap gap-2 align-items-center mb-1">
     <h5 class="mb-0 me-auto">
         <i class="bi bi-clock-history"></i>
         <span class="text-muted fw-normal">Timeline /</span> {{ ticket.issue_key }}
+        <span class="badge bg-secondary ms-1" style="font-size:0.7rem">{{ ticket.status }}</span>
     </h5>
+    {% if jira_url %}
+    <a href="{{ jira_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-box-arrow-up-right"></i> Jira
+    </a>
+    {% endif %}
     <a href="{% url 'timetracking-report' %}?range={{ back_range }}{% for t in back_tags %}&tags={{ t }}{% endfor %}{% for s in back_statuses %}&statuses={{ s }}{% endfor %}"
        class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Report
@@ -14,6 +20,36 @@
 </div>
 
 <div class="text-muted small mb-3">{{ ticket.title }}</div>
+
+{# ── All-time Status History ── #}
+{% if all_time_segments %}
+<div class="card mb-3">
+    <div class="card-header fw-semibold">Status History</div>
+    <div class="card-body py-2">
+        <div class="d-none d-md-flex flex-wrap align-items-center gap-1">
+            {% for seg in all_time_segments %}
+            <span class="badge {% if seg.ongoing %}bg-primary{% else %}bg-light text-dark border{% endif %} px-2 py-1">
+                {{ seg.status }}
+            </span>
+            <span class="small text-muted">
+                {% if seg.ongoing %}<span class="text-primary fw-semibold">{{ seg.duration }}</span> <span class="badge bg-primary" style="font-size:0.6rem">now</span>{% else %}{{ seg.duration }}{% endif %}
+            </span>
+            {% if not forloop.last %}<i class="bi bi-arrow-right text-muted small"></i>{% endif %}
+            {% endfor %}
+        </div>
+        <div class="d-md-none d-flex flex-column gap-1">
+            {% for seg in all_time_segments %}
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge {% if seg.ongoing %}bg-primary{% else %}bg-light text-dark border{% endif %}">{{ seg.status }}</span>
+                <span class="small {% if seg.ongoing %}text-primary fw-semibold{% else %}text-muted{% endif %}">
+                    {{ seg.duration }}{% if seg.ongoing %} <span class="badge bg-primary" style="font-size:0.6rem">now</span>{% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {# ── Date range picker ── #}
 <div class="card mb-3">

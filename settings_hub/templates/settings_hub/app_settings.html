@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}App Settings – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-gear"></i> Settings</h5>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-2 mb-3 mb-md-0">
+        {% with active='app' %}{% include 'settings_hub/_sidebar.html' %}{% endwith %}
+    </div>
+
+    <div class="col-12 col-md-8 col-lg-6">
+
+        <h6 class="fw-semibold mb-3" id="jira"><i class="bi bi-puzzle me-1"></i> Jira Integration</h6>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Jira Base URL</label>
+                <input type="url" name="jira_base_url" class="form-control"
+                       value="{{ jira_base_url }}"
+                       placeholder="https://myorg.atlassian.net">
+                <div class="form-text">Used to build direct links to Jira issues. No trailing slash.</div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+
+    </div>
+</div>
+{% endblock %}

@@ -11,6 +11,7 @@ from django.views import View
 from contacts.models import Contact, ContactChannel
 from itsm.models import Category, Tag
 from timetracking.models import WorkSchedule
+from .models import get_app_setting, AppSetting
 
 _DAYS = [
     ('mon', 'Monday'),
@@ -289,3 +290,16 @@ class UserChannelDeleteView(LoginRequiredMixin, View):
         channel.delete()
         messages.success(request, 'Channel removed.')
         return redirect('settings-user')
+
+
+class AppSettingsView(StaffRequiredMixin, View):
+    def get(self, request):
+        return render(request, 'settings_hub/app_settings.html', {
+            'jira_base_url': get_app_setting('jira_base_url'),
+        })
+
+    def post(self, request):
+        url = request.POST.get('jira_base_url', '').strip().rstrip('/')
+        AppSetting.objects.update_or_create(key='jira_base_url', defaults={'value': url})
+        messages.success(request, 'App settings saved.')
+        return redirect('settings-app')

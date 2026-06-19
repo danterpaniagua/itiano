@@ -13,6 +13,18 @@ class UserProfileInline(admin.StackedInline):
 class CustomUserAdmin(UserAdmin):
     inlines = [UserProfileInline]
 
+    def save_formset(self, request, form, formset, change):
+        if formset.model is UserProfile:
+            instances = formset.save(commit=False)
+            for instance in instances:
+                UserProfile.objects.update_or_create(
+                    user=instance.user,
+                    defaults={'role': instance.role},
+                )
+            formset.save_m2m()
+        else:
+            super().save_formset(request, form, formset, change)
+
 
 admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)

@@ -17,4 +17,5 @@ urlpatterns = [
     path('user/channels/add/', views.UserChannelCreateView.as_view(), name='settings-user-channel-add'),
     path('user/channels/<int:pk>/edit/', views.UserChannelEditView.as_view(), name='settings-user-channel-edit'),
     path('user/channels/<int:pk>/delete/', views.UserChannelDeleteView.as_view(), name='settings-user-channel-delete'),
+    path('app/', views.AppSettingsView.as_view(), name='settings-app'),
 ]

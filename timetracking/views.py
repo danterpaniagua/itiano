@@ -891,6 +891,25 @@ class TicketTimelineView(LoginRequiredMixin, View):
             if secs > 0
         ]
 
+        # All-time status segments for Status History card
+        all_time_segments = []
+        for i, t in enumerate(raw_transitions):
+            exited_at = raw_transitions[i + 1]['at'] if i + 1 < len(raw_transitions) else None
+            duration_secs = int(((exited_at or now) - t['at']).total_seconds())
+            h, rem = divmod(max(0, duration_secs), 3600)
+            m = rem // 60
+            duration_display = (f'{h}h {m}m' if h else f'{m}m')
+            all_time_segments.append({
+                'status': t['to_status'],
+                'entered_at': t['at'].astimezone(user_tz),
+                'ongoing': exited_at is None,
+                'duration': duration_display,
+            })
+
+        from settings_hub.models import get_app_setting
+        jira_base_url = get_app_setting('jira_base_url', '').rstrip('/')
+        jira_url = f'{jira_base_url}/browse/{ticket.issue_key}' if jira_base_url else ''
+
         back_range = request.GET.get('back_range', 'today')
         back_tags = request.GET.getlist('back_tags')
         back_statuses = request.GET.getlist('back_statuses')
@@ -910,4 +929,6 @@ class TicketTimelineView(LoginRequiredMixin, View):
             'last_messages': last_messages,
             'last_msgs_count': last_msgs_count,
             'last_msgs_options': _last_msgs_options,
+            'all_time_segments': all_time_segments,
+            'jira_url': jira_url,
         })
