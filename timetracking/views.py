@@ -327,12 +327,26 @@ class DailyReportView(LoginRequiredMixin, View):
             ).select_related('tag')
         ))
 
-        # Collect all statuses that have range activity (for status dropdown UI)
+        _TERMINAL_STATUSES = {'done', 'descartado'}
+        _STATUS_COLUMN_ORDER = [
+            'done', 'in progress', 'bloqueado', 'testing',
+            'selected for development', 'descartado', 'backlog',
+        ]
+
+        # Collect statuses: range-active for non-terminal, ever-reached for terminal
         all_statuses = []
         for ticket in my_tickets:
             for seg, secs in zip(ticket_segments[ticket.issue_key], ticket_seg_secs_map[ticket.issue_key]):
-                if seg['status'] and secs > 0 and seg['status'] not in all_statuses:
+                if not seg['status'] or seg['status'] in all_statuses:
+                    continue
+                is_terminal = seg['status'].lower() in _TERMINAL_STATUSES
+                if secs > 0 or (is_terminal and seg['entered_at']):
                     all_statuses.append(seg['status'])
+
+        all_statuses.sort(key=lambda s: (
+            _STATUS_COLUMN_ORDER.index(s.lower())
+            if s.lower() in _STATUS_COLUMN_ORDER else len(_STATUS_COLUMN_ORDER)
+        ))
 
         # Apply tag filter: keep only tickets that have ALL selected tags
         if selected_tags:
@@ -428,21 +442,33 @@ class DailyReportView(LoginRequiredMixin, View):
         # --- Status history pivot (range-scoped, filters applied) ---
         pivot_rows = []
         for ticket in filtered_tickets:
-            by_status = defaultdict(lambda: {'secs': 0, 'ongoing': False})
+            by_status = defaultdict(lambda: {'secs': 0, 'ongoing': False, 'last_entered': None})
             segs = ticket_segments[ticket.issue_key]
             for seg, secs in zip(segs, ticket_seg_secs_map[ticket.issue_key]):
-                if not seg['status'] or not seg['entered_at'] or secs == 0:
+                if not seg['status'] or not seg['entered_at']:
                     continue
-                by_status[seg['status']]['secs'] += secs
-                if seg['exited_at'] is None:
-                    by_status[seg['status']]['ongoing'] = True
+                is_terminal = seg['status'].lower() in _TERMINAL_STATUSES
+                if is_terminal:
+                    prev = by_status[seg['status']]['last_entered']
+                    if prev is None or seg['entered_at'] > prev:
+                        by_status[seg['status']]['last_entered'] = seg['entered_at']
+                elif secs > 0:
+                    by_status[seg['status']]['secs'] += secs
+                    if seg['exited_at'] is None:
+                        by_status[seg['status']]['ongoing'] = True
             cells = []
             for status in all_statuses:
                 entry = by_status.get(status)
-                if entry and entry['secs'] > 0:
-                    cells.append({'duration': fmt(entry['secs']), 'ongoing': entry['ongoing']})
+                is_terminal = status.lower() in _TERMINAL_STATUSES
+                if is_terminal:
+                    entered_at = entry['last_entered'] if entry else None
+                    ts = entered_at.astimezone(user_tz) if entered_at else None
+                    cells.append({'is_terminal': True, 'timestamp': ts, 'duration': None, 'ongoing': False})
                 else:
-                    cells.append({'duration': '—', 'ongoing': False})
+                    if entry and entry['secs'] > 0:
+                        cells.append({'is_terminal': False, 'timestamp': None, 'duration': fmt(entry['secs']), 'ongoing': entry['ongoing']})
+                    else:
+                        cells.append({'is_terminal': False, 'timestamp': None, 'duration': '—', 'ongoing': False})
             pivot_rows.append({'ticket': ticket, 'cells': cells})
 
         # --- Gantt timeline ---
@@ -704,6 +730,21 @@ class TicketTimelineView(LoginRequiredMixin, View):
             exited_at = raw_transitions[i + 1]['at'] if i + 1 < len(raw_transitions) else None
             segments[t['at']] = {'status': t['to_status'], 'exited_at': exited_at}
 
+        def _adf_to_text(body):
+            if isinstance(body, str):
+                return body
+            if not isinstance(body, dict):
+                return ''
+            texts = []
+            def _walk(node):
+                if isinstance(node, dict):
+                    if node.get('type') == 'text':
+                        texts.append(node.get('text', ''))
+                    for child in node.get('content', []):
+                        _walk(child)
+            _walk(body)
+            return ' '.join(t for t in texts if t).strip()
+
         # Build timeline: all activity events within the date range
         timeline = []
         status_seconds = defaultdict(int)
@@ -744,6 +785,19 @@ class TicketTimelineView(LoginRequiredMixin, View):
                         'to_val': to_val,
                         'sort_key': event.received_at,
                     })
+            comment = event.payload.get('comment') or {}
+            if comment:
+                author_obj = comment.get('author') or {}
+                author = author_obj.get('displayName') or author_obj.get('name') or ''
+                body = _adf_to_text(comment.get('body', ''))
+                if body:
+                    timeline.append({
+                        'type': 'comment',
+                        'at': at_local,
+                        'author': author,
+                        'body': body,
+                        'sort_key': event.received_at,
+                    })
 
         # Fetch manual TimeEntry records in the date range
         manual_entries = list(
@@ -765,9 +819,34 @@ class TicketTimelineView(LoginRequiredMixin, View):
                                                tzinfo=user_tz).astimezone(dt_module.timezone.utc),
             })
 
-        # Sort timeline newest first (comments also appear in Messages section)
         timeline.sort(key=lambda x: x['sort_key'], reverse=True)
         comments = [e for e in timeline if e['type'] == 'comment']
+
+        # All-time comments for Last Message card (ignores date range)
+        all_comments = []
+        for event in all_events:
+            comment = event.payload.get('comment') or {}
+            if comment:
+                author_obj = comment.get('author') or {}
+                author = author_obj.get('displayName') or author_obj.get('name') or ''
+                body = _adf_to_text(comment.get('body', ''))
+                if body:
+                    all_comments.append({
+                        'at': event.received_at.astimezone(user_tz),
+                        'author': author,
+                        'body': body,
+                        'sort_key': event.received_at,
+                    })
+        all_comments.sort(key=lambda x: x['sort_key'], reverse=True)
+
+        _last_msgs_options = [1, 3, 5, 10]
+        try:
+            last_msgs_count = int(request.GET.get('last_msgs', 3))
+            if last_msgs_count not in _last_msgs_options:
+                last_msgs_count = 3
+        except (ValueError, TypeError):
+            last_msgs_count = 3
+        last_messages = all_comments[:last_msgs_count]
 
         status_totals = [
             {'status': s, 'display': fmt(secs)}
@@ -791,4 +870,7 @@ class TicketTimelineView(LoginRequiredMixin, View):
             'back_range': back_range,
             'back_tags': back_tags,
             'back_statuses': back_statuses,
+            'last_messages': last_messages,
+            'last_msgs_count': last_msgs_count,
+            'last_msgs_options': _last_msgs_options,
         })

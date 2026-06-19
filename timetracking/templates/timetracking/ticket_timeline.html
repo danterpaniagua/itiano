@@ -65,6 +65,39 @@
     </div>
 </div>
 
+{# ── Last Message (all-time) ── #}
+<div class="card mb-3">
+    <div class="card-header d-flex align-items-center gap-2">
+        <span class="fw-semibold">Last Message</span>
+        <div class="ms-auto">
+            <form method="get" class="d-flex align-items-center gap-1">
+                <input type="hidden" name="back_range" value="{{ back_range }}">
+                {% for t in back_tags %}<input type="hidden" name="back_tags" value="{{ t }}">{% endfor %}
+                {% for s in back_statuses %}<input type="hidden" name="back_statuses" value="{{ s }}">{% endfor %}
+                <input type="hidden" name="date_from" value="{{ date_from }}">
+                <input type="hidden" name="date_to" value="{{ date_to }}">
+                <select name="last_msgs" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+                    {% for opt in last_msgs_options %}
+                    <option value="{{ opt }}" {% if opt == last_msgs_count %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    </div>
+    {% if last_messages %}
+    {% for item in last_messages %}
+    <div class="px-3 py-2 {% if not forloop.last %}border-bottom{% endif %}">
+        <div class="text-muted small mb-1">
+            <span class="fw-semibold text-primary me-1">{{ item.author }}</span>{{ item.at|date:"d/m/Y H:i" }}
+        </div>
+        <div class="small">{{ item.body }}</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card-body text-muted small">No messages found.</div>
+    {% endif %}
+</div>
+
 {# ── D: Messages ── #}
 <div class="card mb-3">
     <div class="card-header d-flex align-items-center gap-2">
@@ -163,6 +196,15 @@
                 </td>
                 <td></td>
             </tr>
+            {% elif item.type == 'comment' %}
+            <tr class="table-info">
+                <td class="text-nowrap small text-muted">{{ item.at|date:"d/m/Y H:i" }}</td>
+                <td class="small">
+                    <i class="bi bi-chat-left-text text-muted me-1"></i>
+                    <span class="fw-semibold text-primary me-1">{{ item.author }}</span>{{ item.body|truncatechars:60 }}
+                </td>
+                <td></td>
+            </tr>
             {% else %}
             <tr class="table-light">
                 <td class="text-nowrap small text-muted">{{ item.entry.date|date:"d/m/Y" }}</td>
@@ -198,6 +240,14 @@
             <span class="fw-semibold">{{ item.field }}</span>
             {% if item.from_val %} · {{ item.from_val|truncatechars:20 }} →{% endif %}
             {{ item.to_val|truncatechars:35 }}
+        </div>
+    </div>
+    {% elif item.type == 'comment' %}
+    <div class="d-flex gap-2 px-3 py-2 border-bottom align-items-start" style="background:#e7f5ff">
+        <div class="text-muted small text-nowrap" style="min-width:75px">{{ item.at|date:"d/m H:i" }}</div>
+        <div class="flex-grow-1 small">
+            <i class="bi bi-chat-left-text text-muted me-1"></i>
+            <span class="fw-semibold text-primary me-1">{{ item.author }}</span>{{ item.body|truncatechars:50 }}
         </div>
     </div>
     {% else %}
