@@ -31,13 +31,18 @@ def dashboard(request):
     import zoneinfo as _zi
     import datetime as _dt
 
+    from core.models import UserProfile
     schedule = WorkSchedule.objects.filter(user=request.user).first()
     jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
+    try:
+        jira_account_id = request.user.userprofile.jira_account_id.strip()
+    except Exception:
+        jira_account_id = ''
 
     today_ip_hours = 0.0
     weekly_ip_hours = 0.0
 
-    if jira_username:
+    if jira_account_id or jira_username:
         now = dj_tz.now()
         try:
             user_tz = _zi.ZoneInfo(schedule.timezone) if schedule and schedule.timezone else _dt.timezone.utc
@@ -62,7 +67,12 @@ def dashboard(request):
         today_secs = 0
         weekly_secs = 0
 
-        for ticket in JiraTicket.objects.filter(assignee__iexact=jira_username, is_deleted=False):
+        qs = JiraTicket.objects.filter(is_deleted=False)
+        if jira_account_id:
+            qs = qs.filter(assignee_account_id=jira_account_id)
+        else:
+            qs = qs.filter(assignee__iexact=jira_username)
+        for ticket in qs:
             events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
             transitions = []
             for event in events:
@@ -90,7 +100,7 @@ def dashboard(request):
         'contacts_count': contacts_count,
         'today_ip_hours': today_ip_hours,
         'weekly_ip_hours': weekly_ip_hours,
-        'has_jira_username': bool(jira_username),
+        'has_jira_username': bool(jira_account_id or jira_username),
     })
 
 
