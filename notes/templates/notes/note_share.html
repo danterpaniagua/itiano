@@ -51,9 +51,16 @@
         <p class="text-muted small">Not shared with anyone yet.</p>
         {% endif %}
 
-        {# Add share #}
-        {% if other_users %}
-        <h6 class="text-muted">Add user</h6>
+        {# Add share — search required to prevent user enumeration #}
+        <h6 class="text-muted mt-3">Add user</h6>
+        <form method="get" class="d-flex gap-2 align-items-center mb-2">
+            <input type="text" name="q" value="{{ search_q }}"
+                   class="form-control form-control-sm" placeholder="Search username (min 2 chars)…" style="max-width:220px">
+            <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
+        </form>
+        {% if search_q and not other_users %}
+        <p class="text-muted small">No users found for "{{ search_q }}".</p>
+        {% elif other_users %}
         <form method="post" class="d-flex flex-wrap gap-2 align-items-center">
             {% csrf_token %}
             <input type="hidden" name="action" value="add">

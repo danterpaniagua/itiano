@@ -16,6 +16,9 @@ class Team(models.Model):
 class UserVaultKey(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='vault_key')
     encrypted_key = models.TextField()
+    # salt is None for keys created before v5.8.17 (legacy SHA-256 derivation).
+    # New keys use PBKDF2-HMAC-SHA256 with this random salt.
+    salt = models.CharField(max_length=64, blank=True, default='')
 
     def __str__(self):
         return f"VaultKey({self.user})"

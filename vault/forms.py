@@ -35,7 +35,7 @@ class CredentialForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.user = user
         self._apply_bootstrap()
-        self.fields['team'].queryset = Team.objects.all()
+        self.fields['team'].queryset = Team.objects.filter(members=user) if user else Team.objects.none()
         self.fields['team'].required = False
         if self.instance.pk:
             self.fields['tags_input'].initial = ', '.join(

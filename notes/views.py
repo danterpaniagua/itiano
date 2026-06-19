@@ -79,8 +79,7 @@ class NoteDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         note = get_object_or_404(Note, pk=pk, owner=request.user)
         if note.is_system:
-            messages.error(request, 'System notes cannot be deleted.')
-            return redirect('note-edit', pk=pk)
+            raise PermissionDenied
         note.delete()
         return redirect('notes-list')
 
@@ -93,13 +92,18 @@ class NoteShareView(LoginRequiredMixin, View):
             return redirect('note-edit', pk=pk)
         shares = note.shares.select_related('shared_with')
         shared_ids = shares.values_list('shared_with_id', flat=True)
-        other_users = User.objects.exclude(pk=request.user.pk).exclude(
-            pk__in=shared_ids
-        ).order_by('username')
+        q = request.GET.get('q', '').strip()
+        if len(q) >= 2:
+            other_users = User.objects.exclude(pk=request.user.pk).exclude(
+                pk__in=shared_ids
+            ).filter(username__icontains=q).order_by('username')[:20]
+        else:
+            other_users = User.objects.none()
         return render(request, 'notes/note_share.html', {
             'note': note,
             'shares': shares,
             'other_users': other_users,
+            'search_q': q,
         })
 
     def post(self, request, pk):
