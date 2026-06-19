@@ -74,17 +74,20 @@
         <a href="{% url 'timetracking-report' %}" class="text-decoration-none">
             <div class="card h-100">
                 <div class="card-body">
-                    <h6 class="card-title text-muted">Time Tracking</h6>
+                    <h6 class="card-title text-muted">Time Tracking <span class="small fw-normal">(In Progress)</span></h6>
                     <div class="d-flex gap-4 mt-1">
                         <div>
-                            <div class="display-6 fw-bold">{{ today_hours|floatformat:1 }}h</div>
+                            <div class="display-6 fw-bold">{{ today_ip_hours|floatformat:1 }}h</div>
                             <div class="text-muted small">Today</div>
                         </div>
                         <div>
-                            <div class="display-6 fw-bold">{{ weekly_hours|floatformat:1 }}h</div>
+                            <div class="display-6 fw-bold">{{ weekly_ip_hours|floatformat:1 }}h</div>
                             <div class="text-muted small">This week</div>
                         </div>
                     </div>
+                    {% if not has_jira_username %}
+                    <div class="text-muted small mt-2"><a href="{% url 'settings-user' %}">Set Jira username</a> to track time</div>
+                    {% endif %}
                 </div>
                 <div class="card-footer text-muted small">View report →</div>
             </div>

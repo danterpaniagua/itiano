@@ -25,14 +25,62 @@ def dashboard(request):
     vault_count = Credential.objects.filter(owner=request.user).count() if request.user.is_authenticated else 0
     notes_count = Note.objects.filter(owner=request.user).count() if request.user.is_authenticated else 0
     contacts_count = Contact.objects.count() if request.user.is_staff else 0
-    today = datetime.date.today()
-    week_start = today - datetime.timedelta(days=today.weekday())
-    from django.db.models import Sum
-    qs = TimeEntry.objects.filter(user=request.user)
-    today_minutes = qs.filter(date=today).aggregate(total=Sum('minutes'))['total'] or 0
-    weekly_minutes = qs.filter(date__gte=week_start, date__lte=today).aggregate(total=Sum('minutes'))['total'] or 0
-    today_hours = today_minutes / 60
-    weekly_hours = weekly_minutes / 60
+    from django.utils import timezone as dj_tz
+    from jira_integration.models import JiraEvent
+    from timetracking.models import WorkSchedule
+    import zoneinfo as _zi
+    import datetime as _dt
+
+    schedule = WorkSchedule.objects.filter(user=request.user).first()
+    jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
+
+    today_ip_hours = 0.0
+    weekly_ip_hours = 0.0
+
+    if jira_username:
+        now = dj_tz.now()
+        try:
+            user_tz = _zi.ZoneInfo(schedule.timezone) if schedule and schedule.timezone else _dt.timezone.utc
+        except Exception:
+            user_tz = _dt.timezone.utc
+        now_local = now.astimezone(user_tz)
+        today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(_dt.timezone.utc)
+        week_start = (now_local - _dt.timedelta(days=now_local.weekday())).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(_dt.timezone.utc)
+
+        def range_secs(entered, exited, range_start, is_ongoing):
+            # Mirrors DailyReportView.range_seconds logic:
+            # - segments that started within the range count normally
+            # - ongoing In Progress that started before the range counts from range_start
+            if not entered:
+                return 0
+            if entered >= range_start:
+                return max(0, int((min(exited or now, now) - entered).total_seconds()))
+            if is_ongoing:
+                return max(0, int((now - range_start).total_seconds()))
+            return 0
+
+        today_secs = 0
+        weekly_secs = 0
+
+        for ticket in JiraTicket.objects.filter(assignee__iexact=jira_username, is_deleted=False):
+            events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
+            transitions = []
+            for event in events:
+                for item in event.payload.get('changelog', {}).get('items', []):
+                    if item.get('field') == 'status':
+                        transitions.append({'to_status': item.get('toString', ''), 'at': event.received_at})
+            for i, t in enumerate(transitions):
+                if t['to_status'].lower() != 'in progress':
+                    continue
+                entered = t['at']
+                exited = transitions[i + 1]['at'] if i + 1 < len(transitions) else None
+                is_ongoing = exited is None
+                today_secs += range_secs(entered, exited, today_start, is_ongoing)
+                weekly_secs += range_secs(entered, exited, week_start, is_ongoing)
+
+        today_ip_hours = today_secs / 3600
+        weekly_ip_hours = weekly_secs / 3600
+
     return render(request, 'core/dashboard.html', {
         'itsm_count': itsm_count,
         'jira_count': jira_count,
@@ -40,8 +88,9 @@ def dashboard(request):
         'vault_count': vault_count,
         'notes_count': notes_count,
         'contacts_count': contacts_count,
-        'today_hours': today_hours,
-        'weekly_hours': weekly_hours,
+        'today_ip_hours': today_ip_hours,
+        'weekly_ip_hours': weekly_ip_hours,
+        'has_jira_username': bool(jira_username),
     })
 
 
