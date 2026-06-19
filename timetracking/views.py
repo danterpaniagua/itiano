@@ -765,7 +765,9 @@ class TicketTimelineView(LoginRequiredMixin, View):
                                                tzinfo=user_tz).astimezone(dt_module.timezone.utc),
             })
 
-        timeline.sort(key=lambda x: x['sort_key'])
+        # Sort timeline newest first (comments also appear in Messages section)
+        timeline.sort(key=lambda x: x['sort_key'], reverse=True)
+        comments = [e for e in timeline if e['type'] == 'comment']
 
         status_totals = [
             {'status': s, 'display': fmt(secs)}
@@ -781,6 +783,7 @@ class TicketTimelineView(LoginRequiredMixin, View):
             'ticket': ticket,
             'date_from': date_from.isoformat(),
             'date_to': date_to.isoformat(),
+            'comments': comments,
             'timeline': timeline,
             'status_totals': status_totals,
             'total_manual_minutes': total_manual_minutes,

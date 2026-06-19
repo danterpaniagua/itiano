@@ -65,7 +65,68 @@
     </div>
 </div>
 
-{# ── Timeline ── #}
+{# ── D: Messages ── #}
+<div class="card mb-3">
+    <div class="card-header d-flex align-items-center gap-2">
+        <span class="fw-semibold">Messages</span>
+        <span class="badge bg-secondary ms-1" id="msg-count">{{ comments|length }}</span>
+        <div class="ms-auto d-flex gap-2 align-items-center">
+            <div class="input-group input-group-sm" style="width:220px">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" id="msg-search" class="form-control form-control-sm" placeholder="Search messages…">
+                <button class="btn btn-outline-secondary btn-sm" type="button" id="msg-clear" style="display:none">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% if comments %}
+    <div id="msg-list">
+        {% for item in comments %}
+        <div class="msg-row d-flex gap-2 px-3 py-2 border-bottom align-items-start"
+             data-text="{{ item.author|lower }} {{ item.body|lower }}">
+            <div class="text-muted small text-nowrap" style="min-width:110px">{{ item.at|date:"d/m/Y H:i" }}</div>
+            <div class="flex-grow-1 small">
+                <span class="fw-semibold text-primary me-1">{{ item.author }}</span>{{ item.body }}
+            </div>
+        </div>
+        {% endfor %}
+        <div id="msg-empty" class="card-body text-muted small" style="display:none">No messages match your search.</div>
+    </div>
+    {% else %}
+    <div class="card-body text-muted small">No messages in this period.</div>
+    {% endif %}
+</div>
+
+<script>
+(function(){
+    var input = document.getElementById('msg-search');
+    var clear = document.getElementById('msg-clear');
+    var count = document.getElementById('msg-count');
+    var empty = document.getElementById('msg-empty');
+    if (!input) return;
+    input.addEventListener('input', function(){
+        var q = this.value.toLowerCase().trim();
+        clear.style.display = q ? '' : 'none';
+        var rows = document.querySelectorAll('.msg-row');
+        var visible = 0;
+        rows.forEach(function(row){
+            var match = !q || row.dataset.text.indexOf(q) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        count.textContent = visible;
+        if (empty) empty.style.display = (visible === 0 && q) ? '' : 'none';
+    });
+    clear.addEventListener('click', function(){
+        input.value = '';
+        input.dispatchEvent(new Event('input'));
+        input.focus();
+    });
+})();
+</script>
+
+{# ── E: Timeline ── #}
 {% if timeline %}
 
 {# Desktop table #}
