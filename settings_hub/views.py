@@ -33,24 +33,14 @@ class StaffRequiredMixin(LoginRequiredMixin):
         return super().dispatch(request, *args, **kwargs)
 
 
-class SettingsIndexView(StaffRequiredMixin, View):
+class SettingsIndexView(LoginRequiredMixin, View):
     def get(self, request):
-        return redirect('settings-tags')
+        return redirect('settings-user')
 
 
 class TagListView(StaffRequiredMixin, View):
     def get(self, request):
-        qs = Tag.objects.annotate(
-            usage=Count('ticket_tags'),
-            auto_count=Count('ticket_tags', filter=Q(ticket_tags__source='automation')),
-        ).order_by('name')
-        manual_tags = [t for t in qs if t.auto_count == 0]
-        jira_tags = [t for t in qs if t.auto_count > 0]
-        return render(request, 'settings_hub/tag_list.html', {
-            'manual_tags': manual_tags,
-            'jira_tags': jira_tags,
-            'active': 'tags',
-        })
+        return redirect('settings-app')
 
 
 class TagCreateView(StaffRequiredMixin, View):
@@ -59,13 +49,13 @@ class TagCreateView(StaffRequiredMixin, View):
         color = request.POST.get('color', '').strip()
         if not name:
             messages.error(request, 'El nombre es obligatorio.')
-            return redirect('settings-tags')
+            return redirect('settings-app')
         if Tag.objects.filter(name=name).exists():
             messages.error(request, f'El tag "{name}" ya existe.')
-            return redirect('settings-tags')
+            return redirect('settings-app')
         tag = Tag.objects.create(name=name, color=color)
         messages.success(request, f'Tag "{tag.name}" creado.')
-        return redirect('settings-tags')
+        return redirect('settings-app')
 
 
 def _tag_is_jira_owned(tag):
@@ -77,14 +67,14 @@ class TagEditView(StaffRequiredMixin, View):
         tag = get_object_or_404(Tag, pk=pk)
         if _tag_is_jira_owned(tag):
             messages.error(request, f'El tag "{tag.name}" es gestionado por Jira y no puede editarse.')
-            return redirect('settings-tags')
+            return redirect('settings-app')
         return render(request, 'settings_hub/tag_form.html', {'tag': tag, 'active': 'tags'})
 
     def post(self, request, pk):
         tag = get_object_or_404(Tag, pk=pk)
         if _tag_is_jira_owned(tag):
             messages.error(request, f'El tag "{tag.name}" es gestionado por Jira y no puede editarse.')
-            return redirect('settings-tags')
+            return redirect('settings-app')
         name = request.POST.get('name', '').strip()
         color = request.POST.get('color', '').strip()
         if not name:
@@ -97,7 +87,7 @@ class TagEditView(StaffRequiredMixin, View):
         tag.color = color
         tag.save()
         messages.success(request, f'Tag "{tag.name}" actualizado.')
-        return redirect('settings-tags')
+        return redirect('settings-app')
 
 
 class TagDeleteView(StaffRequiredMixin, View):
@@ -105,23 +95,19 @@ class TagDeleteView(StaffRequiredMixin, View):
         tag = get_object_or_404(Tag, pk=pk)
         if _tag_is_jira_owned(tag):
             messages.error(request, f'El tag "{tag.name}" es gestionado por Jira y no puede eliminarse.')
-            return redirect('settings-tags')
+            return redirect('settings-app')
         if tag.ticket_tags.exists():
             messages.error(request, f'El tag "{tag.name}" está en uso y no puede eliminarse.')
-            return redirect('settings-tags')
+            return redirect('settings-app')
         name = tag.name
         tag.delete()
         messages.success(request, f'Tag "{name}" eliminado.')
-        return redirect('settings-tags')
+        return redirect('settings-app')
 
 
 class CategoryListView(StaffRequiredMixin, View):
     def get(self, request):
-        categories = Category.objects.annotate(usage=Count('ticket')).order_by('name')
-        return render(request, 'settings_hub/category_list.html', {
-            'categories': categories,
-            'active': 'categories',
-        })
+        return redirect('settings-app')
 
 
 class CategoryCreateView(StaffRequiredMixin, View):
@@ -129,13 +115,13 @@ class CategoryCreateView(StaffRequiredMixin, View):
         name = request.POST.get('name', '').strip()
         if not name:
             messages.error(request, 'El nombre es obligatorio.')
-            return redirect('settings-categories')
+            return redirect('settings-app')
         if Category.objects.filter(name=name).exists():
             messages.error(request, f'La categoría "{name}" ya existe.')
-            return redirect('settings-categories')
+            return redirect('settings-app')
         cat = Category.objects.create(name=name)
         messages.success(request, f'Categoría "{cat.name}" creada.')
-        return redirect('settings-categories')
+        return redirect('settings-app')
 
 
 class CategoryEditView(StaffRequiredMixin, View):
@@ -162,7 +148,7 @@ class CategoryEditView(StaffRequiredMixin, View):
         category.name = name
         category.save()
         messages.success(request, f'Categoría "{category.name}" actualizada.')
-        return redirect('settings-categories')
+        return redirect('settings-app')
 
 
 class CategoryDeleteView(StaffRequiredMixin, View):
@@ -171,7 +157,7 @@ class CategoryDeleteView(StaffRequiredMixin, View):
         name = category.name
         category.delete()
         messages.success(request, f'Categoría "{name}" eliminada.')
-        return redirect('settings-categories')
+        return redirect('settings-app')
 
 
 class UserSettingsView(LoginRequiredMixin, View):
@@ -191,6 +177,7 @@ class UserSettingsView(LoginRequiredMixin, View):
             'channels': channels,
             'channel_types': ContactChannel.TYPES,
             'editing_channel': editing_channel,
+            'user_obj': request.user,
         }
 
     def get(self, request):
@@ -224,8 +211,12 @@ class UserSettingsView(LoginRequiredMixin, View):
         if schedule.start_time >= schedule.end_time:
             messages.error(request, 'End time must be after start time.')
             return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+        user = request.user
+        user.first_name = request.POST.get('first_name', '').strip()
+        user.last_name = request.POST.get('last_name', '').strip()
+        user.save(update_fields=['first_name', 'last_name'])
         schedule.save()
-        messages.success(request, 'Schedule saved.')
+        messages.success(request, 'Settings saved.')
         return redirect('settings-user')
 
 
@@ -294,10 +285,17 @@ class UserChannelDeleteView(LoginRequiredMixin, View):
 
 class AppSettingsView(StaffRequiredMixin, View):
     def _ctx(self):
+        qs = Tag.objects.annotate(
+            usage=Count('ticket_tags'),
+            auto_count=Count('ticket_tags', filter=Q(ticket_tags__source='automation')),
+        ).order_by('name')
         return {
             'jira_base_url': get_app_setting('jira_base_url'),
             'jira_statuses': JiraStatusConfig.objects.all(),
             'category_choices': JiraStatusConfig.CATEGORY_CHOICES,
+            'manual_tags': [t for t in qs if t.auto_count == 0],
+            'jira_tags': [t for t in qs if t.auto_count > 0],
+            'categories': Category.objects.annotate(usage=Count('ticket')).order_by('name'),
         }
 
     def get(self, request):

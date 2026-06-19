@@ -8,16 +8,32 @@
 
 <div class="row">
     <div class="col-12 col-md-2 mb-3 mb-md-0">
-        {% with active='schedule' %}{% include 'settings_hub/_sidebar.html' %}{% endwith %}
+        {% with active='user' %}{% include 'settings_hub/_sidebar.html' %}{% endwith %}
     </div>
 
     <div class="col-12 col-md-8 col-lg-6">
 
-        {# --- Schedule section --- #}
-        <h6 class="fw-semibold mb-3" id="schedule"><i class="bi bi-calendar-week me-1"></i> Schedule &amp; Work Hours</h6>
-
+        {# --- Personal Info --- #}
+        <h6 class="fw-semibold mb-3" id="personal"><i class="bi bi-person me-1"></i> Personal Info</h6>
         <form method="post" action="{% url 'settings-user' %}">
             {% csrf_token %}
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold">First name</label>
+                    <input type="text" name="first_name" class="form-control"
+                           value="{{ user_obj.first_name }}">
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-semibold">Last name</label>
+                    <input type="text" name="last_name" class="form-control"
+                           value="{{ user_obj.last_name }}">
+                </div>
+            </div>
+
+        <hr class="my-4">
+
+        {# --- Schedule section --- #}
+        <h6 class="fw-semibold mb-3" id="schedule"><i class="bi bi-calendar-week me-1"></i> Schedule &amp; Work Hours</h6>
 
             <div class="mb-4">
                 <label class="form-label fw-semibold">Working days</label>
@@ -62,7 +78,7 @@
                 <div class="form-text">IANA timezone name (e.g. America/Bogota, Europe/Madrid).</div>
             </div>
 
-            <button type="submit" class="btn btn-primary">Save schedule</button>
+            <button type="submit" class="btn btn-primary">Save</button>
         </form>
 
         <hr class="my-4">
