@@ -89,7 +89,12 @@
 | v5.8.15 | Dashboard: Jira In Progress Time | Delivered | [v5/v5.8.15.md](v5/v5.8.15.md) |
 | v5.8.16 | Ticket Timeline: Jira Comments + Messages Section | Delivered | [v5/v5.8.16.md](v5/v5.8.16.md) |
 | v5.8.17 | Security: Vault & Notes Fixes | Delivered | [v5/v5.8.17.md](v5/v5.8.17.md) |
-| v5.8.18 | Credential Vault: Search, Sort & Tags Filter | Scoped | — |
-| v5.8.19 | Credential Vault: Nested Folders | Scoped | — |
-| v5.8.20 | Credential Vault: Visual Redesign | Scoped | — |
+| v5.8.18 | Credential Vault: Search, Sort & Tags Filter | Delivered | [v5/v5.8.18.md](v5/v5.8.18.md) |
+| v5.8.19 | Credential Vault: Nested Folders | Delivered | [v5/v5.8.19.md](v5/v5.8.19.md) |
+| v5.8.20 | Ticket Timeline: Status History + Jira Link | Delivered | [v5/v5.8.20.md](v5/v5.8.20.md) |
+| v5.8.21 | Settings: Unified User & App Settings | Delivered | — |
+| v5.8.22 | Jira Account ID Matching | Delivered | — |
+| v5.8.23 | Report: Tickets Ordered by Recent Activity | Delivered | — |
+| v5.8.24 | In Progress Bar on Report | Delivered | — |
+| v5.8.25 | User Avatar & Profile Picture | Delivered | [v5/v5.8.25.md](v5/v5.8.25.md) |
 | v5.9.0 | Google SSO + Email Invitations | Scoped (blocked) | — |
