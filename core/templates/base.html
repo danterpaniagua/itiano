@@ -60,7 +60,9 @@
             {% if user.is_authenticated %}
             <ul class="navbar-nav">
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-light" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <a class="nav-link dropdown-toggle text-light d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <img src="{{ user.userprofile.avatar_url }}" width="32" height="32"
+                             class="rounded-circle border border-secondary" style="object-fit:cover" alt="">
                         {{ user.username }}
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">

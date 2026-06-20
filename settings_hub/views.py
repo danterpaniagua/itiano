@@ -197,6 +197,7 @@ class UserSettingsView(LoginRequiredMixin, View):
             'editing_channel': editing_channel,
             'user_obj': request.user,
             'profile': profile,
+            'avatar_url': profile.avatar_url(),
             'jira_accounts': _jira_accounts(),
         }
 
@@ -207,6 +208,20 @@ class UserSettingsView(LoginRequiredMixin, View):
     def post(self, request):
         schedule = self._get_schedule(request.user)
         profile = self._get_profile(request.user)
+
+        if 'remove_avatar' in request.POST:
+            if profile.avatar:
+                profile.avatar.delete(save=True)
+            messages.success(request, 'Avatar removed.')
+            return redirect('settings-user')
+
+        if 'avatar' in request.FILES:
+            if profile.avatar:
+                profile.avatar.delete(save=False)
+            profile.avatar = request.FILES['avatar']
+            profile.save(update_fields=['avatar'])
+            messages.success(request, 'Avatar updated.')
+            return redirect('settings-user')
 
         jira_account_id = request.POST.get('jira_account_id', '').strip()
         profile.jira_account_id = jira_account_id

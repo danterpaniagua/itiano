@@ -15,7 +15,34 @@
 
         {# --- Personal Info --- #}
         <h6 class="fw-semibold mb-3" id="personal"><i class="bi bi-person me-1"></i> Personal Info</h6>
-        <form method="post" action="{% url 'settings-user' %}">
+
+        {# Avatar #}
+        <div class="d-flex align-items-center gap-3 mb-3">
+            <img src="{{ avatar_url }}" width="80" height="80"
+                 class="rounded-circle border" style="object-fit:cover" alt="Avatar">
+            <div class="d-flex flex-column gap-2">
+                <form method="post" action="{% url 'settings-user' %}" enctype="multipart/form-data"
+                      class="d-flex gap-2 align-items-center">
+                    {% csrf_token %}
+                    <input type="file" name="avatar" accept="image/*" class="form-control form-control-sm">
+                    <button type="submit" class="btn btn-sm btn-primary text-nowrap">
+                        <i class="bi bi-upload me-1"></i>Upload
+                    </button>
+                </form>
+                {% if profile.avatar %}
+                <form method="post" action="{% url 'settings-user' %}">
+                    {% csrf_token %}
+                    <button type="submit" name="remove_avatar" value="1" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash me-1"></i>Remove
+                    </button>
+                </form>
+                {% else %}
+                <span class="text-muted small">Using Gravatar. Upload a photo to override.</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <form method="post" action="{% url 'settings-user' %}" enctype="multipart/form-data">
             {% csrf_token %}
             <div class="row g-3 mb-4">
                 <div class="col-12 col-md-6">
