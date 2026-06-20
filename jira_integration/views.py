@@ -84,9 +84,9 @@ def webhook(request):
     labels = [l for l in (fields.get('labels') or []) if isinstance(l, str)]
     parent_key = (fields.get('parent') or {}).get('key', '')
 
-    # Only update status when there is an explicit status changelog item.
-    # Using the snapshot field would overwrite a correct status if this event
-    # arrives out of order (e.g. issue_created after issue_updated).
+    # Only update status from an explicit changelog item — never from the snapshot field.
+    # The snapshot uses localized names (e.g. "En curso") and arrives out of order on
+    # same-second create+transition events, which would roll back a correct status.
     changelog_items = payload.get('changelog', {}).get('items', [])
     status_from_changelog = next(
         (item.get('toString', '') for item in changelog_items if item.get('field') == 'status'),
