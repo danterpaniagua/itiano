@@ -410,6 +410,17 @@ class DailyReportView(LoginRequiredMixin, View):
                 )
             ]
 
+        # Sort by most recently updated (latest JiraEvent) descending
+        if filtered_tickets:
+            from django.db.models import Max
+            latest_event = {
+                row['ticket_id']: row['latest']
+                for row in JiraEvent.objects.filter(
+                    ticket__in=filtered_tickets
+                ).values('ticket_id').annotate(latest=Max('received_at'))
+            }
+            filtered_tickets.sort(key=lambda t: latest_event.get(t.pk), reverse=True)
+
         # --- Time by Status (range-scoped, filters applied) ---
         status_seconds = defaultdict(int)
         for ticket in filtered_tickets:
