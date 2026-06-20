@@ -303,10 +303,18 @@ class DailyReportView(LoginRequiredMixin, View):
                             'to_status': item.get('toString', ''),
                             'at': event.received_at,
                         })
+            creation_event = next((e for e in events if e.event_type == 'jira:issue_created'), None)
+            creation_time = creation_event.received_at if creation_event else (events[0].received_at if events else None)
+            creation_status = (
+                (creation_event.payload.get('issue', {}).get('fields', {}).get('status', {}).get('name', ''))
+                if creation_event else ''
+            )
             if not transitions:
-                ticket_segments[ticket.issue_key] = []
+                segs = [{'status': creation_status, 'entered_at': creation_time, 'exited_at': None}] if creation_status else []
+                ticket_segments[ticket.issue_key] = segs
                 continue
-            segs = [{'status': transitions[0]['from_status'], 'entered_at': None, 'exited_at': transitions[0]['at']}]
+            initial_status = creation_status or transitions[0]['from_status']
+            segs = [{'status': initial_status, 'entered_at': creation_time, 'exited_at': transitions[0]['at']}]
             for i, t in enumerate(transitions):
                 exited_at = transitions[i + 1]['at'] if i + 1 < len(transitions) else None
                 segs.append({'status': t['to_status'], 'entered_at': t['at'], 'exited_at': exited_at})
@@ -577,7 +585,7 @@ class DailyReportView(LoginRequiredMixin, View):
             width = max(0.0, (eff_end - eff_start).total_seconds() / range_total_secs * 100)
             return round(left, 3), round(width, 3)
 
-        _terminal_statuses = {'done', 'closed', 'cancelled', 'canceled', 'resolved', 'cerrado', 'terminado'}
+        _terminal_statuses = _TERMINAL_STATUSES
 
         gantt_rows = []
         for ticket in filtered_tickets:
@@ -931,22 +939,51 @@ class TicketTimelineView(LoginRequiredMixin, View):
             if secs > 0
         ]
 
+        from settings_hub.models import get_app_setting, JiraStatusConfig
+        _term_statuses = {c.status_name.lower() for c in JiraStatusConfig.objects.filter(category='done')} or {'done', 'descartado'}
+
         # All-time status segments for Status History card
         all_time_segments = []
+
+        # Seed initial state from creation event
+        creation_ev = next((e for e in all_events if e.event_type == 'jira:issue_created'), None)
+        if creation_ev and raw_transitions:
+            init_status = creation_ev.payload.get('issue', {}).get('fields', {}).get('status', {}).get('name', '')
+            if init_status:
+                first_exit = raw_transitions[0]['at']
+                duration_secs = max(0, int((first_exit - creation_ev.received_at).total_seconds()))
+                h, rem = divmod(duration_secs, 3600)
+                m = rem // 60
+                all_time_segments.append({
+                    'status': init_status,
+                    'entered_at': creation_ev.received_at.astimezone(user_tz),
+                    'ongoing': False,
+                    'is_terminal': init_status.lower() in _term_statuses,
+                    'duration': f'{h}h {m}m' if h else f'{m}m',
+                })
+
         for i, t in enumerate(raw_transitions):
             exited_at = raw_transitions[i + 1]['at'] if i + 1 < len(raw_transitions) else None
-            duration_secs = int(((exited_at or now) - t['at']).total_seconds())
-            h, rem = divmod(max(0, duration_secs), 3600)
-            m = rem // 60
-            duration_display = (f'{h}h {m}m' if h else f'{m}m')
-            all_time_segments.append({
-                'status': t['to_status'],
-                'entered_at': t['at'].astimezone(user_tz),
-                'ongoing': exited_at is None,
-                'duration': duration_display,
-            })
-
-        from settings_hub.models import get_app_setting, JiraStatusConfig
+            is_terminal = t['to_status'].lower() in _term_statuses
+            if is_terminal and exited_at is None:
+                all_time_segments.append({
+                    'status': t['to_status'],
+                    'entered_at': t['at'].astimezone(user_tz),
+                    'ongoing': False,
+                    'is_terminal': True,
+                    'duration': None,
+                })
+            else:
+                duration_secs = max(0, int(((exited_at or now) - t['at']).total_seconds()))
+                h, rem = divmod(duration_secs, 3600)
+                m = rem // 60
+                all_time_segments.append({
+                    'status': t['to_status'],
+                    'entered_at': t['at'].astimezone(user_tz),
+                    'ongoing': exited_at is None,
+                    'is_terminal': False,
+                    'duration': f'{h}h {m}m' if h else f'{m}m',
+                })
         jira_base_url = get_app_setting('jira_base_url', '').rstrip('/')
         jira_url = f'{jira_base_url}/browse/{ticket.issue_key}' if jira_base_url else ''
 

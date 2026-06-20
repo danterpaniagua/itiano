@@ -28,11 +28,17 @@
     <div class="card-body py-2">
         <div class="d-none d-md-flex flex-wrap align-items-center gap-1">
             {% for seg in all_time_segments %}
-            <span class="badge {% if seg.ongoing %}bg-primary{% else %}bg-light text-dark border{% endif %} px-2 py-1">
+            <span class="badge {% if seg.ongoing %}bg-primary{% elif seg.is_terminal %}bg-success{% else %}bg-light text-dark border{% endif %} px-2 py-1">
                 {{ seg.status }}
             </span>
             <span class="small text-muted">
-                {% if seg.ongoing %}<span class="text-primary fw-semibold">{{ seg.duration }}</span> <span class="badge bg-primary" style="font-size:0.6rem">now</span>{% else %}{{ seg.duration }}{% endif %}
+                {% if seg.is_terminal %}
+                <span class="text-success">{{ seg.entered_at|date:"d/m H:i" }}</span>
+                {% elif seg.ongoing %}
+                <span class="text-primary fw-semibold">{{ seg.duration }}</span> <span class="badge bg-primary" style="font-size:0.6rem">now</span>
+                {% else %}
+                {{ seg.duration }}
+                {% endif %}
             </span>
             {% if not forloop.last %}<i class="bi bi-arrow-right text-muted small"></i>{% endif %}
             {% endfor %}
@@ -40,9 +46,9 @@
         <div class="d-md-none d-flex flex-column gap-1">
             {% for seg in all_time_segments %}
             <div class="d-flex align-items-center gap-2">
-                <span class="badge {% if seg.ongoing %}bg-primary{% else %}bg-light text-dark border{% endif %}">{{ seg.status }}</span>
-                <span class="small {% if seg.ongoing %}text-primary fw-semibold{% else %}text-muted{% endif %}">
-                    {{ seg.duration }}{% if seg.ongoing %} <span class="badge bg-primary" style="font-size:0.6rem">now</span>{% endif %}
+                <span class="badge {% if seg.ongoing %}bg-primary{% elif seg.is_terminal %}bg-success{% else %}bg-light text-dark border{% endif %}">{{ seg.status }}</span>
+                <span class="small {% if seg.ongoing %}text-primary fw-semibold{% elif seg.is_terminal %}text-success{% else %}text-muted{% endif %}">
+                    {% if seg.is_terminal %}{{ seg.entered_at|date:"d/m H:i" }}{% elif seg.ongoing %}{{ seg.duration }} <span class="badge bg-primary" style="font-size:0.6rem">now</span>{% else %}{{ seg.duration }}{% endif %}
                 </span>
             </div>
             {% endfor %}

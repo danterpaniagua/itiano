@@ -69,29 +69,48 @@ def webhook(request):
     if not issue_key:
         return HttpResponse(status=200)
 
+    if event_type == 'jira:issue_deleted':
+        JiraTicket.objects.filter(issue_key=issue_key).update(is_deleted=True)
+        logger.info('jira_webhook_issue_deleted', extra={'issue_key': issue_key})
+        return HttpResponse(status=200)
+
     fields = issue.get('fields', {})
     title = fields.get('summary', '')
     project_key = fields.get('project', {}).get('key', '') if fields.get('project') else ''
     issue_type = fields.get('issuetype', {}).get('name', '') if fields.get('issuetype') else ''
-    status = fields.get('status', {}).get('name', '') if fields.get('status') else ''
-    assignee_obj        = fields.get('assignee') or {}
-    assignee            = assignee_obj.get('displayName', '')
+    assignee_obj = fields.get('assignee') or {}
+    assignee = assignee_obj.get('displayName', '')
     assignee_account_id = assignee_obj.get('accountId', '')
     labels = [l for l in (fields.get('labels') or []) if isinstance(l, str)]
     parent_key = (fields.get('parent') or {}).get('key', '')
 
+    # Only update status when there is an explicit status changelog item.
+    # Using the snapshot field would overwrite a correct status if this event
+    # arrives out of order (e.g. issue_created after issue_updated).
+    changelog_items = payload.get('changelog', {}).get('items', [])
+    status_from_changelog = next(
+        (item.get('toString', '') for item in changelog_items if item.get('field') == 'status'),
+        None,
+    )
+    snapshot_status = fields.get('status', {}).get('name', '') if fields.get('status') else ''
+
+    defaults = {
+        'title': title[:500],
+        'project_key': project_key[:50],
+        'issue_type': issue_type[:100],
+        'assignee': assignee[:200],
+        'assignee_account_id': assignee_account_id[:100],
+        'labels': labels,
+        'parent_key': parent_key[:50],
+    }
+    if status_from_changelog is not None:
+        defaults['status'] = status_from_changelog[:100]
+    elif event_type == 'jira:issue_created':
+        defaults['status'] = snapshot_status[:100]
+
     ticket, created = JiraTicket.objects.update_or_create(
         issue_key=issue_key,
-        defaults={
-            'title': title[:500],
-            'project_key': project_key[:50],
-            'issue_type': issue_type[:100],
-            'status': status[:100],
-            'assignee': assignee[:200],
-            'assignee_account_id': assignee_account_id[:100],
-            'labels': labels,
-            'parent_key': parent_key[:50],
-        },
+        defaults=defaults,
     )
 
     summary = _build_summary(event_type, payload)
