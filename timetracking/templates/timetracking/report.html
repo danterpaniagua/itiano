@@ -217,6 +217,39 @@
 
 </div>{# /top row #}
 
+{# ── In Progress bar ── #}
+{% if daily_ip_bars %}
+<div class="card mb-3">
+    <div class="card-header fw-semibold">
+        <i class="bi bi-activity me-1"></i>In Progress
+    </div>
+    <div class="card-body py-3">
+        <div class="position-relative rounded overflow-hidden" style="height:28px;background:#e9ecef">
+            {% for shade in daily_off_shades %}
+            <div class="position-absolute top-0 bottom-0"
+                 style="left:{{ shade.left }}%;width:{{ shade.width }}%;background:rgba(0,0,0,0.10)"></div>
+            {% endfor %}
+            {% for tick in daily_ticks %}
+            <div class="position-absolute top-0 bottom-0"
+                 style="left:{{ tick.left }}%;border-left:1px solid rgba(0,0,0,0.12)"></div>
+            {% endfor %}
+            {% for bar in daily_ip_bars %}
+            <div class="position-absolute"
+                 style="left:{{ bar.left }}%;width:{{ bar.width }}%;top:4px;bottom:4px;background:#0d6efd;border-radius:3px;opacity:0.85;cursor:default"
+                 data-bs-toggle="tooltip" data-bs-placement="top"
+                 title="{{ bar.tooltip }}"></div>
+            {% endfor %}
+        </div>
+        <div class="position-relative mt-1" style="height:16px">
+            {% for tick in daily_ticks %}
+            <span class="position-absolute text-muted"
+                  style="left:{{ tick.left }}%;font-size:0.65rem;transform:translateX(-50%)">{{ tick.label }}</span>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {# ── Gantt Timeline ── #}
 {% if gantt_rows %}
 <div class="card mb-3">
@@ -339,4 +372,12 @@
 {% endif %}
 
 {% endif %}{# jira_account_id or jira_username #}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
+    new bootstrap.Tooltip(el, { html: false })
+);
+</script>
 {% endblock %}

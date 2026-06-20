@@ -682,6 +682,112 @@ class DailyReportView(LoginRequiredMixin, View):
                     seen[bar['status']] = bar['color']
         gantt_legend = [{'status': s, 'color': c} for s, c in seen.items()]
 
+        # --- In Progress bar (uses same range as the report) ---
+        actual_now = timezone.now()
+        bar_start = start_dt
+        bar_end = min(now, actual_now)
+        bar_total_secs = max(1, (bar_end - bar_start).total_seconds())
+        bar_days = bar_total_secs / 86400
+
+        # Collect IP intervals with contributing tickets (before merging)
+        _day_attrs = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+        raw_ip = []
+        for ticket in my_tickets:
+            for seg in ticket_segments[ticket.issue_key]:
+                if not seg['status'] or seg['status'].lower() not in _ip_statuses:
+                    continue
+                if not seg['entered_at']:
+                    continue
+                seg_s = max(seg['entered_at'], bar_start)
+                seg_e = min(seg['exited_at'] or actual_now, bar_end)
+                if seg_e > seg_s:
+                    raw_ip.append((seg_s, seg_e, ticket))
+
+        # Merge overlapping intervals, tracking which tickets contribute to each
+        raw_ip.sort(key=lambda x: x[0])
+        merged_ip = []
+        for seg_s, seg_e, ticket in raw_ip:
+            if merged_ip and seg_s <= merged_ip[-1]['end']:
+                merged_ip[-1]['end'] = max(merged_ip[-1]['end'], seg_e)
+                if ticket not in merged_ip[-1]['tickets']:
+                    merged_ip[-1]['tickets'].append(ticket)
+            else:
+                merged_ip.append({'start': seg_s, 'end': seg_e, 'tickets': [ticket]})
+
+        def _pct(dt_val):
+            return round((dt_val - bar_start).total_seconds() / bar_total_secs * 100, 3)
+
+        daily_ip_bars = [
+            {
+                'left': _pct(m['start']),
+                'width': round((m['end'] - m['start']).total_seconds() / bar_total_secs * 100, 3),
+                'tooltip': '&#10;'.join(f"{t.issue_key}: {t.title}" for t in m['tickets']),
+            }
+            for m in merged_ip
+        ]
+
+        # Off-hours shading: iterate each calendar day in range
+        daily_off_shades = []
+        day_cursor = bar_start.astimezone(user_tz).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        while day_cursor.astimezone(dt_module.timezone.utc) < bar_end:
+            day_utc = day_cursor.astimezone(dt_module.timezone.utc)
+            next_day_utc = (day_cursor + dt_module.timedelta(days=1)).astimezone(dt_module.timezone.utc)
+            weekday_attr = _day_attrs[day_cursor.weekday()]
+            is_work_day = getattr(schedule, weekday_attr) if schedule else True
+
+            if is_work_day and schedule:
+                work_start_local = day_cursor.replace(
+                    hour=schedule.start_time.hour,
+                    minute=schedule.start_time.minute,
+                    second=0, microsecond=0,
+                )
+                work_end_local = day_cursor.replace(
+                    hour=schedule.end_time.hour,
+                    minute=schedule.end_time.minute,
+                    second=0, microsecond=0,
+                )
+                work_s = work_start_local.astimezone(dt_module.timezone.utc)
+                work_e = work_end_local.astimezone(dt_module.timezone.utc)
+
+                # Before work hours
+                shade_s = max(day_utc, bar_start)
+                shade_e = min(work_s, bar_end)
+                if shade_e > shade_s:
+                    daily_off_shades.append({'left': _pct(shade_s), 'width': round((shade_e - shade_s).total_seconds() / bar_total_secs * 100, 3)})
+
+                # After work hours
+                shade_s = max(work_e, bar_start)
+                shade_e = min(next_day_utc, bar_end)
+                if shade_e > shade_s:
+                    daily_off_shades.append({'left': _pct(shade_s), 'width': round((shade_e - shade_s).total_seconds() / bar_total_secs * 100, 3)})
+            else:
+                # Non-working day: entire day shaded
+                shade_s = max(day_utc, bar_start)
+                shade_e = min(next_day_utc, bar_end)
+                if shade_e > shade_s:
+                    daily_off_shades.append({'left': _pct(shade_s), 'width': round((shade_e - shade_s).total_seconds() / bar_total_secs * 100, 3)})
+
+            day_cursor += dt_module.timedelta(days=1)
+
+        # Ticks
+        if bar_days <= 1:
+            tick_delta = dt_module.timedelta(hours=2)
+            tick_fmt = '%H:%M'
+        elif bar_days <= 7:
+            tick_delta = dt_module.timedelta(days=1)
+            tick_fmt = '%d/%m'
+        else:
+            tick_delta = dt_module.timedelta(days=7)
+            tick_fmt = '%d/%m'
+
+        daily_ticks = []
+        tick_dt = bar_start + tick_delta
+        while tick_dt < bar_end:
+            daily_ticks.append({'left': round(_pct(tick_dt), 3), 'label': tick_dt.astimezone(user_tz).strftime(tick_fmt)})
+            tick_dt += tick_delta
+
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
             'today_rows': today_rows,
@@ -701,6 +807,9 @@ class DailyReportView(LoginRequiredMixin, View):
             'work_lines': work_lines,
             'custom_date_from': custom_date_from,
             'custom_date_to': custom_date_to,
+            'daily_ip_bars': daily_ip_bars,
+            'daily_off_shades': daily_off_shades,
+            'daily_ticks': daily_ticks,
         })
 
 
