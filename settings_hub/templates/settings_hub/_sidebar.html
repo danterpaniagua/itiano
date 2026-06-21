@@ -1,4 +1,23 @@
 <div class="list-group">
+    {% if active == 'user' %}
+    <a href="#personal-info" class="list-group-item list-group-item-action">
+        <i class="bi bi-person me-1"></i> Personal Info
+    </a>
+    <a href="#schedule" class="list-group-item list-group-item-action">
+        <i class="bi bi-calendar-week me-1"></i> Schedule
+    </a>
+    <a href="#jira-account" class="list-group-item list-group-item-action">
+        <i class="bi bi-link-45deg me-1"></i> Jira Account
+    </a>
+    <a href="#channels" class="list-group-item list-group-item-action">
+        <i class="bi bi-chat-dots me-1"></i> Channels
+    </a>
+    {% if request.user.is_staff %}
+    <a href="{% url 'settings-app' %}" class="list-group-item list-group-item-action mt-2">
+        <i class="bi bi-gear me-1"></i> App Settings
+    </a>
+    {% endif %}
+    {% else %}
     <a href="{% url 'settings-user' %}"
        class="list-group-item list-group-item-action{% if active == 'user' %} active{% endif %}">
         <i class="bi bi-person-gear me-1"></i> User Settings
@@ -8,5 +27,6 @@
        class="list-group-item list-group-item-action{% if active == 'app' %} active{% endif %}">
         <i class="bi bi-gear me-1"></i> App Settings
     </a>
+    {% endif %}
     {% endif %}
 </div>

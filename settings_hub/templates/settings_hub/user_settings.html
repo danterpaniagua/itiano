@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}User Settings – Itiano{% endblock %}
+{% block title %}Settings – Itiano{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-    <h5 class="mb-0 me-auto"><i class="bi bi-person-gear"></i> User Settings</h5>
+    <h5 class="mb-0 me-auto"><i class="bi bi-person-gear"></i> Settings</h5>
 </div>
 
 <div class="row">
@@ -14,9 +14,10 @@
     <div class="col-12 col-md-8 col-lg-6">
 
         {# --- Personal Info --- #}
-        <h6 class="fw-semibold mb-3" id="personal"><i class="bi bi-person me-1"></i> Personal Info</h6>
+        <h6 class="fw-semibold mb-3" id="personal-info">
+            <i class="bi bi-person me-1"></i> Personal Info
+        </h6>
 
-        {# Avatar #}
         <div class="d-flex align-items-center gap-3 mb-3">
             <img src="{{ avatar_url }}" width="80" height="80"
                  class="rounded-circle border" style="object-fit:cover" alt="Avatar">
@@ -42,9 +43,10 @@
             </div>
         </div>
 
-        <form method="post" action="{% url 'settings-user' %}" enctype="multipart/form-data">
+        <form method="post" action="{% url 'settings-user' %}">
             {% csrf_token %}
-            <div class="row g-3 mb-4">
+            <input type="hidden" name="section" value="personal">
+            <div class="row g-3 mb-3">
                 <div class="col-12 col-md-6">
                     <label class="form-label fw-semibold">First name</label>
                     <input type="text" name="first_name" class="form-control"
@@ -56,11 +58,19 @@
                            value="{{ user_obj.last_name }}">
                 </div>
             </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
 
         <hr class="my-4">
 
-        {# --- Schedule section --- #}
-        <h6 class="fw-semibold mb-3" id="schedule"><i class="bi bi-calendar-week me-1"></i> Schedule &amp; Work Hours</h6>
+        {# --- Schedule --- #}
+        <h6 class="fw-semibold mb-3" id="schedule">
+            <i class="bi bi-calendar-week me-1"></i> Schedule &amp; Work Hours
+        </h6>
+
+        <form method="post" action="{% url 'settings-user' %}">
+            {% csrf_token %}
+            <input type="hidden" name="section" value="schedule">
 
             <div class="mb-4">
                 <label class="form-label fw-semibold">Working days</label>
@@ -90,7 +100,27 @@
             </div>
 
             <div class="mb-4">
-                <label class="form-label fw-semibold">Jira Account</label>
+                <label class="form-label fw-semibold">Timezone</label>
+                <input type="text" name="timezone" class="form-control"
+                       value="{{ schedule.timezone }}"
+                       placeholder="e.g. America/New_York">
+                <div class="form-text">IANA timezone name (e.g. America/Bogota, Europe/Madrid).</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+
+        <hr class="my-4">
+
+        {# --- Jira Account --- #}
+        <h6 class="fw-semibold mb-3" id="jira-account">
+            <i class="bi bi-link-45deg me-1"></i> Jira Account
+        </h6>
+
+        <form method="post" action="{% url 'settings-user' %}">
+            {% csrf_token %}
+            <input type="hidden" name="section" value="jira">
+            <div class="mb-3">
                 <select name="jira_account_id" class="form-select">
                     <option value="">— Not linked —</option>
                     {% for acc in jira_accounts %}
@@ -102,21 +132,12 @@
                 </select>
                 <div class="form-text">Select your Jira user to link ticket tracking.</div>
             </div>
-
-            <div class="mb-4">
-                <label class="form-label fw-semibold">Timezone</label>
-                <input type="text" name="timezone" class="form-control"
-                       value="{{ schedule.timezone }}"
-                       placeholder="e.g. America/New_York">
-                <div class="form-text">IANA timezone name (e.g. America/Bogota, Europe/Madrid).</div>
-            </div>
-
-            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </form>
 
         <hr class="my-4">
 
-        {# --- Contact Channels section --- #}
+        {# --- Contact Channels --- #}
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3" id="channels">
             <h6 class="fw-semibold mb-0 me-auto"><i class="bi bi-chat-dots me-1"></i> Contact Channels</h6>
             <button class="btn btn-sm btn-outline-primary" type="button"

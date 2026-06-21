@@ -35,11 +35,6 @@ class StaffRequiredMixin(LoginRequiredMixin):
         return super().dispatch(request, *args, **kwargs)
 
 
-class SettingsIndexView(LoginRequiredMixin, View):
-    def get(self, request):
-        return redirect('settings-user')
-
-
 class TagListView(StaffRequiredMixin, View):
     def get(self, request):
         return redirect('settings-app')
@@ -223,41 +218,52 @@ class UserSettingsView(LoginRequiredMixin, View):
             messages.success(request, 'Avatar updated.')
             return redirect('settings-user')
 
-        jira_account_id = request.POST.get('jira_account_id', '').strip()
-        profile.jira_account_id = jira_account_id
-        profile.save(update_fields=['jira_account_id'])
+        section = request.POST.get('section', '')
 
-        for attr, _ in _DAYS:
-            setattr(schedule, attr, attr in request.POST)
-        schedule.jira_username = request.POST.get('jira_username', '').strip()
-        tz = request.POST.get('timezone', 'UTC').strip() or 'UTC'
-        try:
-            zoneinfo.ZoneInfo(tz)
-            schedule.timezone = tz
-        except (zoneinfo.ZoneInfoNotFoundError, KeyError):
-            messages.error(request, f'Invalid timezone: {tz}')
-            return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
-        start = request.POST.get('start_time', '').strip()
-        end = request.POST.get('end_time', '').strip()
-        try:
-            schedule.start_time = dt.time.fromisoformat(start)
-        except ValueError:
-            messages.error(request, 'Start time is invalid.')
-            return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
-        try:
-            schedule.end_time = dt.time.fromisoformat(end)
-        except ValueError:
-            messages.error(request, 'End time is invalid.')
-            return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
-        if schedule.start_time >= schedule.end_time:
-            messages.error(request, 'End time must be after start time.')
-            return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
-        user = request.user
-        user.first_name = request.POST.get('first_name', '').strip()
-        user.last_name = request.POST.get('last_name', '').strip()
-        user.save(update_fields=['first_name', 'last_name'])
-        schedule.save()
-        messages.success(request, 'Settings saved.')
+        if section == 'personal':
+            user = request.user
+            user.first_name = request.POST.get('first_name', '').strip()
+            user.last_name = request.POST.get('last_name', '').strip()
+            user.save(update_fields=['first_name', 'last_name'])
+            messages.success(request, 'Personal info saved.')
+            return redirect('settings-user')
+
+        if section == 'schedule':
+            for attr, _ in _DAYS:
+                setattr(schedule, attr, attr in request.POST)
+            tz = request.POST.get('timezone', 'UTC').strip() or 'UTC'
+            try:
+                zoneinfo.ZoneInfo(tz)
+                schedule.timezone = tz
+            except (zoneinfo.ZoneInfoNotFoundError, KeyError):
+                messages.error(request, f'Invalid timezone: {tz}')
+                return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+            start = request.POST.get('start_time', '').strip()
+            end = request.POST.get('end_time', '').strip()
+            try:
+                schedule.start_time = dt.time.fromisoformat(start)
+            except ValueError:
+                messages.error(request, 'Start time is invalid.')
+                return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+            try:
+                schedule.end_time = dt.time.fromisoformat(end)
+            except ValueError:
+                messages.error(request, 'End time is invalid.')
+                return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+            if schedule.start_time >= schedule.end_time:
+                messages.error(request, 'End time must be after start time.')
+                return render(request, 'settings_hub/user_settings.html', self._ctx(request, schedule))
+            schedule.save()
+            messages.success(request, 'Schedule saved.')
+            return redirect('settings-user')
+
+        if section == 'jira':
+            profile.jira_account_id = request.POST.get('jira_account_id', '').strip()
+            profile.save(update_fields=['jira_account_id'])
+            messages.success(request, 'Jira account saved.')
+            return redirect('settings-user')
+
+        messages.error(request, 'Invalid request.')
         return redirect('settings-user')
 
 

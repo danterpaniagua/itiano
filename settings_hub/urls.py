@@ -4,7 +4,11 @@ from django.views.generic import RedirectView
 from . import views
 
 urlpatterns = [
-    path('', views.SettingsIndexView.as_view(), name='settings-index'),
+    path('', views.UserSettingsView.as_view(), name='settings-user'),
+    path('user/', RedirectView.as_view(pattern_name='settings-user', permanent=False)),
+    path('user/channels/add/', views.UserChannelCreateView.as_view(), name='settings-user-channel-add'),
+    path('user/channels/<int:pk>/edit/', views.UserChannelEditView.as_view(), name='settings-user-channel-edit'),
+    path('user/channels/<int:pk>/delete/', views.UserChannelDeleteView.as_view(), name='settings-user-channel-delete'),
     path('tags/', views.TagListView.as_view(), name='settings-tags'),
     path('tags/create/', views.TagCreateView.as_view(), name='settings-tag-create'),
     path('tags/<int:pk>/edit/', views.TagEditView.as_view(), name='settings-tag-edit'),
@@ -13,10 +17,6 @@ urlpatterns = [
     path('categories/create/', views.CategoryCreateView.as_view(), name='settings-category-create'),
     path('categories/<int:pk>/edit/', views.CategoryEditView.as_view(), name='settings-category-edit'),
     path('categories/<int:pk>/delete/', views.CategoryDeleteView.as_view(), name='settings-category-delete'),
-    path('user/', views.UserSettingsView.as_view(), name='settings-user'),
-    path('user/channels/add/', views.UserChannelCreateView.as_view(), name='settings-user-channel-add'),
-    path('user/channels/<int:pk>/edit/', views.UserChannelEditView.as_view(), name='settings-user-channel-edit'),
-    path('user/channels/<int:pk>/delete/', views.UserChannelDeleteView.as_view(), name='settings-user-channel-delete'),
     path('app/', views.AppSettingsView.as_view(), name='settings-app'),
     path('app/jira-status/add/', views.JiraStatusAddView.as_view(), name='settings-jira-status-add'),
     path('app/jira-status/<int:pk>/delete/', views.JiraStatusDeleteView.as_view(), name='settings-jira-status-delete'),
