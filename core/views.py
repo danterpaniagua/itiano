@@ -1,5 +1,5 @@
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 
 from automations.models import Trigger
@@ -106,8 +106,7 @@ def dashboard(request):
 
 @login_required
 def profile(request):
-    contact = getattr(request.user, 'contact', None)
-    return render(request, 'core/profile.html', {'contact': contact})
+    return HttpResponseRedirect('/settings/#profile')
 
 
 def health(request):

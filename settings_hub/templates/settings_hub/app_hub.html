@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}App Settings – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-gear"></i> App Settings</h5>
+</div>
+<p class="text-muted small mb-4">Application-wide configuration. Changes here affect all users.</p>
+
+<div class="row g-3">
+
+    <div class="col-12 col-sm-6 col-lg-4">
+        <a href="{% url 'settings-jira' %}" class="text-decoration-none">
+            <div class="card h-100 card-hover">
+                <div class="card-body">
+                    <div class="fs-2 text-primary mb-2"><i class="bi bi-puzzle"></i></div>
+                    <h6 class="fw-semibold mb-1">Jira</h6>
+                    <p class="text-muted small mb-2">Base URL and ticket status mappings.</p>
+                    <div class="d-flex flex-wrap gap-1">
+                        <span class="badge bg-light text-secondary border">Base URL</span>
+                        <span class="badge bg-light text-secondary border">Statuses</span>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-4">
+        <a href="{% url 'settings-tickets' %}" class="text-decoration-none">
+            <div class="card h-100 card-hover">
+                <div class="card-body">
+                    <div class="fs-2 text-success mb-2"><i class="bi bi-ticket-detailed"></i></div>
+                    <h6 class="fw-semibold mb-1">Tickets</h6>
+                    <p class="text-muted small mb-2">Tags and categories for ticket classification.</p>
+                    <div class="d-flex flex-wrap gap-1">
+                        <span class="badge bg-light text-secondary border">Tags</span>
+                        <span class="badge bg-light text-secondary border">Categories</span>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+
+</div>
+{% endblock %}

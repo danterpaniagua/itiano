@@ -37,7 +37,7 @@ class StaffRequiredMixin(LoginRequiredMixin):
 
 class TagListView(StaffRequiredMixin, View):
     def get(self, request):
-        return redirect('settings-app')
+        return redirect('settings-tickets')
 
 
 class TagCreateView(StaffRequiredMixin, View):
@@ -46,13 +46,13 @@ class TagCreateView(StaffRequiredMixin, View):
         color = request.POST.get('color', '').strip()
         if not name:
             messages.error(request, 'El nombre es obligatorio.')
-            return redirect('settings-app')
+            return redirect('settings-tickets')
         if Tag.objects.filter(name=name).exists():
             messages.error(request, f'El tag "{name}" ya existe.')
-            return redirect('settings-app')
+            return redirect('settings-tickets')
         tag = Tag.objects.create(name=name, color=color)
         messages.success(request, f'Tag "{tag.name}" creado.')
-        return redirect('settings-app')
+        return redirect('settings-tickets')
 
 
 def _tag_is_jira_owned(tag):
@@ -64,14 +64,14 @@ class TagEditView(StaffRequiredMixin, View):
         tag = get_object_or_404(Tag, pk=pk)
         if _tag_is_jira_owned(tag):
             messages.error(request, f'El tag "{tag.name}" es gestionado por Jira y no puede editarse.')
-            return redirect('settings-app')
+            return redirect('settings-tickets')
         return render(request, 'settings_hub/tag_form.html', {'tag': tag, 'active': 'tags'})
 
     def post(self, request, pk):
         tag = get_object_or_404(Tag, pk=pk)
         if _tag_is_jira_owned(tag):
             messages.error(request, f'El tag "{tag.name}" es gestionado por Jira y no puede editarse.')
-            return redirect('settings-app')
+            return redirect('settings-tickets')
         name = request.POST.get('name', '').strip()
         color = request.POST.get('color', '').strip()
         if not name:
@@ -84,7 +84,7 @@ class TagEditView(StaffRequiredMixin, View):
         tag.color = color
         tag.save()
         messages.success(request, f'Tag "{tag.name}" actualizado.')
-        return redirect('settings-app')
+        return redirect('settings-tickets')
 
 
 class TagDeleteView(StaffRequiredMixin, View):
@@ -92,19 +92,19 @@ class TagDeleteView(StaffRequiredMixin, View):
         tag = get_object_or_404(Tag, pk=pk)
         if _tag_is_jira_owned(tag):
             messages.error(request, f'El tag "{tag.name}" es gestionado por Jira y no puede eliminarse.')
-            return redirect('settings-app')
+            return redirect('settings-tickets')
         if tag.ticket_tags.exists():
             messages.error(request, f'El tag "{tag.name}" está en uso y no puede eliminarse.')
-            return redirect('settings-app')
+            return redirect('settings-tickets')
         name = tag.name
         tag.delete()
         messages.success(request, f'Tag "{name}" eliminado.')
-        return redirect('settings-app')
+        return redirect('settings-tickets')
 
 
 class CategoryListView(StaffRequiredMixin, View):
     def get(self, request):
-        return redirect('settings-app')
+        return redirect('settings-tickets')
 
 
 class CategoryCreateView(StaffRequiredMixin, View):
@@ -112,13 +112,13 @@ class CategoryCreateView(StaffRequiredMixin, View):
         name = request.POST.get('name', '').strip()
         if not name:
             messages.error(request, 'El nombre es obligatorio.')
-            return redirect('settings-app')
+            return redirect('settings-tickets')
         if Category.objects.filter(name=name).exists():
             messages.error(request, f'La categoría "{name}" ya existe.')
-            return redirect('settings-app')
+            return redirect('settings-tickets')
         cat = Category.objects.create(name=name)
         messages.success(request, f'Categoría "{cat.name}" creada.')
-        return redirect('settings-app')
+        return redirect('settings-tickets')
 
 
 class CategoryEditView(StaffRequiredMixin, View):
@@ -145,7 +145,7 @@ class CategoryEditView(StaffRequiredMixin, View):
         category.name = name
         category.save()
         messages.success(request, f'Categoría "{category.name}" actualizada.')
-        return redirect('settings-app')
+        return redirect('settings-tickets')
 
 
 class CategoryDeleteView(StaffRequiredMixin, View):
@@ -154,7 +154,7 @@ class CategoryDeleteView(StaffRequiredMixin, View):
         name = category.name
         category.delete()
         messages.success(request, f'Categoría "{name}" eliminada.')
-        return redirect('settings-app')
+        return redirect('settings-tickets')
 
 
 def _jira_accounts():
@@ -220,12 +220,12 @@ class UserSettingsView(LoginRequiredMixin, View):
 
         section = request.POST.get('section', '')
 
-        if section == 'personal':
+        if section == 'profile':
             user = request.user
             user.first_name = request.POST.get('first_name', '').strip()
             user.last_name = request.POST.get('last_name', '').strip()
             user.save(update_fields=['first_name', 'last_name'])
-            messages.success(request, 'Personal info saved.')
+            messages.success(request, 'Profile saved.')
             return redirect('settings-user')
 
         if section == 'schedule':
@@ -330,29 +330,43 @@ class UserChannelDeleteView(LoginRequiredMixin, View):
         return redirect('settings-user')
 
 
-class AppSettingsView(StaffRequiredMixin, View):
+class AppSettingsHubView(StaffRequiredMixin, View):
+    def get(self, request):
+        return render(request, 'settings_hub/app_hub.html')
+
+
+class JiraSettingsView(StaffRequiredMixin, View):
+    def _ctx(self):
+        return {
+            'jira_base_url': get_app_setting('jira_base_url'),
+            'jira_statuses': JiraStatusConfig.objects.all(),
+            'category_choices': JiraStatusConfig.CATEGORY_CHOICES,
+        }
+
+    def get(self, request):
+        return render(request, 'settings_hub/jira_settings.html', self._ctx())
+
+    def post(self, request):
+        url = request.POST.get('jira_base_url', '').strip().rstrip('/')
+        AppSetting.objects.update_or_create(key='jira_base_url', defaults={'value': url})
+        messages.success(request, 'Base URL saved.')
+        return redirect('settings-jira')
+
+
+class TicketsSettingsView(StaffRequiredMixin, View):
     def _ctx(self):
         qs = Tag.objects.annotate(
             usage=Count('ticket_tags'),
             auto_count=Count('ticket_tags', filter=Q(ticket_tags__source='automation')),
         ).order_by('name')
         return {
-            'jira_base_url': get_app_setting('jira_base_url'),
-            'jira_statuses': JiraStatusConfig.objects.all(),
-            'category_choices': JiraStatusConfig.CATEGORY_CHOICES,
             'manual_tags': [t for t in qs if t.auto_count == 0],
             'jira_tags': [t for t in qs if t.auto_count > 0],
             'categories': Category.objects.annotate(usage=Count('ticket')).order_by('name'),
         }
 
     def get(self, request):
-        return render(request, 'settings_hub/app_settings.html', self._ctx())
-
-    def post(self, request):
-        url = request.POST.get('jira_base_url', '').strip().rstrip('/')
-        AppSetting.objects.update_or_create(key='jira_base_url', defaults={'value': url})
-        messages.success(request, 'Settings saved.')
-        return redirect('settings-app')
+        return render(request, 'settings_hub/tickets_settings.html', self._ctx())
 
 
 class JiraStatusAddView(StaffRequiredMixin, View):
@@ -369,10 +383,10 @@ class JiraStatusAddView(StaffRequiredMixin, View):
         else:
             JiraStatusConfig.objects.create(status_name=name, category=category)
             messages.success(request, f'"{name}" added.')
-        return redirect('settings-app')
+        return redirect('settings-jira')
 
 
 class JiraStatusDeleteView(StaffRequiredMixin, View):
     def post(self, request, pk):
         JiraStatusConfig.objects.filter(pk=pk).delete()
-        return redirect('settings-app')
+        return redirect('settings-jira')

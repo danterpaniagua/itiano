@@ -13,13 +13,14 @@
 
     <div class="col-12 col-md-8 col-lg-6">
 
-        {# --- Personal Info --- #}
-        <h6 class="fw-semibold mb-3" id="personal-info">
-            <i class="bi bi-person me-1"></i> Personal Info
+        {# --- Profile --- #}
+        <h6 class="fw-semibold mb-3" id="profile">
+            <i class="bi bi-person me-1"></i> Profile
         </h6>
 
-        <div class="d-flex align-items-center gap-3 mb-3">
-            <img src="{{ avatar_url }}" width="80" height="80"
+        {# Avatar #}
+        <div class="d-flex align-items-center gap-3 mb-4">
+            <img src="{{ avatar_url }}" width="72" height="72"
                  class="rounded-circle border" style="object-fit:cover" alt="Avatar">
             <div class="d-flex flex-column gap-2">
                 <form method="post" action="{% url 'settings-user' %}" enctype="multipart/form-data"
@@ -43,9 +44,38 @@
             </div>
         </div>
 
+        {# Read-only info #}
+        <div class="row g-2 mb-4">
+            <div class="col-12 col-sm-6">
+                <div class="p-3 bg-white border rounded">
+                    <div class="text-muted small mb-1">Username</div>
+                    <div class="fw-semibold small">{{ user_obj.username }}</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6">
+                <div class="p-3 bg-white border rounded">
+                    <div class="text-muted small mb-1">Role</div>
+                    <div><span class="badge bg-secondary">{{ profile.role }}</span></div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6">
+                <div class="p-3 bg-white border rounded">
+                    <div class="text-muted small mb-1">Email</div>
+                    <div class="small">{{ user_obj.email|default:"—" }}</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6">
+                <div class="p-3 bg-white border rounded">
+                    <div class="text-muted small mb-1">Member since</div>
+                    <div class="small">{{ user_obj.date_joined|date:"Y-m-d" }}</div>
+                </div>
+            </div>
+        </div>
+
+        {# Editable name #}
         <form method="post" action="{% url 'settings-user' %}">
             {% csrf_token %}
-            <input type="hidden" name="section" value="personal">
+            <input type="hidden" name="section" value="profile">
             <div class="row g-3 mb-3">
                 <div class="col-12 col-md-6">
                     <label class="form-label fw-semibold">First name</label>
