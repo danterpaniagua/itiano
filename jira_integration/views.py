@@ -106,7 +106,13 @@ def webhook(request):
     if status_from_changelog is not None:
         defaults['status'] = status_from_changelog[:100]
     elif event_type == 'jira:issue_created':
-        defaults['status'] = snapshot_status[:100]
+        # Only use the snapshot for genuinely new tickets. If the ticket already
+        # exists with a status set by a prior changelog event, do not overwrite —
+        # that would roll back a correct status when the creation webhook arrives
+        # out of order after the transition webhook.
+        existing_status = JiraTicket.objects.filter(issue_key=issue_key).values_list('status', flat=True).first()
+        if not existing_status:
+            defaults['status'] = snapshot_status[:100]
 
     ticket, created = JiraTicket.objects.update_or_create(
         issue_key=issue_key,

@@ -430,7 +430,7 @@ class DailyReportView(LoginRequiredMixin, View):
                     status_seconds[seg['status']] += secs
 
         status_totals = [
-            {'status': s, 'display': fmt(secs)}
+            {'status': s, 'secs': secs, 'display': fmt(secs)}
             for s, secs in sorted(status_seconds.items())
             if secs > 0
         ]
@@ -461,7 +461,7 @@ class DailyReportView(LoginRequiredMixin, View):
             if secs > 0:
                 tag_seconds[tt.tag.name] += secs
         tag_totals = [
-            {'tag': name, 'display': fmt(secs)}
+            {'tag': name, 'secs': secs, 'display': fmt(secs)}
             for name, secs in sorted(tag_seconds.items(), key=lambda x: -x[1])
             if secs > 0
         ]
@@ -500,10 +500,18 @@ class DailyReportView(LoginRequiredMixin, View):
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         today_rows = []
         for ticket in my_tickets:
-            if ticket.status.lower() not in _ip_statuses:
+            segs = ticket_segments[ticket.issue_key]
+            # Primary check: ticket.status field. Fallback: ongoing segment status, which
+            # stays correct even when ticket.status is stale due to out-of-order webhook events
+            # (e.g. jira:issue_created arriving after jira:issue_updated rolls back the status).
+            is_ip = ticket.status.lower() in _ip_statuses or any(
+                seg['status'] and seg['status'].lower() in _ip_statuses and seg['exited_at'] is None
+                for seg in segs
+            )
+            if not is_ip:
                 continue
             ongoing_seg = next(
-                (seg for seg in ticket_segments[ticket.issue_key] if seg['entered_at'] and seg['exited_at'] is None),
+                (seg for seg in segs if seg['entered_at'] and seg['exited_at'] is None),
                 None,
             )
             if ongoing_seg:
@@ -512,7 +520,7 @@ class DailyReportView(LoginRequiredMixin, View):
                 total_secs = 0
             today_ip_secs = sum(
                 max(0, int((min(seg['exited_at'] or now, now) - max(seg['entered_at'], today_start)).total_seconds()))
-                for seg in ticket_segments[ticket.issue_key]
+                for seg in segs
                 if seg['status'] and seg['status'].lower() in _ip_statuses
                 and seg['entered_at'] and min(seg['exited_at'] or now, now) > max(seg['entered_at'], today_start)
             )
@@ -521,7 +529,31 @@ class DailyReportView(LoginRequiredMixin, View):
                 'jira_ongoing': fmt(total_secs) if ongoing_seg else '—',
                 'jira_today': fmt(today_ip_secs),
                 'last_message': ip_last_comment.get(ticket.pk),
+                'parent': None,
             })
+
+        # Resolve parent tickets for envelope grouping
+        _parent_keys = {r['ticket'].parent_key for r in today_rows if r['ticket'].parent_key}
+        _parent_map = {}
+        if _parent_keys:
+            for _pt in JiraTicket.objects.filter(issue_key__in=_parent_keys):
+                _parent_map[_pt.issue_key] = _pt
+        for row in today_rows:
+            _pk = row['ticket'].parent_key
+            if _pk:
+                row['parent'] = _parent_map.get(_pk)
+
+        # Suppress parent tickets that are already shown as envelope headers
+        today_rows = [r for r in today_rows if r['ticket'].issue_key not in _parent_keys]
+
+        # Alert: count logical groups, not raw tickets
+        _ip_groups = set()
+        for row in today_rows:
+            if row['parent']:
+                _ip_groups.add(('parent', row['ticket'].parent_key))
+            else:
+                _ip_groups.add(('standalone', row['ticket'].issue_key))
+        _today_rows_alert = len(_ip_groups) > 1
 
         # --- Status history pivot (range-scoped, filters applied) ---
         pivot_rows = []
@@ -586,6 +618,16 @@ class DailyReportView(LoginRequiredMixin, View):
             if key not in _fallback_idx:
                 _fallback_idx[key] = len(_fallback_idx) % len(_fallback_colors)
             return _fallback_colors[_fallback_idx[key]]
+
+        if status_totals:
+            _max_status_secs = max(r['secs'] for r in status_totals)
+            for r in status_totals:
+                r['pct'] = round(r['secs'] / _max_status_secs * 100) if _max_status_secs else 0
+                r['color'] = status_color(r['status'])
+        if tag_totals:
+            _max_tag_secs = max(r['secs'] for r in tag_totals)
+            for r in tag_totals:
+                r['pct'] = round(r['secs'] / _max_tag_secs * 100) if _max_tag_secs else 0
 
         range_total_secs = max(1, (now - start_dt).total_seconds())
 
@@ -726,6 +768,52 @@ class DailyReportView(LoginRequiredMixin, View):
             for m in merged_ip
         ]
 
+        # Brackets above the IP bar: one bracket per consecutive run of the same parent.
+        # Covers all my_tickets (not just currently-active) so historical segments get brackets.
+        # When parent changes, the current bracket closes and a new one opens.
+        _all_parent_keys_set = {t.parent_key for t in my_tickets if t.parent_key}
+        _all_parent_map = {}
+        if _all_parent_keys_set:
+            for _pt in JiraTicket.objects.filter(issue_key__in=_all_parent_keys_set):
+                _all_parent_map[_pt.issue_key] = _pt
+
+        _all_ip_segs = []
+        for ticket in my_tickets:
+            if not ticket.parent_key or ticket.parent_key not in _all_parent_map:
+                continue
+            for seg in ticket_segments[ticket.issue_key]:
+                if not seg['status'] or seg['status'].lower() not in _ip_statuses or not seg['entered_at']:
+                    continue
+                seg_s = max(seg['entered_at'], bar_start)
+                seg_e = min(seg['exited_at'] or actual_now, bar_end)
+                if seg_e > seg_s:
+                    _all_ip_segs.append((seg_s, seg_e, ticket.parent_key))
+
+        _all_ip_segs.sort(key=lambda x: x[0])
+
+        ip_brackets = []
+        if _all_ip_segs:
+            _run_pk = _all_ip_segs[0][2]
+            _run_s = _all_ip_segs[0][0]
+            _run_e = _all_ip_segs[0][1]
+            for _seg_s, _seg_e, _pk in _all_ip_segs[1:]:
+                if _pk == _run_pk:
+                    _run_e = max(_run_e, _seg_e)
+                else:
+                    ip_brackets.append({
+                        'left': round((_run_s - bar_start).total_seconds() / bar_total_secs * 100, 3),
+                        'width': round((_run_e - _run_s).total_seconds() / bar_total_secs * 100, 3),
+                        'label': _run_pk,
+                    })
+                    _run_pk = _pk
+                    _run_s = _seg_s
+                    _run_e = _seg_e
+            ip_brackets.append({
+                'left': round((_run_s - bar_start).total_seconds() / bar_total_secs * 100, 3),
+                'width': round((_run_e - _run_s).total_seconds() / bar_total_secs * 100, 3),
+                'label': _run_pk,
+            })
+
         # Off-hours shading: iterate each calendar day in range
         daily_off_shades = []
         day_cursor = bar_start.astimezone(user_tz).replace(
@@ -791,7 +879,7 @@ class DailyReportView(LoginRequiredMixin, View):
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
             'today_rows': today_rows,
-            'today_rows_alert': len(today_rows) > 1,
+            'today_rows_alert': _today_rows_alert,
             'pivot_rows': pivot_rows,
             'all_statuses': all_statuses,
             'jira_username': jira_username,
@@ -808,6 +896,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'custom_date_from': custom_date_from,
             'custom_date_to': custom_date_to,
             'daily_ip_bars': daily_ip_bars,
+            'ip_brackets': ip_brackets,
             'daily_off_shades': daily_off_shades,
             'daily_ticks': daily_ticks,
         })
