@@ -623,6 +623,65 @@ class DailyReportView(LoginRequiredMixin, View):
                     'standalone': row,
                 })
 
+        # --- Closed tickets panel ---
+        closed_tickets_raw = []
+        for row in pivot_rows:
+            closed_at = None
+            for seg in ticket_segments[row['ticket'].issue_key]:
+                if not seg['status'] or not seg['entered_at']:
+                    continue
+                if seg['status'].lower() not in _TERMINAL_STATUSES:
+                    continue
+                if start_dt <= seg['entered_at'] <= now:
+                    if closed_at is None or seg['entered_at'] > closed_at:
+                        closed_at = seg['entered_at']
+            if closed_at is None:
+                continue
+            ip_secs = sum(
+                secs
+                for seg, secs in zip(ticket_segments[row['ticket'].issue_key], ticket_seg_secs_map[row['ticket'].issue_key])
+                if seg['status'] and seg['status'].lower() in _ip_statuses
+            )
+            closed_tickets_raw.append({
+                'ticket': row['ticket'],
+                'closed_at': closed_at.astimezone(user_tz),
+                'ip_time': fmt(ip_secs) if ip_secs > 0 else None,
+            })
+
+        closed_tickets_raw.sort(key=lambda x: x['closed_at'], reverse=True)
+
+        _closed_child_pkeys = {r['ticket'].parent_key for r in closed_tickets_raw if r['ticket'].parent_key}
+        _closed_parent_ticket_map = {}
+        if _closed_child_pkeys:
+            for _cpt in JiraTicket.objects.filter(issue_key__in=_closed_child_pkeys):
+                _closed_parent_ticket_map[_cpt.issue_key] = _cpt
+
+        _closed_children_by_parent = {}
+        for row in closed_tickets_raw:
+            pk = row['ticket'].parent_key
+            if pk and pk in _closed_parent_ticket_map:
+                _closed_children_by_parent.setdefault(pk, []).append(row)
+
+        _closed_in_group = set()
+        closed_groups = []
+        for pk, children in _closed_children_by_parent.items():
+            closed_groups.append({
+                'parent_ticket': _closed_parent_ticket_map[pk],
+                'children': children,
+                'standalone': None,
+            })
+            _closed_in_group.add(pk)
+            for r in children:
+                _closed_in_group.add(r['ticket'].issue_key)
+
+        for row in closed_tickets_raw:
+            if row['ticket'].issue_key not in _closed_in_group:
+                closed_groups.append({
+                    'parent_ticket': None,
+                    'children': [],
+                    'standalone': row,
+                })
+
         # --- Gantt timeline ---
         _category_colors = {
             'in_progress': '#0d6efd',
@@ -954,6 +1013,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'today_rows_alert': _today_rows_alert,
             'pivot_rows': pivot_rows,
             'pivot_groups': pivot_groups,
+            'closed_groups': closed_groups,
             'all_statuses': all_statuses,
             'jira_username': jira_username,
             'jira_account_id': jira_account_id,

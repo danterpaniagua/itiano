@@ -143,9 +143,9 @@
 {# ── Top row: In Progress + Time by Status + Time by Tag ── #}
 <div class="row g-3 mb-3">
 
-    {# In Progress #}
-    <div class="col-12 col-md-4">
-        <div class="card h-100 {% if today_rows_alert %}border-warning{% endif %}">
+    {# Left column: In Progress + Closed #}
+    <div class="col-12 col-md-4 d-flex flex-column gap-3">
+        <div class="card {% if today_rows_alert %}border-warning{% endif %}">
             <div class="card-header d-flex align-items-center gap-2 {% if today_rows_alert %}bg-warning text-dark{% endif %}">
                 {% if today_rows_alert %}<i class="bi bi-exclamation-triangle-fill"></i>{% endif %}
                 <span class="fw-semibold">In Progress</span>
@@ -204,11 +204,67 @@
             <div class="card-body text-muted small">No tickets in progress.</div>
             {% endif %}
         </div>
-    </div>
+
+        {# Closed Tickets #}
+        <div class="card">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi bi-check-circle-fill text-success" style="font-size:.85rem"></i>
+                <span class="fw-semibold">Closed</span>
+                <span class="badge {% if closed_groups %}bg-success{% else %}bg-secondary{% endif %} ms-1">{{ closed_groups|length }}</span>
+                <span class="text-muted small ms-auto">{{ jira_username }}</span>
+            </div>
+            {% if closed_groups %}
+            <div class="p-2" style="max-height:380px;overflow-y:auto">
+                {% for group in closed_groups %}
+                {% if group.standalone %}
+                {# Standalone closed ticket #}
+                <div class="border rounded px-3 py-2 mb-2">
+                    <div class="d-flex align-items-baseline gap-2 mb-1">
+                        <a href="{% url 'timetracking-ticket-timeline' group.standalone.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                           class="text-decoration-none small text-muted">{{ group.standalone.ticket.issue_key }}</a>
+                        <span class="ms-auto text-nowrap small">
+                            <span class="text-success fw-semibold">{{ group.standalone.closed_at|date:"d/m H:i" }}</span>
+                            {% if group.standalone.ip_time %}<span class="text-muted ms-2">({{ group.standalone.ip_time }})</span>{% endif %}
+                        </span>
+                    </div>
+                    <div class="fw-semibold small">{{ group.standalone.ticket.title|truncatechars:60 }}</div>
+                </div>
+                {% else %}
+                {# Envelope: parent header + closed subtasks #}
+                <div class="border border-success rounded mb-2">
+                    <div class="d-flex align-items-center gap-2 px-2 py-1" style="background:#d1e7dd;border-bottom:1px solid #a3cfbb;border-radius:calc(0.375rem - 1px) calc(0.375rem - 1px) 0 0">
+                        <span class="small fw-bold text-success">{{ group.parent_ticket.issue_key }}</span>
+                        <span class="small text-success text-truncate" style="font-size:.78rem">{{ group.parent_ticket.title|truncatechars:45 }}</span>
+                    </div>
+                    {% for child in group.children %}
+                    <div class="px-3 py-2{% if not forloop.last %} border-bottom{% endif %}">
+                        <div class="d-flex align-items-baseline gap-2 mb-1">
+                            <a href="{% url 'timetracking-ticket-timeline' child.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                               class="text-decoration-none small text-muted">{{ child.ticket.issue_key }}</a>
+                            <span class="ms-auto text-nowrap small">
+                                <span class="text-success fw-semibold">{{ child.closed_at|date:"d/m H:i" }}</span>
+                                {% if child.ip_time %}<span class="text-muted ms-2">({{ child.ip_time }})</span>{% endif %}
+                            </span>
+                        </div>
+                        <div class="fw-semibold small">{{ child.ticket.title|truncatechars:60 }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="card-body text-muted small text-center">
+                <i class="bi bi-inbox me-1"></i>No tickets closed in this range.
+            </div>
+            {% endif %}
+        </div>
+
+    </div>{# /left column #}
 
     {# Time by Status #}
     <div class="col-12 col-md-4">
-        <div class="card h-100">
+        <div class="card">
             <div class="card-header fw-semibold">Time by Status</div>
             <div class="card-body">
                 {% if status_totals %}
@@ -230,7 +286,7 @@
 
     {# Time by Tag #}
     <div class="col-12 col-md-4">
-        <div class="card h-100">
+        <div class="card">
             <div class="card-header fw-semibold">Time by Tag</div>
             <div class="card-body">
                 {% if tag_totals %}

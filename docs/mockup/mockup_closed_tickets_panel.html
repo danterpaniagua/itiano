@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Time Report: Closed Tickets Panel v5.8.30</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  body { background: #f5f6fa; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<div class="container-fluid py-3" style="max-width:1100px">
+
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Time Report</h5>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary">Today</button>
+      <button class="btn btn-outline-secondary">Week</button>
+      <button class="btn btn-primary">Month</button>
+    </div>
+    <input type="date" class="form-control form-control-sm" style="width:auto" value="2026-06-01">
+    <span class="small text-muted">–</span>
+    <input type="date" class="form-control form-control-sm" style="width:auto" value="2026-06-25">
+  </div>
+
+  <div class="row g-3 mb-3">
+
+    <!-- LEFT COLUMN: [A] In Progress + [D] Closed -->
+    <div class="col-12 col-md-4 d-flex flex-column gap-3">
+
+      <!-- [A] In Progress -->
+      <div class="card">
+        <div class="card-header d-flex align-items-center gap-2">
+          <span class="fw-semibold">In Progress</span>
+          <span class="badge bg-primary ms-1">now</span>
+          <span class="text-muted small ms-auto">agent_test</span>
+        </div>
+        <div class="d-flex flex-column gap-2 p-2">
+          <!-- Envelope (subtask) -->
+          <div class="border border-primary rounded overflow-hidden">
+            <div class="d-flex align-items-center gap-2 px-2 py-1"
+                 style="background:#e8f0fe;border-bottom:1px solid #c7d9fb">
+              <span class="small fw-bold text-primary">GITIN-1305</span>
+              <span class="small text-primary text-truncate" style="font-size:.78rem">E1. Observabilidad y Monitoreo</span>
+            </div>
+            <div class="px-3 py-2">
+              <div class="d-flex align-items-baseline gap-2 mb-1">
+                <a href="#" class="text-decoration-none small text-muted">GITIN-1303</a>
+                <span class="ms-auto text-nowrap small">
+                  <span class="text-primary fw-semibold">3h 12m</span>
+                  <span class="text-muted ms-1">/ Today: 3h 12m</span>
+                </span>
+              </div>
+              <div class="fw-semibold small">[SP] Platform: Nuevos Tableros en Graylog</div>
+            </div>
+          </div>
+          <!-- Standalone -->
+          <div class="border rounded px-3 py-2">
+            <div class="d-flex align-items-baseline gap-2 mb-1">
+              <a href="#" class="text-decoration-none small text-muted">GITIN-1221</a>
+              <span class="ms-auto text-nowrap small">
+                <span class="text-primary fw-semibold">1h 45m</span>
+                <span class="text-muted ms-1">/ Today: 1h 45m</span>
+              </span>
+            </div>
+            <div class="fw-semibold small">[CLOUD] Automatizacion CosmosDB</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- [D] Closed Tickets -->
+      <div class="card">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-check-circle-fill text-success" style="font-size:.85rem"></i>
+          <span class="fw-semibold">Closed</span>
+          <span class="badge bg-success ms-1">6</span>
+          <span class="text-muted small ms-auto">Jun 1 – Jun 25</span>
+        </div>
+        <div class="d-flex flex-column gap-2 p-2" style="max-height:380px;overflow-y:auto">
+
+          <!-- ── Envelope: parent GITIN-1382 + 2 closed subtasks ── -->
+          <div class="border border-success rounded overflow-hidden">
+            <!-- Parent header -->
+            <div class="d-flex align-items-center gap-2 px-2 py-1"
+                 style="background:#d1e7dd;border-bottom:1px solid #a3cfbb">
+              <span class="small fw-bold text-success">GITIN-1382</span>
+              <span class="small text-success text-truncate" style="font-size:.78rem">[OPE] Certificado SSL ClubSiteG2</span>
+            </div>
+            <!-- Subtask 1 -->
+            <div class="px-3 py-2 border-bottom">
+              <div class="d-flex align-items-baseline gap-2 mb-1">
+                <a href="#" class="text-decoration-none small text-muted">GITIN-1386</a>
+                <span class="ms-auto text-nowrap small">
+                  <span class="text-success fw-semibold">17/06 12:08</span>
+                  <span class="text-muted ms-2">(3h 42m)</span>
+                </span>
+              </div>
+              <div class="fw-semibold small">Vincular el nuevo certificado en IIS</div>
+            </div>
+            <!-- Subtask 2 -->
+            <div class="px-3 py-2">
+              <div class="d-flex align-items-baseline gap-2 mb-1">
+                <a href="#" class="text-decoration-none small text-muted">GITIN-1385</a>
+                <span class="ms-auto text-nowrap small">
+                  <span class="text-success fw-semibold">17/06 08:25</span>
+                  <span class="text-muted ms-2">(24m)</span>
+                </span>
+              </div>
+              <div class="fw-semibold small">Emitir certificado de reemplazo</div>
+            </div>
+          </div>
+
+          <!-- ── Standalone: GITIN-1393 (no subtasks closed) ── -->
+          <div class="border rounded px-3 py-2">
+            <div class="d-flex align-items-baseline gap-2 mb-1">
+              <a href="#" class="text-decoration-none small text-muted">GITIN-1393</a>
+              <span class="ms-auto text-nowrap small">
+                <span class="text-success fw-semibold">19/06 08:34</span>
+                <span class="text-muted ms-2">(9h 13m)</span>
+              </span>
+            </div>
+            <div class="fw-semibold small">[OPE] Pendientes de GRIDO para con SmartFran</div>
+          </div>
+
+          <!-- ── Standalone: GITIN-1271 ── -->
+          <div class="border rounded px-3 py-2">
+            <div class="d-flex align-items-baseline gap-2 mb-1">
+              <a href="#" class="text-decoration-none small text-muted">GITIN-1271</a>
+              <span class="ms-auto text-nowrap small">
+                <span class="text-success fw-semibold">10/06 11:45</span>
+                <span class="text-muted ms-2">(6h 20m)</span>
+              </span>
+            </div>
+            <div class="fw-semibold small">Migración base de datos staging</div>
+          </div>
+
+          <!-- ── Standalone: GITIN-1258 ── -->
+          <div class="border rounded px-3 py-2">
+            <div class="d-flex align-items-baseline gap-2 mb-1">
+              <a href="#" class="text-decoration-none small text-muted">GITIN-1258</a>
+              <span class="ms-auto text-nowrap small">
+                <span class="text-success fw-semibold">03/06 09:12</span>
+                <span class="text-muted ms-2">(1h 05m)</span>
+              </span>
+            </div>
+            <div class="fw-semibold small">Fix: timeout en health-check de workers</div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /left col -->
+
+    <!-- [B] Time by Status -->
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Time by Status</div>
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small flex-shrink-0" style="width:130px">In Progress</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:100%;height:100%;background:#0d6efd;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:50px;text-align:right">42h 18m</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small flex-shrink-0" style="width:130px">Bloqueado</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:38%;height:100%;background:#dc3545;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:50px;text-align:right">16h 02m</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small flex-shrink-0" style="width:130px">Selected for Dev</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:22%;height:100%;background:#6c757d;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:50px;text-align:right">9h 13m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- [C] Time by Tag -->
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Time by Tag</div>
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small flex-shrink-0" style="width:130px">backend</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:100%;height:100%;background:#0d6efd;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:50px;text-align:right">42h 18m</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small flex-shrink-0" style="width:130px">infra</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:60%;height:100%;background:#0d6efd;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:50px;text-align:right">25h 30m</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small flex-shrink-0" style="width:130px">cloud</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:20%;height:100%;background:#0d6efd;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:50px;text-align:right">8h 45m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /row -->
+
+  <!-- Empty state variant -->
+  <p class="small text-muted mb-2">Variant — empty state:</p>
+  <div style="max-width:340px">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-check-circle-fill text-success" style="font-size:.85rem"></i>
+        <span class="fw-semibold">Closed</span>
+        <span class="badge bg-secondary ms-1">0</span>
+        <span class="text-muted small ms-auto">Jun 25</span>
+      </div>
+      <div class="px-3 py-3 text-muted small text-center">
+        <i class="bi bi-inbox me-1"></i>No tickets closed in this range
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
