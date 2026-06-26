@@ -101,4 +101,5 @@
 | v5.8.27 | App Settings Hub | Delivered | [v5/v5.8.27.md](v5/v5.8.27.md) |
 | v5.8.28 | In Progress Subtask Grouping (Visual) | Delivered | [v5/v5.8.28.md](v5/v5.8.28.md) |
 | v5.8.29 | Gantt Timeline Parent-Child Grouping (Visual) | Delivered | [v5/v5.8.29.md](v5/v5.8.29.md) |
+| v5.8.30 | Closed Tickets Panel on Time Report | Delivered | [v5/v5.8.30.md](v5/v5.8.30.md) |
 | v5.9.0 | Google SSO + Email Invitations | Scoped (blocked) | — |
