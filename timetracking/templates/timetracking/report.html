@@ -322,28 +322,67 @@
                     {% endfor %}
 
 
-                    {# Ticket rows #}
-                    {% for row in gantt_rows %}
+                    {# Ticket rows — grouped by parent for tree rendering #}
+                    {% for group in gantt_groups %}
+                    {% if group.standalone %}
+                    {# Standalone ticket — no parent relationship #}
                     <div class="d-flex align-items-center mb-1" style="height:28px">
-                        {# Ticket label #}
                         <div style="width:110px;min-width:110px;padding-right:8px;text-align:right">
-                            <a href="{% url 'timetracking-ticket-timeline' row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
-                               class="text-decoration-none fw-semibold small">{{ row.ticket.issue_key }}</a>
+                            <a href="{% url 'timetracking-ticket-timeline' group.standalone.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                               class="text-decoration-none fw-semibold small">{{ group.standalone.ticket.issue_key }}</a>
                         </div>
-                        {# Bar track #}
                         <div class="position-relative flex-grow-1" style="height:20px;background:#f8f9fa;border-radius:3px;overflow:visible">
-                            {% for bar in row.bars %}
+                            {% for bar in group.standalone.bars %}
                             <div class="position-absolute"
                                  style="left:{{ bar.left }}%;width:{{ bar.width }}%;height:100%;background:{{ bar.color }};border-radius:3px;{% if bar.ongoing %}opacity:0.9;{% else %}opacity:0.75;{% endif %}"
-                                 title="{{ bar.status }}">
-                            </div>
+                                 title="{{ bar.status }}"></div>
                             {% endfor %}
-                            {# Working hour boundary lines — inside track so left:X% is simply X% of track width #}
                             {% for line in work_lines %}
                             <div class="position-absolute" style="left:{{ line.left }}%;top:-4px;bottom:-4px;width:2px;background:repeating-linear-gradient(to bottom,rgba(25,135,84,0.9) 0,rgba(25,135,84,0.9) 5px,transparent 5px,transparent 9px);pointer-events:none;z-index:2"></div>
                             {% endfor %}
                         </div>
                     </div>
+                    {% else %}
+                    {# Parent group: parent row at lighter opacity + children indented below #}
+                    <div class="d-flex align-items-center mb-1" style="height:28px">
+                        <div style="width:110px;min-width:110px;padding-right:8px;text-align:right">
+                            <a href="{% url 'timetracking-ticket-timeline' group.parent_ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                               class="text-decoration-none fw-semibold small">{{ group.parent_ticket.issue_key }}</a>
+                        </div>
+                        <div class="position-relative flex-grow-1" style="height:20px;background:#f8f9fa;border-radius:3px;overflow:visible">
+                            {% if group.parent_row %}
+                            {% for bar in group.parent_row.bars %}
+                            <div class="position-absolute"
+                                 style="left:{{ bar.left }}%;width:{{ bar.width }}%;height:100%;background:{{ bar.color }};border-radius:3px;opacity:0.28;"
+                                 title="{{ bar.status }}"></div>
+                            {% endfor %}
+                            {% endif %}
+                            {% for line in work_lines %}
+                            <div class="position-absolute" style="left:{{ line.left }}%;top:-4px;bottom:-4px;width:2px;background:repeating-linear-gradient(to bottom,rgba(25,135,84,0.9) 0,rgba(25,135,84,0.9) 5px,transparent 5px,transparent 9px);pointer-events:none;z-index:2"></div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {# Children with left-border connector #}
+                    <div style="border-left:2px solid #a8c7fa;margin-left:20px;padding-left:10px;margin-bottom:2px">
+                        {% for child_row in group.children %}
+                        <div class="d-flex align-items-center mb-1" style="height:26px">
+                            <div style="width:90px;min-width:90px;padding-right:8px;text-align:right">
+                                <a href="{% url 'timetracking-ticket-timeline' child_row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                                   class="text-decoration-none fw-semibold small">{{ child_row.ticket.issue_key }}</a>
+                            </div>
+                            <div class="position-relative flex-grow-1" style="height:20px;background:#f8f9fa;border-radius:3px;overflow:visible">
+                                {% for bar in child_row.bars %}
+                                <div class="position-absolute"
+                                     style="left:{{ bar.left }}%;width:{{ bar.width }}%;height:100%;background:{{ bar.color }};border-radius:3px;{% if bar.ongoing %}opacity:0.9;{% else %}opacity:0.75;{% endif %}"
+                                     title="{{ bar.status }}"></div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {# Separator after parent group #}
+                    <div style="height:6px"></div>
+                    {% endif %}
                     {% endfor %}
 
                 </div>{# /grid #}
@@ -382,32 +421,72 @@
                 </tr>
             </thead>
             <tbody>
-            {% for row in pivot_rows %}
+            {% for group in pivot_groups %}
+            {% if group.standalone %}
+            {# Standalone ticket #}
             <tr>
                 <td>
-                    <div class="fw-semibold">{{ row.ticket.title|truncatechars:70 }}</div>
-                    <a href="{% url 'timetracking-ticket-timeline' row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
-                       class="text-decoration-none text-muted small">{{ row.ticket.issue_key }}</a>
+                    <div class="fw-semibold">{{ group.standalone.ticket.title|truncatechars:70 }}</div>
+                    <a href="{% url 'timetracking-ticket-timeline' group.standalone.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                       class="text-decoration-none text-muted small">{{ group.standalone.ticket.issue_key }}</a>
                 </td>
-                {% for cell in row.cells %}
+                {% for cell in group.standalone.cells %}
                 <td class="text-nowrap small">
-                    {% if cell.is_terminal %}
-                        {% if cell.timestamp %}
-                        <span class="text-success">{{ cell.timestamp|date:"d/m H:i" }}</span>
-                        {% else %}
-                        <span class="text-muted">—</span>
-                        {% endif %}
-                    {% elif cell.ongoing %}
-                    <span class="text-primary fw-semibold">{{ cell.duration }}</span>
-                    <span class="badge bg-primary ms-1" style="font-size:0.6rem">now</span>
-                    {% elif cell.duration != '—' %}
-                    {{ cell.duration }}
-                    {% else %}
-                    <span class="text-muted">—</span>
-                    {% endif %}
+                    {% if cell.is_terminal %}{% if cell.timestamp %}<span class="text-success">{{ cell.timestamp|date:"d/m H:i" }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                    {% elif cell.ongoing %}<span class="text-primary fw-semibold">{{ cell.duration }}</span><span class="badge bg-primary ms-1" style="font-size:0.6rem">now</span>
+                    {% elif cell.duration != '—' %}{{ cell.duration }}
+                    {% else %}<span class="text-muted">—</span>{% endif %}
                 </td>
                 {% endfor %}
             </tr>
+            {% else %}
+            {# Parent row #}
+            {% if group.parent_row %}
+            <tr>
+                <td>
+                    <div class="fw-semibold">{{ group.parent_ticket.title|truncatechars:70 }}</div>
+                    <a href="{% url 'timetracking-ticket-timeline' group.parent_ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                       class="text-decoration-none text-muted small">{{ group.parent_ticket.issue_key }}</a>
+                </td>
+                {% for cell in group.parent_row.cells %}
+                <td class="text-nowrap small">
+                    {% if cell.is_terminal %}{% if cell.timestamp %}<span class="text-success">{{ cell.timestamp|date:"d/m H:i" }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                    {% elif cell.ongoing %}<span class="text-primary fw-semibold">{{ cell.duration }}</span><span class="badge bg-primary ms-1" style="font-size:0.6rem">now</span>
+                    {% elif cell.duration != '—' %}{{ cell.duration }}
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% else %}
+            {# Parent with no bars of its own — label-only row #}
+            <tr>
+                <td>
+                    <div class="fw-semibold text-muted">{{ group.parent_ticket.title|truncatechars:70 }}</div>
+                    <a href="{% url 'timetracking-ticket-timeline' group.parent_ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                       class="text-decoration-none text-muted small">{{ group.parent_ticket.issue_key }}</a>
+                </td>
+                {% for status in all_statuses %}<td class="text-nowrap small"><span class="text-muted">—</span></td>{% endfor %}
+            </tr>
+            {% endif %}
+            {# Child rows #}
+            {% for child_row in group.children %}
+            <tr style="border-left:2px solid #a8c7fa">
+                <td style="padding-left:1.5rem">
+                    <div class="fw-semibold" style="font-size:.9rem">{{ child_row.ticket.title|truncatechars:70 }}</div>
+                    <a href="{% url 'timetracking-ticket-timeline' child_row.ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}"
+                       class="text-decoration-none text-muted small">{{ child_row.ticket.issue_key }}</a>
+                </td>
+                {% for cell in child_row.cells %}
+                <td class="text-nowrap small">
+                    {% if cell.is_terminal %}{% if cell.timestamp %}<span class="text-success">{{ cell.timestamp|date:"d/m H:i" }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                    {% elif cell.ongoing %}<span class="text-primary fw-semibold">{{ cell.duration }}</span><span class="badge bg-primary ms-1" style="font-size:0.6rem">now</span>
+                    {% elif cell.duration != '—' %}{{ cell.duration }}
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+            {% endif %}
             {% endfor %}
             </tbody>
         </table>

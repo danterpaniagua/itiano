@@ -587,6 +587,42 @@ class DailyReportView(LoginRequiredMixin, View):
                         cells.append({'is_terminal': False, 'timestamp': None, 'duration': '—', 'ongoing': False})
             pivot_rows.append({'ticket': ticket, 'cells': cells})
 
+        # Group pivot_rows by parent_key for Status History tree rendering
+        _pivot_child_pkeys = {r['ticket'].parent_key for r in pivot_rows if r['ticket'].parent_key}
+        _pivot_parent_ticket_map = {}
+        if _pivot_child_pkeys:
+            for _ppt in JiraTicket.objects.filter(issue_key__in=_pivot_child_pkeys):
+                _pivot_parent_ticket_map[_ppt.issue_key] = _ppt
+
+        _pivot_row_by_key = {r['ticket'].issue_key: r for r in pivot_rows}
+        _pivot_children_by_parent = {}
+        for row in pivot_rows:
+            pk = row['ticket'].parent_key
+            if pk and pk in _pivot_parent_ticket_map:
+                _pivot_children_by_parent.setdefault(pk, []).append(row)
+
+        _pivot_in_group = set()
+        pivot_groups = []
+        for pk, children in _pivot_children_by_parent.items():
+            pivot_groups.append({
+                'parent_ticket': _pivot_parent_ticket_map[pk],
+                'parent_row': _pivot_row_by_key.get(pk),
+                'children': children,
+                'standalone': None,
+            })
+            _pivot_in_group.add(pk)
+            for r in children:
+                _pivot_in_group.add(r['ticket'].issue_key)
+
+        for row in pivot_rows:
+            if row['ticket'].issue_key not in _pivot_in_group:
+                pivot_groups.append({
+                    'parent_ticket': None,
+                    'parent_row': None,
+                    'children': [],
+                    'standalone': row,
+                })
+
         # --- Gantt timeline ---
         _category_colors = {
             'in_progress': '#0d6efd',
@@ -723,6 +759,42 @@ class DailyReportView(LoginRequiredMixin, View):
                 if bar['status'] not in seen:
                     seen[bar['status']] = bar['color']
         gantt_legend = [{'status': s, 'color': c} for s, c in seen.items()]
+
+        # Group gantt_rows by parent_key for tree rendering in the Gantt Timeline
+        _gantt_child_pkeys = {r['ticket'].parent_key for r in gantt_rows if r['ticket'].parent_key}
+        _gantt_parent_ticket_map = {}
+        if _gantt_child_pkeys:
+            for _gpt in JiraTicket.objects.filter(issue_key__in=_gantt_child_pkeys):
+                _gantt_parent_ticket_map[_gpt.issue_key] = _gpt
+
+        _gantt_row_by_key = {r['ticket'].issue_key: r for r in gantt_rows}
+        _children_by_parent = {}
+        for row in gantt_rows:
+            pk = row['ticket'].parent_key
+            if pk and pk in _gantt_parent_ticket_map:
+                _children_by_parent.setdefault(pk, []).append(row)
+
+        _gantt_in_group = set()
+        gantt_groups = []
+        for pk, children in _children_by_parent.items():
+            gantt_groups.append({
+                'parent_ticket': _gantt_parent_ticket_map[pk],
+                'parent_row': _gantt_row_by_key.get(pk),
+                'children': children,
+                'standalone': None,
+            })
+            _gantt_in_group.add(pk)
+            for r in children:
+                _gantt_in_group.add(r['ticket'].issue_key)
+
+        for row in gantt_rows:
+            if row['ticket'].issue_key not in _gantt_in_group:
+                gantt_groups.append({
+                    'parent_ticket': None,
+                    'parent_row': None,
+                    'children': [],
+                    'standalone': row,
+                })
 
         # --- In Progress bar (uses same range as the report) ---
         actual_now = timezone.now()
@@ -881,6 +953,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'today_rows': today_rows,
             'today_rows_alert': _today_rows_alert,
             'pivot_rows': pivot_rows,
+            'pivot_groups': pivot_groups,
             'all_statuses': all_statuses,
             'jira_username': jira_username,
             'jira_account_id': jira_account_id,
@@ -890,6 +963,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'all_tags': all_tags,
             'selected_statuses': selected_statuses,
             'gantt_rows': gantt_rows,
+            'gantt_groups': gantt_groups,
             'gantt_ticks': gantt_ticks,
             'gantt_legend': gantt_legend,
             'work_lines': work_lines,
