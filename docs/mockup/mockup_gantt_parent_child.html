@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Time Report (Gantt Parent-Child) v5.8.29</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  body { background: #f5f6fa; font-size: 0.9rem; }
+  .gantt-track     { position: relative; height: 20px; background: #f8f9fa; border-radius: 3px; }
+  .gantt-bar       { position: absolute; height: 100%; border-radius: 3px; }
+  .gantt-label     { width: 130px; min-width: 130px; padding-right: 8px; text-align: right; overflow: hidden; }
+  .gantt-tick-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #e9ecef; pointer-events: none; }
+  .gantt-tick-label{ position: absolute; font-size: 0.65rem; color: #6c757d; transform: translateX(-50%); white-space: nowrap; }
+
+  /* Parent-child connector — a 2px left border on the children block */
+  .gantt-children  { border-left: 2px solid #a8c7fa; margin-left: 20px; padding-left: 10px; }
+
+  /* Child label: left-aligned, slightly smaller to fit indentation */
+  .gantt-label-child { width: 100px; min-width: 100px; padding-right: 8px; text-align: right; overflow: hidden; }
+
+  /* Separator between groups */
+  .gantt-group-sep { height: 6px; }
+</style>
+</head>
+<body>
+<div class="container-fluid py-3" style="max-width:1100px">
+
+  <!-- Header -->
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Time Report</h5>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-primary">Today</button>
+      <button class="btn btn-outline-secondary">Week</button>
+      <button class="btn btn-outline-secondary">Month</button>
+    </div>
+    <input type="date" class="form-control form-control-sm" style="width:auto" value="2026-06-24">
+    <span class="small text-muted">–</span>
+    <input type="date" class="form-control form-control-sm" style="width:auto" value="2026-06-24">
+    <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-calendar-range"></i></button>
+    <a href="#" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list"></i> All Entries</a>
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button">
+            <i class="bi bi-tag me-1"></i>Tags
+          </button>
+        </div>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button">
+            <i class="bi bi-funnel me-1"></i>Status
+          </button>
+        </div>
+        <span class="badge bg-secondary rounded-pill ms-1">backend</span>
+        <a href="#" class="btn btn-sm btn-link text-danger p-0 ms-1">
+          <i class="bi bi-x-circle"></i> Clear
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top row: In Progress / Time by Status / Time by Tag -->
+  <div class="row g-3 mb-3">
+
+    <!-- In Progress / Now -->
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-header d-flex align-items-center gap-2">
+          <span class="fw-semibold">In Progress</span>
+          <span class="badge bg-primary ms-1">now</span>
+          <span class="text-muted small ms-auto">agent_test</span>
+        </div>
+        <div class="d-flex flex-column gap-2 p-2">
+          <!-- Parent envelope (1824 is parent of currently-IP child 1954) -->
+          <div class="border border-primary rounded overflow-hidden">
+            <div class="d-flex align-items-center gap-2 px-2 py-1" style="background:#e8f0fe;border-bottom:1px solid #c7d9fb">
+              <span class="small fw-bold text-primary">GITIN-1824</span>
+              <span class="small text-primary text-truncate" style="font-size:.78rem">Implement payment module</span>
+            </div>
+            <div class="px-3 py-2">
+              <div class="d-flex align-items-baseline gap-2 mb-1">
+                <a href="#" class="text-decoration-none small text-muted">GITIN-1954</a>
+                <span class="ms-auto text-nowrap small">
+                  <span class="text-primary fw-semibold">2h 45m</span>
+                  <span class="text-muted ms-1">/ Today: 2h 45m</span>
+                </span>
+              </div>
+              <div class="fw-semibold small mb-1">Integrate Stripe webhook handler</div>
+              <div class="small text-muted text-truncate">
+                <i class="bi bi-chat-left-text me-1"></i><span class="fw-semibold">Ana M.</span> Pushed the handler, needs review
+              </div>
+            </div>
+          </div>
+          <!-- Standalone -->
+          <div class="border rounded px-3 py-2">
+            <div class="d-flex align-items-baseline gap-2 mb-1">
+              <a href="#" class="text-decoration-none small text-muted">GITIN-1111</a>
+              <span class="ms-auto text-nowrap small">
+                <span class="text-primary fw-semibold">3h 30m</span>
+                <span class="text-muted ms-1">/ Today: 3h 30m</span>
+              </span>
+            </div>
+            <div class="fw-semibold small mb-1">Fix authentication bug on mobile</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time by Status -->
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Time by Status</div>
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small text-truncate flex-shrink-0" style="width:100px">In Progress</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:100%;height:100%;background:#0d6efd;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:44px;text-align:right">6h 15m</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small text-truncate flex-shrink-0" style="width:100px">Backlog</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:24%;height:100%;background:#6c757d;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:44px;text-align:right">1h 30m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time by Tag -->
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">Time by Tag</div>
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small text-truncate flex-shrink-0" style="width:100px">backend</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:100%;height:100%;background:#0d6efd;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:44px;text-align:right">6h 15m</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small text-truncate flex-shrink-0" style="width:100px">auth</span>
+            <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
+              <div style="width:56%;height:100%;background:#0d6efd;border-radius:3px;opacity:.85"></div>
+            </div>
+            <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:44px;text-align:right">3h 30m</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- In Progress bar -->
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">
+      <i class="bi bi-activity me-1"></i>In Progress
+    </div>
+    <div class="card-body py-3">
+      <!--
+        Merged IP segments (raw_ip → merged):
+          1824 own:  08:30→17:00  (continuously IP, covers children too)
+          1111:      09:00→12:30  (overlaps with 1824 → absorbed into merged)
+          Result:    one bar 08:30→17:00  (left:5%, width:85%)
+
+        Bracket: children of 1824 span 10:00→17:00 (left:20%, width:70%)
+      -->
+      <!-- Bracket above bar (children span) -->
+      <div class="position-relative mb-0" style="height:18px">
+        <div class="position-absolute" style="left:20%;width:70%;top:4px;bottom:0;border:1.5px solid #0d6efd;border-bottom:none;border-radius:3px 3px 0 0;">
+          <span class="position-absolute" style="top:-9px;left:4px;font-size:.6rem;font-weight:700;color:#0d6efd;background:#fff;padding:0 2px;line-height:1">GITIN-1824</span>
+        </div>
+      </div>
+      <!-- Bar -->
+      <div class="position-relative rounded overflow-hidden" style="height:28px;background:#e9ecef">
+        <!-- off-hours shade before 08:30 -->
+        <div class="position-absolute top-0 bottom-0" style="left:0%;width:5%;background:rgba(0,0,0,0.10)"></div>
+        <!-- merged bar: 08:30→17:00 = left:5%, width:85% -->
+        <div class="position-absolute"
+             style="left:5%;width:85%;top:4px;bottom:4px;background:#0d6efd;border-radius:3px;opacity:0.85"
+             title="1824 · 1925 · 1936 · 1954 · 1111"></div>
+        <!-- tick lines -->
+        <div class="position-absolute top-0 bottom-0" style="left:20%;border-left:1px solid rgba(0,0,0,0.12)"></div>
+        <div class="position-absolute top-0 bottom-0" style="left:40%;border-left:1px solid rgba(0,0,0,0.12)"></div>
+        <div class="position-absolute top-0 bottom-0" style="left:60%;border-left:1px solid rgba(0,0,0,0.12)"></div>
+        <div class="position-absolute top-0 bottom-0" style="left:80%;border-left:1px solid rgba(0,0,0,0.12)"></div>
+      </div>
+      <!-- Tick labels -->
+      <div class="position-relative mt-1" style="height:16px">
+        <span class="gantt-tick-label" style="left:0%">08:00</span>
+        <span class="gantt-tick-label" style="left:20%">10:00</span>
+        <span class="gantt-tick-label" style="left:40%">12:00</span>
+        <span class="gantt-tick-label" style="left:60%">14:00</span>
+        <span class="gantt-tick-label" style="left:80%">16:00</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- Gantt Timeline — v5.8.29 parent-child grouping                 -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="card mb-3">
+    <div class="card-header fw-semibold"><i class="bi bi-bar-chart-steps me-1"></i>Timeline</div>
+    <div class="card-body p-0">
+      <div style="overflow-x:auto">
+        <div style="min-width:480px;padding:0.75rem 1rem">
+
+          <!-- X axis tick labels -->
+          <div class="position-relative mb-1" style="height:1.2rem;margin-left:130px">
+            <span class="gantt-tick-label" style="left:0%">08:00</span>
+            <span class="gantt-tick-label" style="left:20%">10:00</span>
+            <span class="gantt-tick-label" style="left:40%">12:00</span>
+            <span class="gantt-tick-label" style="left:60%">14:00</span>
+            <span class="gantt-tick-label" style="left:80%">16:00</span>
+          </div>
+
+          <div class="position-relative">
+            <!-- Grid lines -->
+            <div class="gantt-tick-line" style="left:calc(130px + 0% * (100% - 130px) / 100)"></div>
+            <div class="gantt-tick-line" style="left:calc(130px + 20% * (100% - 130px) / 100)"></div>
+            <div class="gantt-tick-line" style="left:calc(130px + 40% * (100% - 130px) / 100)"></div>
+            <div class="gantt-tick-line" style="left:calc(130px + 60% * (100% - 130px) / 100)"></div>
+            <div class="gantt-tick-line" style="left:calc(130px + 80% * (100% - 130px) / 100)"></div>
+
+            <!-- ── GROUP: GITIN-1824 (parent) + children ── -->
+
+            <!-- Parent row -->
+            <div class="d-flex align-items-center mb-1" style="height:28px">
+              <div class="gantt-label">
+                <a href="#" class="text-decoration-none fw-semibold small">GITIN-1824</a>
+              </div>
+              <div class="gantt-track flex-grow-1">
+                <!-- Parent own IP: 08:30→17:00 = 5%→90%, low opacity -->
+                <div class="gantt-bar" style="left:5%;width:85%;background:#0d6efd;opacity:0.28;" title="In Progress (own)"></div>
+              </div>
+            </div>
+
+            <!-- Children block — left border line as connector -->
+            <div class="gantt-children mb-1">
+
+              <!-- Child: GITIN-1925 -->
+              <div class="d-flex align-items-center mb-1" style="height:26px">
+                <div class="gantt-label-child">
+                  <a href="#" class="text-decoration-none fw-semibold small">GITIN-1925</a>
+                </div>
+                <div class="gantt-track flex-grow-1">
+                  <div class="gantt-bar" style="left:20%;width:20%;background:#0d6efd;opacity:0.85;" title="In Progress"></div>
+                </div>
+              </div>
+
+              <!-- Child: GITIN-1936 -->
+              <div class="d-flex align-items-center mb-1" style="height:26px">
+                <div class="gantt-label-child">
+                  <a href="#" class="text-decoration-none fw-semibold small">GITIN-1936</a>
+                </div>
+                <div class="gantt-track flex-grow-1">
+                  <div class="gantt-bar" style="left:40%;width:20%;background:#0d6efd;opacity:0.85;" title="In Progress"></div>
+                </div>
+              </div>
+
+              <!-- Child: GITIN-1954 -->
+              <div class="d-flex align-items-center" style="height:26px">
+                <div class="gantt-label-child">
+                  <a href="#" class="text-decoration-none fw-semibold small">GITIN-1954</a>
+                </div>
+                <div class="gantt-track flex-grow-1">
+                  <div class="gantt-bar" style="left:62.5%;width:27.5%;background:#0d6efd;opacity:0.9;" title="In Progress (ongoing)"></div>
+                </div>
+              </div>
+
+            </div><!-- /gantt-children -->
+
+            <!-- Gap between group and standalone -->
+            <div class="gantt-group-sep"></div>
+
+            <!-- ── STANDALONE: GITIN-1111 ── -->
+            <div class="d-flex align-items-center mb-1" style="height:28px">
+              <div class="gantt-label">
+                <a href="#" class="text-decoration-none fw-semibold small">GITIN-1111</a>
+              </div>
+              <div class="gantt-track flex-grow-1">
+                <div class="gantt-bar" style="left:10%;width:35%;background:#0d6efd;opacity:0.75;" title="In Progress"></div>
+              </div>
+            </div>
+
+          </div><!-- /position-relative -->
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="d-flex flex-wrap gap-3 px-3 pb-3 pt-1 align-items-center">
+        <div class="d-flex align-items-center gap-1">
+          <div style="width:24px;height:10px;border-radius:2px;background:#0d6efd;opacity:0.30;border:1px solid #0d6efd"></div>
+          <span class="small text-muted">Parent own IP</span>
+        </div>
+        <div class="d-flex align-items-center gap-1">
+          <div style="width:24px;height:10px;border-radius:2px;background:#0d6efd;opacity:0.85"></div>
+          <span class="small text-muted">Child / standalone IP</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Status History -->
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">Status History</div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Ticket</th>
+            <th>In Progress</th>
+            <th>Backlog</th>
+            <th>Done</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Parent row: GITIN-1824 — no left border, normal weight -->
+          <tr>
+            <td>
+              <div class="fw-semibold">Implement payment module</div>
+              <a href="#" class="text-decoration-none text-muted small">GITIN-1824</a>
+            </td>
+            <td class="text-nowrap small"><span class="text-primary fw-semibold">8h 30m</span><span class="badge bg-primary ms-1" style="font-size:.6rem">now</span></td>
+            <td class="text-nowrap small text-muted">—</td>
+            <td class="text-nowrap small text-muted">—</td>
+          </tr>
+          <!-- Child rows: left border connector, indented ticket cell -->
+          <tr style="border-left:2px solid #a8c7fa">
+            <td style="padding-left:1.5rem">
+              <div class="fw-semibold text-muted" style="font-size:.85rem">Set up CI pipeline</div>
+              <a href="#" class="text-decoration-none text-muted small">GITIN-1925</a>
+            </td>
+            <td class="text-nowrap small">2h 0m</td>
+            <td class="text-nowrap small text-muted">—</td>
+            <td class="text-nowrap small text-muted">—</td>
+          </tr>
+          <tr style="border-left:2px solid #a8c7fa">
+            <td style="padding-left:1.5rem">
+              <div class="fw-semibold text-muted" style="font-size:.85rem">Write unit tests for auth module</div>
+              <a href="#" class="text-decoration-none text-muted small">GITIN-1936</a>
+            </td>
+            <td class="text-nowrap small">2h 0m</td>
+            <td class="text-nowrap small text-muted">—</td>
+            <td class="text-nowrap small text-muted">—</td>
+          </tr>
+          <tr style="border-left:2px solid #a8c7fa">
+            <td style="padding-left:1.5rem">
+              <div class="fw-semibold text-muted" style="font-size:.85rem">Integrate Stripe webhook handler</div>
+              <a href="#" class="text-decoration-none text-muted small">GITIN-1954</a>
+            </td>
+            <td class="text-nowrap small"><span class="text-primary fw-semibold">2h 45m</span><span class="badge bg-primary ms-1" style="font-size:.6rem">now</span></td>
+            <td class="text-nowrap small text-muted">—</td>
+            <td class="text-nowrap small text-muted">—</td>
+          </tr>
+          <!-- Standalone: no left border, no indent -->
+          <tr class="border-top">
+            <td>
+              <div class="fw-semibold">Fix authentication bug on mobile</div>
+              <a href="#" class="text-decoration-none text-muted small">GITIN-1111</a>
+            </td>
+            <td class="text-nowrap small"><span class="text-primary fw-semibold">3h 30m</span><span class="badge bg-primary ms-1" style="font-size:.6rem">now</span></td>
+            <td class="text-nowrap small">1h 30m</td>
+            <td class="text-nowrap small text-muted">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /container -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

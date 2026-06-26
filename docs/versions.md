@@ -97,4 +97,7 @@
 | v5.8.23 | Report: Tickets Ordered by Recent Activity | Delivered | — |
 | v5.8.24 | In Progress Bar on Report | Delivered | — |
 | v5.8.25 | User Avatar & Profile Picture | Delivered | [v5/v5.8.25.md](v5/v5.8.25.md) |
+| v5.8.26 | Merged User Settings Page | Delivered | [v5/v5.8.26.md](v5/v5.8.26.md) |
+| v5.8.27 | App Settings Hub | Delivered | [v5/v5.8.27.md](v5/v5.8.27.md) |
+| v5.8.28 | In Progress Subtask Grouping (Visual) | Delivered | [v5/v5.8.28.md](v5/v5.8.28.md) |
 | v5.9.0 | Google SSO + Email Invitations | Scoped (blocked) | — |
