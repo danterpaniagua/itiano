@@ -325,6 +325,42 @@
 
 </div>{# /top row #}
 
+{# ── Time by Project / Time by Environment ── #}
+{% if tag_totals %}
+<script type="application/json" id="tag-totals-data">{{ tag_totals_json|safe }}</script>
+<div class="row g-3 mb-3" id="tbg-row">
+
+    {# Time by Project #}
+    <div class="col-12 col-md-6">
+        <div class="card">
+            <div class="card-header py-2 d-flex align-items-center gap-2">
+                <span class="fw-semibold"><i class="bi bi-briefcase me-1"></i>Time by Project</span>
+                <span class="badge bg-secondary ms-auto" id="tbp-count"></span>
+            </div>
+            <div class="card-body pb-2">
+                <div class="tbg-pill-row mb-3" id="tbp-pills"></div>
+                <div id="tbp-bars"></div>
+            </div>
+        </div>
+    </div>
+
+    {# Time by Environment #}
+    <div class="col-12 col-md-6">
+        <div class="card">
+            <div class="card-header py-2 d-flex align-items-center gap-2">
+                <span class="fw-semibold"><i class="bi bi-server me-1"></i>Time by Environment</span>
+                <span class="badge bg-secondary ms-auto" id="tbe-count"></span>
+            </div>
+            <div class="card-body pb-2">
+                <div class="tbg-pill-row mb-3" id="tbe-pills"></div>
+                <div id="tbe-bars"></div>
+            </div>
+        </div>
+    </div>
+
+</div>{# /tbg-row #}
+{% endif %}
+
 {# ── In Progress bar ── #}
 {% if daily_ip_bars %}
 <div class="card mb-3">
@@ -766,4 +802,150 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
     } catch(e) {}
 })();
 </script>
+
+{# ── Time by Project / Environment JS ── #}
+{% if tag_totals %}
+<style>
+.tbg-pill-row { display:flex; flex-wrap:wrap; gap:5px; align-items:center; min-height:28px; }
+.tbg-pill {
+    display:inline-flex; align-items:center; gap:4px;
+    padding:2px 8px; border-radius:20px; font-size:.75rem;
+    background:#e7f1ff; color:#0d6efd; border:1px solid #b6d4fe;
+}
+.tbg-pill.env { background:#e8f5e9; color:#198754; border-color:#a3d9a5; }
+.tbg-pill .tbg-rm { cursor:pointer; opacity:.6; font-size:.85rem; line-height:1; }
+.tbg-pill .tbg-rm:hover { opacity:1; }
+.tbg-add {
+    display:inline-flex; align-items:center; gap:3px;
+    padding:2px 8px; border-radius:20px; font-size:.75rem;
+    background:transparent; color:#6c757d;
+    border:1px dashed #adb5bd; cursor:pointer;
+}
+.tbg-add:hover { border-color:#6c757d; color:#343a40; }
+.tbg-dropdown {
+    position:absolute; z-index:300; background:#fff;
+    border:1px solid #dee2e6; border-radius:6px;
+    box-shadow:0 4px 12px rgba(0,0,0,.12);
+    min-width:180px; max-height:200px; overflow-y:auto; padding:4px 0;
+}
+.tbg-dd-item { padding:5px 12px; font-size:.82rem; cursor:pointer; }
+.tbg-dd-item:hover { background:#f8f9fa; }
+.tbg-bar-track { height:10px; background:#e9ecef; border-radius:4px; overflow:hidden; }
+.tbg-bar-fill  { height:100%; border-radius:4px; }
+.tbg-empty { color:#adb5bd; font-size:.85rem; padding:1.25rem 0; text-align:center; }
+</style>
+<script>
+(function() {
+    var TAG_DATA = JSON.parse(document.getElementById('tag-totals-data').textContent);
+    // {tag: name, secs: N, display: '2h 15m'}
+
+    var state = { project: [], env: [] };
+
+    // Restore from localStorage
+    try {
+        var sp = localStorage.getItem('itiano_tbp_tags');
+        var se = localStorage.getItem('itiano_tbe_tags');
+        if (sp) state.project = JSON.parse(sp).filter(function(n){ return TAG_DATA.some(function(t){ return t.tag === n; }); });
+        if (se) state.env     = JSON.parse(se).filter(function(n){ return TAG_DATA.some(function(t){ return t.tag === n; }); });
+    } catch(e) {}
+
+    var BAR_COLOR = { project: '#0d6efd', env: '#198754' };
+    var PILL_CLS  = { project: 'tbg-pill', env: 'tbg-pill env' };
+    var LS_KEY    = { project: 'itiano_tbp_tags', env: 'itiano_tbe_tags' };
+    var PILL_EL   = { project: 'tbp-pills', env: 'tbe-pills' };
+    var BARS_EL   = { project: 'tbp-bars',  env: 'tbe-bars' };
+    var COUNT_EL  = { project: 'tbp-count', env: 'tbe-count' };
+
+    function save(key) {
+        try { localStorage.setItem(LS_KEY[key], JSON.stringify(state[key])); } catch(e) {}
+    }
+
+    function render(key) {
+        var sel     = state[key];
+        var pillsEl = document.getElementById(PILL_EL[key]);
+        var barsEl  = document.getElementById(BARS_EL[key]);
+        var countEl = document.getElementById(COUNT_EL[key]);
+
+        // Pills
+        var html = sel.map(function(name) {
+            return '<span class="' + PILL_CLS[key] + '">' + name
+                 + ' <span class="tbg-rm" data-key="' + key + '" data-name="' + name + '">&times;</span></span>';
+        }).join('');
+
+        // Add button + dropdown anchor
+        html += '<div class="position-relative d-inline-block">'
+              + '<span class="tbg-add" data-key="' + key + '"><i class="bi bi-plus"></i> add</span>'
+              + '<div class="tbg-dropdown" id="tbg-dd-' + key + '" style="display:none;top:28px;left:0"></div>'
+              + '</div>';
+
+        pillsEl.innerHTML = html;
+
+        // Count badge
+        var n = sel.length;
+        countEl.textContent = n + (n === 1 ? ' tag' : ' tags');
+        countEl.className = 'badge ms-auto ' + (n > 0 ? 'bg-primary' : 'bg-secondary');
+
+        // Bars
+        if (n === 0) {
+            barsEl.innerHTML = '<div class="tbg-empty"><i class="bi bi-tag"></i><br>Add tags to see time breakdown.</div>';
+            return;
+        }
+        var rows = TAG_DATA.filter(function(t){ return sel.includes(t.tag); })
+                           .slice().sort(function(a,b){ return b.secs - a.secs; });
+        var maxSecs = rows.length ? rows[0].secs : 1;
+        var barsHtml = rows.map(function(r) {
+            var pct = Math.round((r.secs / maxSecs) * 100);
+            return '<div class="d-flex align-items-center gap-2 mb-2">'
+                 + '<div class="text-truncate small" style="width:130px;min-width:80px" title="' + r.tag + '">' + r.tag + '</div>'
+                 + '<div class="flex-grow-1"><div class="tbg-bar-track"><div class="tbg-bar-fill" style="width:' + pct + '%;background:' + BAR_COLOR[key] + '"></div></div></div>'
+                 + '<div class="small text-muted text-end" style="width:52px;flex-shrink:0">' + r.display + '</div>'
+                 + '</div>';
+        }).join('');
+        barsEl.innerHTML = barsHtml;
+    }
+
+    function openDropdown(key, anchorEl) {
+        var dd = document.getElementById('tbg-dd-' + key);
+        closeDropdowns();
+        var available = TAG_DATA.filter(function(t){ return !state[key].includes(t.tag); });
+        if (available.length === 0) {
+            dd.innerHTML = '<div class="tbg-dd-item text-muted">All tags added</div>';
+        } else {
+            dd.innerHTML = available.map(function(t){
+                return '<div class="tbg-dd-item" data-key="' + key + '" data-name="' + t.tag + '">' + t.tag + '</div>';
+            }).join('');
+        }
+        dd.style.display = 'block';
+    }
+
+    function closeDropdowns() {
+        document.querySelectorAll('.tbg-dropdown').forEach(function(d){ d.style.display = 'none'; });
+    }
+
+    // Event delegation
+    document.getElementById('tbg-row').addEventListener('click', function(e) {
+        var rm = e.target.closest('.tbg-rm');
+        if (rm) {
+            var key = rm.dataset.key, name = rm.dataset.name;
+            state[key] = state[key].filter(function(n){ return n !== name; });
+            save(key); render(key);
+            return;
+        }
+        var add = e.target.closest('.tbg-add');
+        if (add) { openDropdown(add.dataset.key, add); return; }
+        var item = e.target.closest('.tbg-dd-item');
+        if (item && item.dataset.name) {
+            var key = item.dataset.key, name = item.dataset.name;
+            if (!state[key].includes(name)) state[key].push(name);
+            save(key); closeDropdowns(); render(key);
+            return;
+        }
+        if (!e.target.closest('.tbg-dropdown')) closeDropdowns();
+    });
+
+    render('project');
+    render('env');
+})();
+</script>
+{% endif %}
 {% endblock %}

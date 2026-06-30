@@ -1062,6 +1062,9 @@ class DailyReportView(LoginRequiredMixin, View):
         # Uses JSON-valid unicode escapes — JSON.parse() decodes them back correctly.
         ip_bar_json = _ip_json_raw.replace('&', '\\u0026').replace('<', '\\u003C').replace('>', '\\u003E')
 
+        _tag_totals_raw = json.dumps(tag_totals)
+        tag_totals_json = _tag_totals_raw.replace('&', '\\u0026').replace('<', '\\u003C').replace('>', '\\u003E')
+
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
             'today_rows': today_rows,
@@ -1089,6 +1092,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'daily_off_shades': daily_off_shades,
             'daily_ticks': daily_ticks,
             'ip_bar_json': ip_bar_json,
+            'tag_totals_json': tag_totals_json,
         })
 
 
