@@ -1,4 +1,5 @@
 import datetime
+import json
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -899,6 +900,15 @@ class DailyReportView(LoginRequiredMixin, View):
             for m in merged_ip
         ]
 
+        ip_raw_bars = [
+            {
+                'start': int(m['start'].timestamp() * 1000),
+                'end':   int(m['end'].timestamp() * 1000),
+                'tooltip': '\n'.join(f"{t.issue_key}: {t.title}" for t in m['tickets']),
+            }
+            for m in merged_ip
+        ]
+
         # Brackets above the IP bar: one bracket per consecutive run of the same parent.
         # Covers all my_tickets (not just currently-active) so historical segments get brackets.
         # When parent changes, the current bracket closes and a new one opens.
@@ -923,6 +933,7 @@ class DailyReportView(LoginRequiredMixin, View):
         _all_ip_segs.sort(key=lambda x: x[0])
 
         ip_brackets = []
+        ip_raw_brackets = []
         if _all_ip_segs:
             _run_pk = _all_ip_segs[0][2]
             _run_s = _all_ip_segs[0][0]
@@ -936,6 +947,11 @@ class DailyReportView(LoginRequiredMixin, View):
                         'width': round((_run_e - _run_s).total_seconds() / bar_total_secs * 100, 3),
                         'label': _run_pk,
                     })
+                    ip_raw_brackets.append({
+                        'start': int(_run_s.timestamp() * 1000),
+                        'end':   int(_run_e.timestamp() * 1000),
+                        'label': _run_pk,
+                    })
                     _run_pk = _pk
                     _run_s = _seg_s
                     _run_e = _seg_e
@@ -944,9 +960,15 @@ class DailyReportView(LoginRequiredMixin, View):
                 'width': round((_run_e - _run_s).total_seconds() / bar_total_secs * 100, 3),
                 'label': _run_pk,
             })
+            ip_raw_brackets.append({
+                'start': int(_run_s.timestamp() * 1000),
+                'end':   int(_run_e.timestamp() * 1000),
+                'label': _run_pk,
+            })
 
         # Off-hours shading: iterate each calendar day in range
         daily_off_shades = []
+        ip_raw_shades = []
         day_cursor = bar_start.astimezone(user_tz).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
@@ -975,18 +997,21 @@ class DailyReportView(LoginRequiredMixin, View):
                 shade_e = min(work_s, bar_end)
                 if shade_e > shade_s:
                     daily_off_shades.append({'left': _pct(shade_s), 'width': round((shade_e - shade_s).total_seconds() / bar_total_secs * 100, 3)})
+                    ip_raw_shades.append({'start': int(shade_s.timestamp() * 1000), 'end': int(shade_e.timestamp() * 1000)})
 
                 # After work hours
                 shade_s = max(work_e, bar_start)
                 shade_e = min(next_day_utc, bar_end)
                 if shade_e > shade_s:
                     daily_off_shades.append({'left': _pct(shade_s), 'width': round((shade_e - shade_s).total_seconds() / bar_total_secs * 100, 3)})
+                    ip_raw_shades.append({'start': int(shade_s.timestamp() * 1000), 'end': int(shade_e.timestamp() * 1000)})
             else:
                 # Non-working day: entire day shaded
                 shade_s = max(day_utc, bar_start)
                 shade_e = min(next_day_utc, bar_end)
                 if shade_e > shade_s:
                     daily_off_shades.append({'left': _pct(shade_s), 'width': round((shade_e - shade_s).total_seconds() / bar_total_secs * 100, 3)})
+                    ip_raw_shades.append({'start': int(shade_s.timestamp() * 1000), 'end': int(shade_e.timestamp() * 1000)})
 
             day_cursor += dt_module.timedelta(days=1)
 
@@ -1006,6 +1031,36 @@ class DailyReportView(LoginRequiredMixin, View):
         while tick_dt < bar_end:
             daily_ticks.append({'left': round(_pct(tick_dt), 3), 'label': tick_dt.astimezone(user_tz).strftime(tick_fmt)})
             tick_dt += tick_delta
+
+        if schedule and schedule.start_time and schedule.end_time:
+            _bar_end_local = bar_end.astimezone(user_tz)
+            _wh_s = _bar_end_local.replace(
+                hour=schedule.start_time.hour, minute=schedule.start_time.minute,
+                second=0, microsecond=0,
+            ).astimezone(dt_module.timezone.utc)
+            _wh_e = _bar_end_local.replace(
+                hour=schedule.end_time.hour, minute=schedule.end_time.minute,
+                second=0, microsecond=0,
+            ).astimezone(dt_module.timezone.utc)
+            _wh_start_ms = int(_wh_s.timestamp() * 1000)
+            _wh_end_ms = int(_wh_e.timestamp() * 1000)
+        else:
+            _wh_start_ms = None
+            _wh_end_ms = None
+
+        _ip_json_raw = json.dumps({
+            'bars': ip_raw_bars,
+            'brackets': ip_raw_brackets,
+            'shades': ip_raw_shades,
+            'barStart': int(bar_start.timestamp() * 1000),
+            'barEnd': int(bar_end.timestamp() * 1000),
+            'tzName': (schedule.timezone if schedule and schedule.timezone else 'UTC'),
+            'whStart': _wh_start_ms,
+            'whEnd': _wh_end_ms,
+        }) if daily_ip_bars else ''
+        # Escape HTML-sensitive chars so output is safe with |safe in the template.
+        # Uses JSON-valid unicode escapes — JSON.parse() decodes them back correctly.
+        ip_bar_json = _ip_json_raw.replace('&', '\\u0026').replace('<', '\\u003C').replace('>', '\\u003E')
 
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
@@ -1033,6 +1088,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'ip_brackets': ip_brackets,
             'daily_off_shades': daily_off_shades,
             'daily_ticks': daily_ticks,
+            'ip_bar_json': ip_bar_json,
         })
 
 

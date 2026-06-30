@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — IP Bar Zoom + Auto-Update</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  body { background: #f4f6f8; }
+  .ip-bar-track {
+    position: relative; height: 28px; border-radius: 4px;
+    background: #e9ecef; overflow: hidden;
+  }
+  .ip-bar-segment {
+    position: absolute; top: 4px; bottom: 4px;
+    background: #0d6efd; border-radius: 3px; opacity: .85;
+  }
+  .ip-bar-shade {
+    position: absolute; top: 0; bottom: 0;
+    background: rgba(0,0,0,.10);
+  }
+  .ip-bar-tick {
+    position: absolute; top: 0; bottom: 0;
+    border-left: 1px solid rgba(0,0,0,.12);
+  }
+  .ip-bracket {
+    position: absolute; top: 4px; bottom: 0;
+    border: 1.5px solid #0d6efd; border-bottom: none;
+    border-radius: 3px 3px 0 0;
+  }
+  .ip-bracket-label {
+    position: absolute; top: -9px; left: 4px;
+    font-size: .6rem; font-weight: 700; color: #0d6efd;
+    background: #fff; padding: 0 2px; line-height: 1;
+  }
+  .tick-label {
+    position: absolute; font-size: .65rem; color: #6c757d;
+    transform: translateX(-50%);
+  }
+  .auto-update-active .btn-group .btn.active {
+    animation: pulse-border 2s infinite;
+  }
+  @keyframes pulse-border {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(13,110,253,.4); }
+    50%       { box-shadow: 0 0 0 3px rgba(13,110,253,.15); }
+  }
+  .countdown-badge {
+    font-size: .6rem; vertical-align: middle;
+  }
+</style>
+</head>
+<body class="p-3">
+
+<div class="container-fluid" style="max-width:900px">
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- REPORT HEADER — auto-update lives here (page-wide)            -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Time Report</h5>
+
+    <!-- Range buttons (unchanged) -->
+    <div class="btn-group btn-group-sm" role="group">
+      <button class="btn btn-primary">Today</button>
+      <button class="btn btn-outline-secondary">Week</button>
+      <button class="btn btn-outline-secondary">Month</button>
+    </div>
+    <input type="date" value="2026-06-29" class="form-control form-control-sm" style="width:auto">
+    <span class="small text-muted">–</span>
+    <input type="date" value="2026-06-29" class="form-control form-control-sm" style="width:auto">
+    <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-calendar-range"></i></button>
+
+    <!-- ── NEW: Auto-update toggle ── -->
+    <div class="d-flex align-items-center gap-1" id="auto-update-ctrl">
+      <i class="bi bi-arrow-clockwise text-muted small"></i>
+      <div class="btn-group btn-group-sm" role="group" id="au-group">
+        <button class="btn btn-outline-secondary active" data-au="0"
+                onclick="setAutoUpdate(0,this)">Off</button>
+        <button class="btn btn-outline-secondary" data-au="60000"
+                onclick="setAutoUpdate(60000,this)">1m</button>
+        <button class="btn btn-outline-secondary" data-au="300000"
+                onclick="setAutoUpdate(300000,this)">5m</button>
+        <button class="btn btn-outline-secondary" data-au="600000"
+                onclick="setAutoUpdate(600000,this)">10m</button>
+        <button class="btn btn-outline-secondary" data-au="900000"
+                onclick="setAutoUpdate(900000,this)">15m</button>
+      </div>
+      <span id="au-countdown" class="badge bg-primary countdown-badge" style="display:none">0:59</span>
+    </div>
+
+    <a href="#" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list"></i> All Entries</a>
+  </div>
+
+  <p class="text-muted small mb-3">
+    <strong>Auto-update</strong> refreshes the full page (all panels, all data) at the chosen interval.
+    Useful for monitoring live automations and incoming ticket activity.
+    Selection is saved in <code>localStorage</code> and restored on next visit.
+  </p>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- IN PROGRESS BAR — zoom toggle lives here (scoped to this bar) -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="card mb-3">
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+      <span class="fw-semibold me-auto"><i class="bi bi-activity me-1"></i>In Progress</span>
+
+      <!-- ── NEW: Zoom toggle ── -->
+      <div class="btn-group btn-group-sm" role="group" id="zoom-group">
+        <button class="btn btn-outline-secondary" data-zoom="4"
+                onclick="setZoom(4,this)">4h</button>
+        <button class="btn btn-outline-secondary" data-zoom="6"
+                onclick="setZoom(6,this)">6h</button>
+        <button class="btn btn-outline-secondary" data-zoom="10"
+                onclick="setZoom(10,this)">10h</button>
+        <button class="btn btn-primary active" data-zoom="0"
+                onclick="setZoom(0,this)">Day</button>
+      </div>
+    </div>
+
+    <div class="card-body py-3" id="ip-bar-body">
+      <!-- bracket row -->
+      <div class="position-relative mb-0" style="height:18px" id="bracket-row">
+        <!-- brackets injected by JS -->
+      </div>
+      <!-- bar track -->
+      <div class="ip-bar-track" id="ip-bar-track">
+        <!-- segments injected by JS -->
+      </div>
+      <!-- tick labels -->
+      <div class="position-relative mt-1" style="height:16px" id="tick-label-row">
+        <!-- labels injected by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Placeholder for rest of report (not part of mockup) -->
+  <div class="card mb-3">
+    <div class="card-body text-muted small text-center py-4">
+      [ Gantt · Status History · other panels — unchanged ]
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Fake IP segments (all times in minutes from midnight) ──────────
+const DAY_MINUTES = 24 * 60; // 1440
+
+// Fake data: IP segments as [startMin, endMin, ticket]
+const IP_SEGMENTS_RAW = [
+  { start:  8*60,      end:  9*60+15, ticket: "GITIN-1320" },
+  { start:  9*60+30,   end: 11*60+45, ticket: "GITIN-1352" },
+  { start: 12*60+30,   end: 14*60+12, ticket: "GITIN-1352" }, // ongoing — ends at "now"
+];
+
+// Work hours: 8:00–18:00
+const WORK_START = 8 * 60;
+const WORK_END   = 18 * 60;
+
+// "Now" = 14:12
+const NOW_MIN = 14 * 60 + 12;
+
+// Brackets: group by ticket
+const BRACKETS_RAW = [
+  { label: "GITIN-1320", start:  8*60,    end:  9*60+15 },
+  { label: "GITIN-1352", start:  9*60+30, end: 14*60+12 },
+];
+
+// ── Render ────────────────────────────────────────────────────────
+let currentZoom = 0; // 0 = full day, N = last N hours
+
+function minutesToPct(min, windowStart, windowEnd) {
+  const span = windowEnd - windowStart;
+  return ((min - windowStart) / span) * 100;
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function formatTime(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h.toString().padStart(2,'0') + ':' + m.toString().padStart(2,'0');
+}
+
+function renderBar(zoomHours) {
+  const windowEnd   = NOW_MIN;
+  const windowStart = zoomHours === 0
+    ? 0
+    : Math.max(0, NOW_MIN - zoomHours * 60);
+
+  const track      = document.getElementById('ip-bar-track');
+  const tickRow    = document.getElementById('tick-label-row');
+  const bracketRow = document.getElementById('bracket-row');
+
+  track.innerHTML = '';
+  tickRow.innerHTML = '';
+  bracketRow.innerHTML = '';
+
+  const span = windowEnd - windowStart || 1;
+
+  // Off-hour shading (before WORK_START, after WORK_END)
+  const shades = [
+    { start: windowStart, end: Math.min(WORK_START, windowEnd) },
+    { start: Math.max(WORK_END, windowStart), end: windowEnd },
+  ];
+  shades.forEach(s => {
+    if (s.end <= s.start) return;
+    const d = document.createElement('div');
+    d.className = 'ip-bar-shade';
+    d.style.left  = clamp(minutesToPct(s.start, windowStart, windowEnd), 0, 100) + '%';
+    d.style.width = clamp(minutesToPct(s.end, windowStart, windowEnd) - clamp(minutesToPct(s.start, windowStart, windowEnd), 0, 100), 0, 100) + '%';
+    track.appendChild(d);
+  });
+
+  // IP segments
+  IP_SEGMENTS_RAW.forEach(seg => {
+    const s = Math.max(seg.start, windowStart);
+    const e = Math.min(seg.end,   windowEnd);
+    if (e <= s) return;
+    const d = document.createElement('div');
+    d.className = 'ip-bar-segment';
+    d.style.left  = minutesToPct(s, windowStart, windowEnd) + '%';
+    d.style.width = (minutesToPct(e, windowStart, windowEnd) - minutesToPct(s, windowStart, windowEnd)) + '%';
+    d.title = seg.ticket + ' · ' + formatTime(seg.start) + '–' + (seg.end === NOW_MIN ? 'now' : formatTime(seg.end));
+    track.appendChild(d);
+  });
+
+  // Hourly ticks
+  const firstTick = Math.ceil(windowStart / 60) * 60;
+  for (let t = firstTick; t <= windowEnd; t += 60) {
+    // tick line
+    const line = document.createElement('div');
+    line.className = 'ip-bar-tick';
+    line.style.left = minutesToPct(t, windowStart, windowEnd) + '%';
+    track.appendChild(line);
+
+    // label
+    const lbl = document.createElement('span');
+    lbl.className = 'tick-label';
+    lbl.style.left = minutesToPct(t, windowStart, windowEnd) + '%';
+    lbl.textContent = t === NOW_MIN ? 'now' : formatTime(t);
+    if (t === NOW_MIN) lbl.style.color = '#0d6efd';
+    tickRow.appendChild(lbl);
+  }
+
+  // "now" marker
+  const nowLine = document.createElement('div');
+  nowLine.className = 'ip-bar-tick';
+  nowLine.style.left = '100%';
+  nowLine.style.borderLeftColor = '#0d6efd';
+  nowLine.style.borderLeftWidth = '2px';
+  track.appendChild(nowLine);
+
+  // Brackets
+  BRACKETS_RAW.forEach(br => {
+    const s = Math.max(br.start, windowStart);
+    const e = Math.min(br.end,   windowEnd);
+    if (e <= s) return;
+    const leftPct  = minutesToPct(s, windowStart, windowEnd);
+    const widthPct = minutesToPct(e, windowStart, windowEnd) - leftPct;
+    const d = document.createElement('div');
+    d.className = 'ip-bracket';
+    d.style.left  = leftPct + '%';
+    d.style.width = widthPct + '%';
+    d.innerHTML = `<span class="ip-bracket-label">${br.label}</span>`;
+    bracketRow.appendChild(d);
+  });
+}
+
+function setZoom(hours, btn) {
+  currentZoom = hours;
+  document.querySelectorAll('#zoom-group .btn').forEach(b => {
+    b.classList.toggle('btn-primary', b === btn);
+    b.classList.toggle('active',      b === btn);
+    b.classList.toggle('btn-outline-secondary', b !== btn);
+  });
+  renderBar(hours);
+}
+
+// ── Auto-update ───────────────────────────────────────────────────
+let auTimer    = null;
+let auCountdown = null;
+let auRemaining = 0;
+
+function setAutoUpdate(ms, btn) {
+  // clear existing
+  clearInterval(auTimer);
+  clearInterval(auCountdown);
+  const badge = document.getElementById('au-countdown');
+
+  document.querySelectorAll('#au-group .btn').forEach(b => {
+    b.classList.toggle('btn-primary',          b === btn && ms > 0);
+    b.classList.toggle('active',               b === btn);
+    b.classList.toggle('btn-outline-secondary',b !== btn || ms === 0);
+    if (b === btn && ms > 0) b.classList.add('btn-primary');
+    else if (b === btn) b.classList.add('btn-outline-secondary');
+  });
+
+  if (ms === 0) {
+    badge.style.display = 'none';
+    localStorage.removeItem('itiano_au');
+    return;
+  }
+
+  localStorage.setItem('itiano_au', ms);
+  auRemaining = Math.round(ms / 1000);
+  badge.style.display = '';
+  badge.textContent = formatCountdown(auRemaining);
+
+  auCountdown = setInterval(() => {
+    auRemaining--;
+    badge.textContent = formatCountdown(auRemaining);
+    if (auRemaining <= 0) {
+      badge.textContent = '…';
+      // In production: location.reload()
+      // In mockup: just reset the counter to simulate
+      auRemaining = Math.round(ms / 1000);
+    }
+  }, 1000);
+}
+
+function formatCountdown(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m + ':' + s.toString().padStart(2,'0');
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+renderBar(0);
+
+// Restore auto-update preference from localStorage
+const savedAu = localStorage.getItem('itiano_au');
+if (savedAu) {
+  const ms = parseInt(savedAu, 10);
+  const btn = document.querySelector(`#au-group [data-au="${ms}"]`);
+  if (btn) setAutoUpdate(ms, btn);
+}
+</script>
+</body>
+</html>

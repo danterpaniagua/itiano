@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — IP Bar WH Zoom</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  body { background:#f4f6f8; }
+  .ip-bar-track  { position:relative; height:28px; border-radius:4px; background:#e9ecef; overflow:hidden; }
+  .ip-segment    { position:absolute; top:4px; bottom:4px; background:#0d6efd; border-radius:3px; opacity:.85; }
+  .ip-shade      { position:absolute; top:0; bottom:0; background:rgba(0,0,0,.10); }
+  .ip-future     { position:absolute; top:0; bottom:0; background:repeating-linear-gradient(
+                     45deg, transparent, transparent 4px, rgba(0,0,0,.04) 4px, rgba(0,0,0,.04) 8px); }
+  .ip-tick-line  { position:absolute; top:0; bottom:0; border-left:1px solid rgba(0,0,0,.12); }
+  .ip-now-line   { position:absolute; top:0; bottom:0; border-left:2px solid #0d6efd; }
+  .ip-wh-line    { position:absolute; top:0; bottom:0; border-left:2px dashed rgba(13,110,253,.4); }
+  .ip-bracket    { position:absolute; top:4px; bottom:0; border:1.5px solid #0d6efd; border-bottom:none; border-radius:3px 3px 0 0; }
+  .ip-bracket-lbl{ position:absolute; top:-9px; left:4px; font-size:.6rem; font-weight:700; color:#0d6efd; background:#fff; padding:0 2px; line-height:1; }
+  .tick-lbl      { position:absolute; font-size:.65rem; color:#6c757d; transform:translateX(-50%); }
+  .wh-zone       { position:absolute; top:0; bottom:0; background:rgba(13,110,253,.06); pointer-events:none; }
+  .wh-zone-lbl   { position:absolute; top:1px; left:3px; font-size:.55rem; color:#0d6efd; opacity:.7; white-space:nowrap; }
+</style>
+</head>
+<body class="p-3">
+<div class="container-fluid" style="max-width:860px">
+
+  <p class="text-muted small mb-3">
+    Fake data: WH = 08:00–18:00 · now = 14:12
+    <br>
+    <strong>WH</strong> = fixed window: 06:00 → 20:00 (WH±2h — extends past now, future shown as hatched)
+    <br>
+    <strong>WH-now</strong> = 06:00 → now (WH−2h → current time)
+  </p>
+
+  <!-- ── Main interactive card ── -->
+  <div class="card mb-4">
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+      <span class="fw-semibold me-auto"><i class="bi bi-activity me-1"></i>In Progress</span>
+      <div class="btn-group btn-group-sm" role="group" id="zoom-group">
+        <button class="btn btn-outline-secondary" onclick="zoom('whnow', this)">WH-now</button>
+        <button class="btn btn-outline-secondary" onclick="zoom('wh',    this)">WH</button>
+        <button class="btn btn-primary active"    onclick="zoom('10h',   this)">10h</button>
+        <button class="btn btn-outline-secondary" onclick="zoom('day',   this)">Day</button>
+      </div>
+    </div>
+    <div class="card-body py-3">
+      <div class="position-relative mb-0" id="bracket-row" style="height:18px"></div>
+      <div class="ip-bar-track" id="bar-track"></div>
+      <div class="position-relative mt-1" id="tick-row" style="height:16px"></div>
+      <div id="win-label" class="text-muted mt-2" style="font-size:.7rem"></div>
+    </div>
+  </div>
+
+  <!-- ── Side-by-side reference ── -->
+  <h6 class="text-muted fw-semibold mb-2">All windows — reference</h6>
+  <div class="row g-3">
+    <div class="col-12 col-md-6">
+      <div class="card">
+        <div class="card-header small py-1">
+          <span class="fw-semibold">WH-now</span>
+          <span class="text-muted fw-normal ms-1">06:00 → 14:12 (now)</span>
+        </div>
+        <div class="card-body py-2" id="ref-whnow"></div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="card">
+        <div class="card-header small py-1">
+          <span class="fw-semibold">WH</span>
+          <span class="text-muted fw-normal ms-1">06:00 → 20:00 (fixed, future hatched)</span>
+        </div>
+        <div class="card-body py-2" id="ref-wh"></div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="card">
+        <div class="card-header small py-1">
+          <span class="fw-semibold">10h</span>
+          <span class="text-muted fw-normal ms-1">04:12 → 14:12</span>
+        </div>
+        <div class="card-body py-2" id="ref-10h"></div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="card">
+        <div class="card-header small py-1">
+          <span class="fw-semibold">Day</span>
+          <span class="text-muted fw-normal ms-1">00:00 → 14:12</span>
+        </div>
+        <div class="card-body py-2" id="ref-day"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Constants (minutes from midnight) ───────────────────────────
+var WH_START = 8  * 60;       // 08:00
+var WH_END   = 18 * 60;       // 18:00
+var NOW      = 14 * 60 + 12;  // 14:12 — barEnd (data only up to here)
+
+var SEGMENTS = [
+  { s: 8*60,     e: 9*60+15,  tip: 'GITIN-1320' },
+  { s: 9*60+30,  e: 11*60+45, tip: 'GITIN-1352' },
+  { s: 12*60+30, e: 14*60+12, tip: 'GITIN-1352' },
+];
+var BRACKETS = [
+  { s: 8*60,    e: 9*60+15,  lbl: 'GITIN-1320' },
+  { s: 9*60+30, e: 14*60+12, lbl: 'GITIN-1352' },
+];
+
+// ── Window definitions ───────────────────────────────────────────
+function getWin(mode) {
+  switch (mode) {
+    case 'whnow': return { s: WH_START - 120, e: NOW,           wh: true,  future: false };
+    case 'wh':    return { s: WH_START - 120, e: WH_END + 120,  wh: true,  future: true  };
+    case '10h':   return { s: Math.max(0, NOW - 600), e: NOW,   wh: false, future: false };
+    case 'day':   return { s: 0,              e: NOW,            wh: false, future: false };
+  }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────
+function p(t, s, e)  { return ((t - s) / (e - s)) * 100; }
+function fmt(m)      { return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); }
+function div(cls, style, inner) {
+  return '<div class="' + cls + '" style="' + style + '">' + (inner || '') + '</div>';
+}
+
+// ── Render full bar into three containers ────────────────────────
+function renderBar(winS, winE, showWH, hasFuture, trackId, tickId, brackId) {
+  var track  = document.getElementById(trackId);
+  var tickC  = document.getElementById(tickId);
+  var brackC = brackId ? document.getElementById(brackId) : null;
+  if (!track) return;
+
+  var html = '';
+
+  // WH highlight zone
+  if (showWH) {
+    var zs = Math.max(WH_START, winS), ze = Math.min(WH_END, winE);
+    if (ze > zs) html += div('wh-zone', 'left:'+p(zs,winS,winE)+'%;width:'+(p(ze,winS,winE)-p(zs,winS,winE))+'%',
+      '<span class="wh-zone-lbl">WH</span>');
+  }
+
+  // Off-hour shading (only within data range: winS → NOW)
+  var dataEnd = Math.min(NOW, winE);
+  [[winS, Math.min(WH_START, dataEnd)], [Math.max(WH_END, winS), dataEnd]].forEach(function(r) {
+    if (r[1] > r[0]) html += div('ip-shade', 'left:'+p(r[0],winS,winE)+'%;width:'+(p(r[1],winS,winE)-p(r[0],winS,winE))+'%');
+  });
+
+  // Future hatch (NOW → winE)
+  if (hasFuture && winE > NOW) {
+    html += div('ip-future', 'left:'+p(NOW,winS,winE)+'%;width:'+(p(winE,winS,winE)-p(NOW,winS,winE))+'%');
+  }
+
+  // WH boundary dashed lines
+  if (showWH) {
+    [WH_START, WH_END].forEach(function(t) {
+      if (t > winS && t < winE) html += div('ip-wh-line', 'left:'+p(t,winS,winE)+'%');
+    });
+  }
+
+  // Hourly ticks
+  var step = (winE - winS) <= 360 ? 60 : 120;
+  var ft   = Math.ceil(winS / step) * step;
+  for (var t = ft; t < winE; t += step) {
+    html += div('ip-tick-line', 'left:'+p(t,winS,winE)+'%');
+  }
+
+  // "now" vertical line
+  if (NOW > winS && NOW <= winE) {
+    html += div('ip-now-line', 'left:'+p(NOW,winS,winE)+'%');
+  }
+
+  // IP segments (data only up to NOW)
+  SEGMENTS.forEach(function(seg) {
+    var ss = Math.max(seg.s, winS), se = Math.min(seg.e, Math.min(NOW, winE));
+    if (se <= ss) return;
+    html += '<div class="ip-segment" style="left:'+p(ss,winS,winE)+'%;width:'+(p(se,winS,winE)-p(ss,winS,winE))+'%" title="'+seg.tip+'"></div>';
+  });
+
+  track.innerHTML = html;
+  track.querySelectorAll('[title]').forEach(function(el){ new bootstrap.Tooltip(el,{html:false}); });
+
+  // Tick labels
+  if (tickC) {
+    var lHtml = '';
+    for (var t = ft; t < winE; t += step) {
+      lHtml += '<span class="tick-lbl" style="left:'+p(t,winS,winE)+'%">'+fmt(t)+'</span>';
+    }
+    if (NOW > winS && NOW <= winE) {
+      lHtml += '<span class="tick-lbl" style="left:'+p(NOW,winS,winE)+'%;color:#0d6efd;font-weight:600">now</span>';
+    }
+    if (hasFuture && winE > NOW) {
+      lHtml += '<span class="tick-lbl" style="left:'+p(winE,winS,winE)+'%">'+fmt(winE)+'</span>';
+    }
+    tickC.innerHTML = lHtml;
+  }
+
+  // Brackets
+  if (brackC) {
+    var bHtml = '';
+    BRACKETS.forEach(function(br) {
+      var bs = Math.max(br.s, winS), be = Math.min(br.e, Math.min(NOW, winE));
+      if (be <= bs) return;
+      var left  = p(bs, winS, winE);
+      var width = p(be, winS, winE) - left;
+      bHtml += '<div class="ip-bracket" style="left:'+left+'%;width:'+width+'%">'
+             + '<span class="ip-bracket-lbl">'+br.lbl+'</span></div>';
+    });
+    brackC.innerHTML = bHtml;
+  }
+}
+
+// ── Mini ref bars ────────────────────────────────────────────────
+function buildMini(mode, containerId) {
+  var c = document.getElementById(containerId);
+  if (!c) return;
+  var w = getWin(mode);
+  c.innerHTML = '<div class="ip-bar-track" id="mt-'+containerId+'"></div>'
+              + '<div class="position-relative mt-1" id="tt-'+containerId+'" style="height:14px"></div>';
+  renderBar(w.s, w.e, w.wh, w.future, 'mt-'+containerId, 'tt-'+containerId, null);
+}
+
+// ── Main zoom toggle ─────────────────────────────────────────────
+var LABELS = {
+  whnow: 'WH-now: 06:00 → now  (WH_start−2h → current time)',
+  wh:    'WH: 06:00 → 20:00  (WH_start−2h → WH_end+2h — fixed, future hatched)',
+  '10h': '10h: last 10 hours from now',
+  day:   'Day: midnight → now',
+};
+
+function zoom(mode, btn) {
+  document.querySelectorAll('#zoom-group .btn').forEach(function(b){
+    b.classList.remove('btn-primary','active');
+    b.classList.add('btn-outline-secondary');
+  });
+  btn.classList.remove('btn-outline-secondary');
+  btn.classList.add('btn-primary','active');
+
+  var w = getWin(mode);
+  renderBar(w.s, w.e, w.wh, w.future, 'bar-track', 'tick-row', 'bracket-row');
+  document.getElementById('win-label').textContent = LABELS[mode];
+}
+
+// ── Init ─────────────────────────────────────────────────────────
+zoom('10h', document.querySelector('#zoom-group .btn.active'));
+buildMini('whnow', 'ref-whnow');
+buildMini('wh',    'ref-wh');
+buildMini('10h',   'ref-10h');
+buildMini('day',   'ref-day');
+</script>
+</body>
+</html>

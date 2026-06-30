@@ -30,6 +30,23 @@
     <a href="{% url 'timetracking-list' %}" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-list"></i> All Entries
     </a>
+    {# ── Auto-update (page-wide) ── #}
+    <div class="d-flex align-items-center gap-1">
+        <i class="bi bi-arrow-clockwise text-muted small"></i>
+        <div class="btn-group btn-group-sm" role="group" id="au-group">
+            <button class="btn btn-outline-secondary" data-au="0"
+                    onclick="itAutoUpdate(0,this)">Off</button>
+            <button class="btn btn-outline-secondary active" data-au="60000"
+                    onclick="itAutoUpdate(60000,this)">1m</button>
+            <button class="btn btn-outline-secondary" data-au="300000"
+                    onclick="itAutoUpdate(300000,this)">5m</button>
+            <button class="btn btn-outline-secondary" data-au="600000"
+                    onclick="itAutoUpdate(600000,this)">10m</button>
+            <button class="btn btn-outline-secondary" data-au="900000"
+                    onclick="itAutoUpdate(900000,this)">15m</button>
+        </div>
+        <span id="au-countdown" class="badge bg-primary" style="display:none;font-size:.6rem"></span>
+    </div>
 </div>
 
 {% if not jira_account_id and not jira_username %}
@@ -311,20 +328,25 @@
 {# ── In Progress bar ── #}
 {% if daily_ip_bars %}
 <div class="card mb-3">
-    <div class="card-header fw-semibold">
-        <i class="bi bi-activity me-1"></i>In Progress
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+        <span class="fw-semibold me-auto"><i class="bi bi-activity me-1"></i>In Progress</span>
+        <div class="btn-group btn-group-sm" role="group" id="ip-zoom-group">
+            <button class="btn btn-outline-secondary" id="ip-zoom-whnow" onclick="itZoom('whnow',this)">WH-now</button>
+            <button class="btn btn-outline-secondary" id="ip-zoom-wh"    onclick="itZoom('wh',this)">WH</button>
+            <button class="btn btn-primary active"    id="ip-zoom-10h"   onclick="itZoom('10h',this)">10h</button>
+            <button class="btn btn-outline-secondary" id="ip-zoom-day"   onclick="itZoom('day',this)">Day</button>
+        </div>
     </div>
     <div class="card-body py-3">
-        {% if ip_brackets %}
-        <div class="position-relative mb-0" style="height:18px">
+        <script type="application/json" id="ip-bar-data">{{ ip_bar_json|safe }}</script>
+        <div class="position-relative mb-0" id="ip-bracket-row" style="height:18px">
             {% for br in ip_brackets %}
             <div class="position-absolute" style="left:{{ br.left }}%;width:{{ br.width }}%;top:4px;bottom:0;border:1.5px solid #0d6efd;border-bottom:none;border-radius:3px 3px 0 0;">
                 <span class="position-absolute" style="top:-9px;left:4px;font-size:.6rem;font-weight:700;color:#0d6efd;background:#fff;padding:0 2px;line-height:1">{{ br.label }}</span>
             </div>
             {% endfor %}
         </div>
-        {% endif %}
-        <div class="position-relative rounded overflow-hidden" style="height:28px;background:#e9ecef">
+        <div class="position-relative rounded overflow-hidden" id="ip-bar-track" style="height:28px;background:#e9ecef">
             {% for shade in daily_off_shades %}
             <div class="position-absolute top-0 bottom-0"
                  style="left:{{ shade.left }}%;width:{{ shade.width }}%;background:rgba(0,0,0,0.10)"></div>
@@ -340,7 +362,7 @@
                  title="{{ bar.tooltip }}"></div>
             {% endfor %}
         </div>
-        <div class="position-relative mt-1" style="height:16px">
+        <div class="position-relative mt-1" id="ip-tick-row" style="height:16px">
             {% for tick in daily_ticks %}
             <span class="position-absolute text-muted"
                   style="left:{{ tick.left }}%;font-size:0.65rem;transform:translateX(-50%)">{{ tick.label }}</span>
@@ -558,5 +580,190 @@
 document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
     new bootstrap.Tooltip(el, { html: false })
 );
+
+// ── IP Bar Zoom ────────────────────────────────────────────────────
+(function () {
+    var dataEl = document.getElementById('ip-bar-data');
+    if (!dataEl) return;
+    var data = JSON.parse(dataEl.textContent);
+
+    var bracketRow = document.getElementById('ip-bracket-row');
+    var barTrack   = document.getElementById('ip-bar-track');
+    var tickRow    = document.getElementById('ip-tick-row');
+
+    var H = 3600000; // one hour in ms
+
+    // Hide WH buttons when no schedule is configured
+    if (data.whStart === null) {
+        var _whnow = document.getElementById('ip-zoom-whnow');
+        var _wh    = document.getElementById('ip-zoom-wh');
+        if (_whnow) _whnow.style.display = 'none';
+        if (_wh)    _wh.style.display    = 'none';
+    }
+
+    function pct(ms, s, e) { return ((ms - s) / (e - s)) * 100; }
+
+    function fmtTime(ms, tz) {
+        return new Date(ms).toLocaleTimeString('en-GB', {
+            timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false
+        });
+    }
+
+    function getWindow(mode) {
+        var barEnd   = data.barEnd;
+        var barStart = data.barStart;
+        switch (mode) {
+            case 'whnow': return { s: data.whStart - 2*H, e: barEnd,           future: false };
+            case 'wh':    return { s: data.whStart - 2*H, e: data.whEnd + 2*H, future: true  };
+            case '10h':   return { s: Math.max(barStart, barEnd - 10*H), e: barEnd, future: false };
+            case 'day':   return { s: barStart,            e: barEnd,           future: false };
+        }
+    }
+
+    function render(mode) {
+        var w        = getWindow(mode);
+        var winStart = w.s;
+        var winEnd   = w.e;
+        var barEnd   = data.barEnd;
+        var dataEnd  = Math.min(barEnd, winEnd);
+        var spanMs   = winEnd - winStart || 1;
+        var spanH    = spanMs / H;
+        var tickStep = spanH <= 8 ? H : 2 * H;
+        var firstTick = Math.ceil(winStart / tickStep) * tickStep;
+
+        // ── Bracket row ──────────────────────────────────────────
+        var bHtml = '';
+        data.brackets.forEach(function (br) {
+            var s = Math.max(br.start, winStart);
+            var e = Math.min(br.end,   dataEnd);
+            if (e <= s) return;
+            var left  = pct(s, winStart, winEnd);
+            var width = pct(e, winStart, winEnd) - left;
+            bHtml += '<div class="position-absolute" style="left:' + left + '%;width:' + width + '%;top:4px;bottom:0;border:1.5px solid #0d6efd;border-bottom:none;border-radius:3px 3px 0 0;">'
+                   + '<span class="position-absolute" style="top:-9px;left:4px;font-size:.6rem;font-weight:700;color:#0d6efd;background:#fff;padding:0 2px;line-height:1">' + br.label + '</span>'
+                   + '</div>';
+        });
+        bracketRow.innerHTML = bHtml;
+
+        // ── Bar track ────────────────────────────────────────────
+        var tHtml = '';
+
+        // Off-hour shades (only within data range)
+        data.shades.forEach(function (sh) {
+            var s = Math.max(sh.start, winStart);
+            var e = Math.min(sh.end,   dataEnd);
+            if (e <= s) return;
+            tHtml += '<div class="position-absolute top-0 bottom-0" style="left:' + pct(s,winStart,winEnd) + '%;width:' + (pct(e,winStart,winEnd)-pct(s,winStart,winEnd)) + '%;background:rgba(0,0,0,0.10)"></div>';
+        });
+
+        // Future hatch (barEnd → winEnd) for WH mode
+        if (w.future && winEnd > barEnd) {
+            var fl = pct(barEnd, winStart, winEnd);
+            var fw = 100 - fl;
+            tHtml += '<div class="position-absolute top-0 bottom-0" style="left:' + fl + '%;width:' + fw + '%;'
+                   + 'background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(0,0,0,0.06) 4px,rgba(0,0,0,0.06) 8px)"></div>';
+            // "now" marker line
+            tHtml += '<div class="position-absolute top-0 bottom-0" style="left:' + fl + '%;border-left:2px solid #0d6efd;pointer-events:none"></div>';
+        }
+
+        // Tick grid lines
+        for (var t = firstTick; t < winEnd; t += tickStep) {
+            tHtml += '<div class="position-absolute top-0 bottom-0" style="left:' + pct(t,winStart,winEnd) + '%;border-left:1px solid rgba(0,0,0,0.12)"></div>';
+        }
+
+        // IP segments
+        data.bars.forEach(function (bar) {
+            var s = Math.max(bar.start, winStart);
+            var e = Math.min(bar.end,   dataEnd);
+            if (e <= s) return;
+            tHtml += '<div class="position-absolute" style="left:' + pct(s,winStart,winEnd) + '%;width:' + (pct(e,winStart,winEnd)-pct(s,winStart,winEnd)) + '%;top:4px;bottom:4px;background:#0d6efd;border-radius:3px;opacity:0.85;cursor:default" title="' + bar.tooltip.replace(/\n/g,'&#10;') + '"></div>';
+        });
+
+        barTrack.innerHTML = tHtml;
+        barTrack.querySelectorAll('[title]').forEach(function(el) {
+            new bootstrap.Tooltip(el, { html: false });
+        });
+
+        // ── Tick labels ──────────────────────────────────────────
+        var lHtml = '';
+        for (var t = firstTick; t <= winEnd; t += tickStep) {
+            var isNowTick = (t === barEnd);
+            var color = isNowTick ? 'color:#0d6efd;font-weight:600;' : '';
+            lHtml += '<span class="position-absolute text-muted" style="left:' + pct(t,winStart,winEnd) + '%;font-size:0.65rem;transform:translateX(-50%);' + color + '">' + fmtTime(t, data.tzName) + '</span>';
+        }
+        // "now" label when it falls between ticks in WH mode
+        if (w.future && winEnd > barEnd) {
+            lHtml += '<span class="position-absolute" style="left:' + pct(barEnd,winStart,winEnd) + '%;font-size:0.65rem;transform:translateX(-50%);color:#0d6efd;font-weight:600">now</span>';
+        }
+        tickRow.innerHTML = lHtml;
+    }
+
+    window.itZoom = function (mode, btn) {
+        document.querySelectorAll('#ip-zoom-group .btn').forEach(function (b) {
+            b.classList.remove('btn-primary', 'active');
+            b.classList.add('btn-outline-secondary');
+        });
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-primary', 'active');
+        render(mode);
+        try { localStorage.setItem('itiano_ip_zoom_mode', mode); } catch(e) {}
+    };
+
+    // Restore saved zoom; default 10h on first visit
+    try {
+        var saved = localStorage.getItem('itiano_ip_zoom_mode');
+        var mode  = saved || '10h';
+        // Fall back to 10h if saved mode is WH but no schedule configured
+        if ((mode === 'wh' || mode === 'whnow') && data.whStart === null) { mode = '10h'; }
+        var btn = document.getElementById('ip-zoom-' + mode);
+        if (btn) { window.itZoom(mode, btn); }
+    } catch(e) {}
+})();
+
+// ── Auto-Update (page-wide) ────────────────────────────────────────
+(function () {
+    var auTimer    = null;
+    var auTick     = null;
+    var auRemain   = 0;
+    var badge      = document.getElementById('au-countdown');
+
+    function fmt(sec) {
+        return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    }
+
+    window.itAutoUpdate = function (ms, btn) {
+        clearInterval(auTimer);
+        clearInterval(auTick);
+        document.querySelectorAll('#au-group .btn').forEach(function (b) {
+            b.classList.remove('btn-primary', 'active');
+            b.classList.add('btn-outline-secondary');
+        });
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-primary', 'active');
+
+        if (ms === 0) {
+            badge.style.display = 'none';
+            try { localStorage.removeItem('itiano_au'); } catch(e) {}
+            return;
+        }
+        try { localStorage.setItem('itiano_au', ms); } catch(e) {}
+        auRemain = Math.round(ms / 1000);
+        badge.textContent = fmt(auRemain);
+        badge.style.display = '';
+        auTick = setInterval(function () {
+            auRemain--;
+            badge.textContent = fmt(auRemain);
+            if (auRemain <= 0) { location.reload(); }
+        }, 1000);
+    };
+
+    // Restore saved auto-update interval; default 1m on first visit
+    try {
+        var saved = localStorage.getItem('itiano_au');
+        var ms = saved !== null ? parseInt(saved, 10) : 60000;
+        var btn = document.querySelector('#au-group [data-au="' + ms + '"]');
+        if (btn) { window.itAutoUpdate(ms, btn); }
+    } catch(e) {}
+})();
 </script>
 {% endblock %}
