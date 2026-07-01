@@ -105,4 +105,5 @@
 | v5.8.31 | IP Bar Zoom Toggle + Auto-Update on Time Report | Delivered | — |
 | v5.8.32 | Time by Project & Environment Cards on Time Report | Delivered | [v5/v5.8.32.md](v5/v5.8.32.md) |
 | v5.8.33 | IP Bar Range-Aware Ticks (Week/Month) | Delivered | [v5/v5.8.33.md](v5/v5.8.33.md) |
+| v5.8.34 | Time Report: Tag Hierarchy Settings | Delivered | [v5/v5.8.34.md](v5/v5.8.34.md) |
 | v5.9.0 | Google SSO + Email Invitations | Scoped (blocked) | — |
