@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — IP Bar Ticks by Range</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  body { background:#f4f6f8; }
+  .ip-bar-track  { position:relative; height:28px; border-radius:4px; background:#e9ecef; overflow:hidden; }
+  .ip-bracket-row{ position:relative; height:18px; }
+  .ip-tick-row   { position:relative; height:16px; }
+  .ip-segment    { position:absolute; top:4px; bottom:4px; background:#0d6efd; border-radius:3px; opacity:.85; }
+  .ip-shade      { position:absolute; top:0; bottom:0; background:rgba(0,0,0,.10); }
+  .ip-tick       { position:absolute; top:0; bottom:0; border-left:1px solid rgba(0,0,0,.12); }
+  .ip-tick-lbl   { position:absolute; font-size:.65rem; color:#6c757d; transform:translateX(-50%); white-space:nowrap; }
+  .ip-bracket    { position:absolute; top:4px; bottom:0; border:1.5px solid #0d6efd; border-bottom:none; border-radius:3px 3px 0 0; }
+  .ip-bracket-lbl{ position:absolute; top:-9px; left:4px; font-size:.6rem; font-weight:700; color:#0d6efd; background:#fff; padding:0 2px; line-height:1; }
+</style>
+</head>
+<body class="p-3">
+<div class="container-fluid" style="max-width:960px">
+
+<h6 class="text-muted fw-semibold mb-1">IP Bar — Tick behavior by range</h6>
+<p class="text-muted small mb-4">
+  <strong>Today</strong>: unchanged — hourly (≤8h) or every-2h ticks.<br>
+  <strong>Week / Month</strong>: one tick per labor day at work-start time (08:00). Weekends skipped.
+</p>
+
+<!-- ── TODAY ─────────────────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+    <span class="fw-semibold me-auto"><i class="bi bi-activity me-1"></i>In Progress — Today (unchanged)</span>
+    <div class="btn-group btn-group-sm" id="zoom-today">
+      <button class="btn btn-outline-secondary" onclick="setZoom('today','whnow',this)">WH-now</button>
+      <button class="btn btn-outline-secondary" onclick="setZoom('today','wh',this)">WH</button>
+      <button class="btn btn-primary active"    onclick="setZoom('today','10h',this)">10h</button>
+      <button class="btn btn-outline-secondary" onclick="setZoom('today','day',this)">Day</button>
+    </div>
+  </div>
+  <div class="card-body py-3">
+    <div class="ip-bracket-row mb-0" id="today-brackets"></div>
+    <div class="ip-bar-track"         id="today-track"></div>
+    <div class="ip-tick-row mt-1"     id="today-ticks"></div>
+  </div>
+</div>
+
+<!-- ── WEEK ──────────────────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+    <span class="fw-semibold me-auto"><i class="bi bi-activity me-1"></i>In Progress — Week</span>
+    <div class="btn-group btn-group-sm" id="zoom-week">
+      <button class="btn btn-outline-secondary" onclick="setZoom('week','whnow',this)">WH-now</button>
+      <button class="btn btn-outline-secondary" onclick="setZoom('week','wh',this)">WH</button>
+      <button class="btn btn-outline-secondary" onclick="setZoom('week','10h',this)">10h</button>
+      <button class="btn btn-primary active"    onclick="setZoom('week','day',this)">Week</button>
+    </div>
+  </div>
+  <div class="card-body py-3">
+    <div class="ip-bracket-row mb-0" id="week-brackets"></div>
+    <div class="ip-bar-track"         id="week-track"></div>
+    <div class="ip-tick-row mt-1"     id="week-ticks"></div>
+  </div>
+</div>
+
+<!-- ── MONTH ─────────────────────────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+    <span class="fw-semibold me-auto"><i class="bi bi-activity me-1"></i>In Progress — Month</span>
+    <div class="btn-group btn-group-sm" id="zoom-month">
+      <button class="btn btn-outline-secondary" onclick="setZoom('month','whnow',this)">WH-now</button>
+      <button class="btn btn-outline-secondary" onclick="setZoom('month','wh',this)">WH</button>
+      <button class="btn btn-outline-secondary" onclick="setZoom('month','10h',this)">10h</button>
+      <button class="btn btn-primary active"    onclick="setZoom('month','day',this)">Month</button>
+    </div>
+  </div>
+  <div class="card-body py-3">
+    <div class="ip-bracket-row mb-0" id="month-brackets"></div>
+    <div class="ip-bar-track"         id="month-track"></div>
+    <div class="ip-tick-row mt-1"     id="month-ticks"></div>
+  </div>
+</div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Helpers ───────────────────────────────────────────────────────
+var H   = 3600000;
+var DAY = 86400000;
+
+function ms(y,mo,d,h,min) {
+  return Date.UTC(y, mo-1, d, h, min, 0);
+}
+
+function pct(t, s, e) { return ((t - s) / (e - s)) * 100; }
+
+function fmtHM(utcMs, utcOffset) {
+  // utcOffset in ms (e.g. UTC-5 = -5*H)
+  var d = new Date(utcMs + utcOffset);
+  return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0');
+}
+
+function fmtDayLbl(utcMs, utcOffset) {
+  var DAY_ABBR = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var d = new Date(utcMs + utcOffset);
+  return DAY_ABBR[d.getUTCDay()] + ' ' + d.getUTCDate();
+}
+
+function fmtMMDD(utcMs, utcOffset) {
+  var d = new Date(utcMs + utcOffset);
+  return String(d.getUTCMonth() + 1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+}
+
+// Simulate UTC-0 user timezone for simplicity
+var TZ_OFFSET = 0;   // adjust if needed
+var WH_START_H = 8;  // 08:00 local
+var WH_END_H   = 18; // 18:00 local
+// Workdays: Mon(1)–Fri(5) in getUTCDay() terms
+var WORKDAYS = [1, 2, 3, 4, 5];
+
+// ── Dataset definitions ───────────────────────────────────────────
+// TODAY: Mon Jun 30, 2026. barEnd = 14:30 UTC
+var TODAY_BAR_START = ms(2026, 6, 30,  0,  0);
+var TODAY_BAR_END   = ms(2026, 6, 30, 14, 30);
+var TODAY_WH_START  = ms(2026, 6, 30,  8,  0);
+var TODAY_WH_END    = ms(2026, 6, 30, 18,  0);
+var TODAY_BARS = [
+  { start: ms(2026,6,30, 8,15), end: ms(2026,6,30, 9,40), tip: 'GITIN-1352' },
+  { start: ms(2026,6,30,10, 5), end: ms(2026,6,30,12,30), tip: 'GITIN-1352' },
+  { start: ms(2026,6,30,13,10), end: ms(2026,6,30,14,30), tip: 'GITIN-1352' },
+];
+var TODAY_BRACKETS = [
+  { start: ms(2026,6,30, 8,15), end: ms(2026,6,30,14,30), label: 'GITIN-1352' },
+];
+var TODAY_SHADES = [
+  { start: TODAY_BAR_START, end: TODAY_WH_START },
+];
+
+// WEEK: Mon Jun 30 – Fri Jul 4, 2026. barEnd = Fri 16:00 UTC
+var WEEK_BAR_START = ms(2026, 6, 30,  0,  0);
+var WEEK_BAR_END   = ms(2026, 7,  4, 16,  0);
+var WEEK_WH_START  = ms(2026, 7,  4,  8,  0); // last day's WH start
+var WEEK_WH_END    = ms(2026, 7,  4, 18,  0);
+var WEEK_BARS = [
+  { start: ms(2026,6,30, 8,15), end: ms(2026,6,30,14,30), tip: 'GITIN-1352' },
+  { start: ms(2026,7, 1, 9, 0), end: ms(2026,7, 1,17,45), tip: 'GITIN-1352' },
+  { start: ms(2026,7, 2, 8,30), end: ms(2026,7, 2,12, 0), tip: 'GITIN-1320' },
+  { start: ms(2026,7, 2,13, 0), end: ms(2026,7, 2,16,30), tip: 'GITIN-1352' },
+  { start: ms(2026,7, 3,10, 0), end: ms(2026,7, 3,15, 0), tip: 'GITIN-1320' },
+  { start: ms(2026,7, 4, 8, 0), end: ms(2026,7, 4,16, 0), tip: 'GITIN-1352' },
+];
+var WEEK_BRACKETS = [
+  { start: ms(2026,6,30, 8,15), end: ms(2026,7, 4,16, 0), label: 'GITIN-1352' },
+  { start: ms(2026,7, 2, 8,30), end: ms(2026,7, 3,15, 0), label: 'GITIN-1320' },
+];
+var WEEK_SHADES = [
+  { start: ms(2026,6,30,  0, 0), end: ms(2026,6,30,  8, 0) },
+  { start: ms(2026,6,30, 18, 0), end: ms(2026,7, 1,  8, 0) },
+  { start: ms(2026,7, 1, 18, 0), end: ms(2026,7, 2,  8, 0) },
+  { start: ms(2026,7, 2, 18, 0), end: ms(2026,7, 3,  8, 0) },
+  { start: ms(2026,7, 3, 18, 0), end: ms(2026,7, 4,  8, 0) },
+  { start: ms(2026,7, 4, 18, 0), end: WEEK_BAR_END },
+];
+
+// MONTH: Jun 1 – Jun 30, 2026. barEnd = Jun 30 14:30 UTC
+var MONTH_BAR_START = ms(2026, 6,  1,  0,  0);
+var MONTH_BAR_END   = ms(2026, 6, 30, 14, 30);
+var MONTH_WH_START  = ms(2026, 6, 30,  8,  0);
+var MONTH_WH_END    = ms(2026, 6, 30, 18,  0);
+// Deterministic IP activity per workday [start_h, end_h]
+var MONTH_DAY_ACTIVITY = {
+   1:[8,16],  2:[9,17],  3:[8,13],  4:[10,17],  5:[8,15],
+   8:[8,18],  9:[9,16], 10:[8,12], 12:[9,17],
+  15:[8,17], 16:[9,18], 17:[8,14], 19:[10,17],
+  22:[8,16], 23:[9,17], 24:[8,15], 26:[9,18],
+  29:[8,17], 30:[8,14],
+};
+var MONTH_BARS = [];
+var MONTH_SHADES = [];
+for (var d = 1; d <= 30; d++) {
+  var dayStart = ms(2026, 6, d, 0, 0);
+  var dow = new Date(dayStart).getUTCDay();
+  if (dow === 0 || dow === 6) {
+    MONTH_SHADES.push({ start: dayStart, end: dayStart + DAY });
+    continue;
+  }
+  MONTH_SHADES.push({ start: dayStart,        end: dayStart + 8*H  });
+  MONTH_SHADES.push({ start: dayStart + 18*H, end: dayStart + DAY  });
+  var act = MONTH_DAY_ACTIVITY[d];
+  if (act) {
+    MONTH_BARS.push({ start: dayStart + act[0]*H, end: dayStart + act[1]*H, tip: 'GITIN-1352' });
+  }
+}
+var MONTH_BRACKETS = [
+  { start: ms(2026,6,1,8,0), end: MONTH_BAR_END, label: 'GITIN-1352' },
+];
+
+// ── Build workday-start tick array for a range ────────────────────
+function buildDayStarts(barStart, barEnd, whStartH) {
+  var ticks = [];
+  var cur = barStart - (barStart % DAY); // UTC midnight of first day
+  while (cur <= barEnd) {
+    var dow = new Date(cur).getUTCDay();
+    if (WORKDAYS.includes(dow)) {
+      var wsTick = cur + whStartH * H;
+      if (wsTick >= barStart && wsTick <= barEnd) {
+        ticks.push(wsTick);
+      }
+    }
+    cur += DAY;
+  }
+  return ticks;
+}
+
+// ── Dataset map ───────────────────────────────────────────────────
+var DATASETS = {
+  today: {
+    barStart: TODAY_BAR_START, barEnd: TODAY_BAR_END,
+    whStart:  TODAY_WH_START,  whEnd:  TODAY_WH_END,
+    bars: TODAY_BARS, brackets: TODAY_BRACKETS, shades: TODAY_SHADES,
+    range: 'today',
+  },
+  week: {
+    barStart: WEEK_BAR_START, barEnd: WEEK_BAR_END,
+    whStart:  WEEK_WH_START,  whEnd:  WEEK_WH_END,
+    bars: WEEK_BARS, brackets: WEEK_BRACKETS, shades: WEEK_SHADES,
+    range: 'week',
+  },
+  month: {
+    barStart: MONTH_BAR_START, barEnd: MONTH_BAR_END,
+    whStart:  MONTH_WH_START,  whEnd:  MONTH_WH_END,
+    bars: MONTH_BARS, brackets: MONTH_BRACKETS, shades: MONTH_SHADES,
+    range: 'month',
+  },
+};
+
+// ── Zoom states ───────────────────────────────────────────────────
+var currentZoom = { today: '10h', week: 'day', month: 'day' };
+
+function getWindow(dsKey, mode) {
+  var d = DATASETS[dsKey];
+  switch (mode) {
+    case 'whnow': return { s: d.whStart - 2*H, e: d.barEnd, future: false };
+    case 'wh':    return { s: d.whStart - 2*H, e: d.whEnd + 2*H, future: true };
+    case '10h':   return { s: Math.max(d.barStart, d.barEnd - 10*H), e: d.barEnd, future: false };
+    case 'day':   return { s: d.barStart, e: d.barEnd, future: false };
+  }
+}
+
+// ── Tick logic ────────────────────────────────────────────────────
+function getTickConfig(dsKey, winStart, winEnd) {
+  var d = DATASETS[dsKey];
+  var spanMs = winEnd - winStart;
+  var spanH  = spanMs / H;
+
+  if (spanMs <= DAY) {
+    // Today: hourly or 2h
+    var step = spanH <= 8 ? H : 2 * H;
+    var ticks = [];
+    var first = Math.ceil(winStart / step) * step;
+    for (var t = first; t <= winEnd; t += step) ticks.push(t);
+    return { ticks: ticks, style: 'hm' };
+  } else {
+    // Multi-day: one tick per labor day at WH start
+    var dayStarts = buildDayStarts(winStart, winEnd, WH_START_H);
+    var style = spanMs > 7 * DAY ? 'date' : 'day';
+    return { ticks: dayStarts, style: style };
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────
+function render(dsKey, mode) {
+  var d    = DATASETS[dsKey];
+  var w    = getWindow(dsKey, mode);
+  var winS = w.s, winE = w.e;
+  var dataEnd = Math.min(d.barEnd, winE);
+
+  var trackEl   = document.getElementById(dsKey + '-track');
+  var tickEl    = document.getElementById(dsKey + '-ticks');
+  var brackEl   = document.getElementById(dsKey + '-brackets');
+
+  var tHtml = '', lHtml = '', bHtml = '';
+
+  // Shades
+  d.shades.forEach(function(sh) {
+    var s = Math.max(sh.start, winS), e = Math.min(sh.end, dataEnd);
+    if (e <= s) return;
+    tHtml += '<div class="ip-shade" style="left:' + pct(s,winS,winE) + '%;width:' + (pct(e,winS,winE)-pct(s,winS,winE)) + '%"></div>';
+  });
+
+  // Future hatch
+  if (w.future && winE > d.barEnd) {
+    var fl = pct(d.barEnd, winS, winE);
+    tHtml += '<div class="position-absolute top-0 bottom-0" style="left:' + fl + '%;width:' + (100-fl) + '%;background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(0,0,0,.06) 4px,rgba(0,0,0,.06) 8px)"></div>';
+    tHtml += '<div class="position-absolute top-0 bottom-0" style="left:' + fl + '%;border-left:2px solid #0d6efd"></div>';
+  }
+
+  // Ticks
+  var cfg = getTickConfig(dsKey, winS, winE);
+  cfg.ticks.forEach(function(t) {
+    if (t < winS || t > winE) return;
+    tHtml += '<div class="ip-tick" style="left:' + pct(t,winS,winE) + '%"></div>';
+    var lbl = cfg.style === 'date' ? fmtMMDD(t, TZ_OFFSET) : cfg.style === 'day' ? fmtDayLbl(t, TZ_OFFSET) : fmtHM(t, TZ_OFFSET);
+    var isNow = (t === d.barEnd);
+    var style = 'left:' + pct(t,winS,winE) + '%;' + (isNow ? 'color:#0d6efd;font-weight:600;' : '');
+    lHtml += '<span class="ip-tick-lbl" style="' + style + '">' + lbl + '</span>';
+  });
+  // "now" label in WH future mode
+  if (w.future && winE > d.barEnd) {
+    lHtml += '<span class="ip-tick-lbl" style="left:' + pct(d.barEnd,winS,winE) + '%;color:#0d6efd;font-weight:600">now</span>';
+  }
+
+  // Segments
+  d.bars.forEach(function(bar) {
+    var s = Math.max(bar.start, winS), e = Math.min(bar.end, dataEnd);
+    if (e <= s) return;
+    tHtml += '<div class="ip-segment" style="left:' + pct(s,winS,winE) + '%;width:' + (pct(e,winS,winE)-pct(s,winS,winE)) + '%" title="' + bar.tip + '"></div>';
+  });
+
+  // Brackets
+  d.brackets.forEach(function(br) {
+    var s = Math.max(br.start, winS), e = Math.min(br.end, dataEnd);
+    if (e <= s) return;
+    var l = pct(s,winS,winE), ww = pct(e,winS,winE) - l;
+    bHtml += '<div class="ip-bracket" style="left:' + l + '%;width:' + ww + '%">'
+           + '<span class="ip-bracket-lbl">' + br.label + '</span></div>';
+  });
+
+  trackEl.innerHTML = tHtml;
+  tickEl.innerHTML  = lHtml;
+  brackEl.innerHTML = bHtml;
+  trackEl.querySelectorAll('[title]').forEach(function(el){ new bootstrap.Tooltip(el, {html:false}); });
+}
+
+function setZoom(dsKey, mode, btn) {
+  var groupId = 'zoom-' + dsKey;
+  document.querySelectorAll('#' + groupId + ' .btn').forEach(function(b){
+    b.classList.remove('btn-primary','active');
+    b.classList.add('btn-outline-secondary');
+  });
+  btn.classList.remove('btn-outline-secondary');
+  btn.classList.add('btn-primary','active');
+  currentZoom[dsKey] = mode;
+  render(dsKey, mode);
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+setZoom('today', '10h',  document.querySelector('#zoom-today .active'));
+setZoom('week',  'day',  document.querySelector('#zoom-week  .active'));
+setZoom('month', 'day',  document.querySelector('#zoom-month .active'));
+</script>
+</body>
+</html>

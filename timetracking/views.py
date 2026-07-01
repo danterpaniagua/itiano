@@ -1044,9 +1044,28 @@ class DailyReportView(LoginRequiredMixin, View):
             ).astimezone(dt_module.timezone.utc)
             _wh_start_ms = int(_wh_s.timestamp() * 1000)
             _wh_end_ms = int(_wh_e.timestamp() * 1000)
+
+            # Work-start timestamp for each active labor day in the bar range
+            _weekday_active = [
+                schedule.mon, schedule.tue, schedule.wed,
+                schedule.thu, schedule.fri, schedule.sat, schedule.sun,
+            ]  # index 0=Mon … 6=Sun (Python weekday)
+            _wh_day_starts = []
+            _cur_date = bar_start.astimezone(user_tz).date()
+            _end_date = bar_end.astimezone(user_tz).date()
+            while _cur_date <= _end_date:
+                if _weekday_active[_cur_date.weekday()]:
+                    _day_wh_s = dt_module.datetime(
+                        _cur_date.year, _cur_date.month, _cur_date.day,
+                        schedule.start_time.hour, schedule.start_time.minute,
+                        tzinfo=user_tz,
+                    ).astimezone(dt_module.timezone.utc)
+                    _wh_day_starts.append(int(_day_wh_s.timestamp() * 1000))
+                _cur_date += dt_module.timedelta(days=1)
         else:
             _wh_start_ms = None
             _wh_end_ms = None
+            _wh_day_starts = []
 
         _ip_json_raw = json.dumps({
             'bars': ip_raw_bars,
@@ -1057,6 +1076,8 @@ class DailyReportView(LoginRequiredMixin, View):
             'tzName': (schedule.timezone if schedule and schedule.timezone else 'UTC'),
             'whStart': _wh_start_ms,
             'whEnd': _wh_end_ms,
+            'whDayStarts': _wh_day_starts,
+            'range': range_param,
         }) if daily_ip_bars else ''
         # Escape HTML-sensitive chars so output is safe with |safe in the template.
         # Uses JSON-valid unicode escapes — JSON.parse() decodes them back correctly.

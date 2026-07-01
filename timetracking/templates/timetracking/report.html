@@ -370,7 +370,7 @@
             <button class="btn btn-outline-secondary" id="ip-zoom-whnow" onclick="itZoom('whnow',this)">WH-now</button>
             <button class="btn btn-outline-secondary" id="ip-zoom-wh"    onclick="itZoom('wh',this)">WH</button>
             <button class="btn btn-primary active"    id="ip-zoom-10h"   onclick="itZoom('10h',this)">10h</button>
-            <button class="btn btn-outline-secondary" id="ip-zoom-day"   onclick="itZoom('day',this)">Day</button>
+            <button class="btn btn-outline-secondary" id="ip-zoom-day"   onclick="itZoom('day',this)">{% if range_param == 'week' %}Week{% elif range_param == 'month' %}Month{% elif range_param == 'custom' %}Range{% else %}Day{% endif %}</button>
         </div>
     </div>
     <div class="card-body py-3">
@@ -627,7 +627,8 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
     var barTrack   = document.getElementById('ip-bar-track');
     var tickRow    = document.getElementById('ip-tick-row');
 
-    var H = 3600000; // one hour in ms
+    var H   = 3600000;
+    var DAY = 86400000;
 
     // Hide WH buttons when no schedule is configured
     if (data.whStart === null) {
@@ -643,6 +644,22 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
         return new Date(ms).toLocaleTimeString('en-GB', {
             timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false
         });
+    }
+
+    function fmtDayLbl(ms, tz) {
+        var d = new Date(ms);
+        var DAY_ABBR = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        var parts = new Intl.DateTimeFormat('en-GB', {timeZone: tz, weekday:'short', day:'numeric'}).formatToParts(d);
+        var dow = parts.find(function(p){ return p.type === 'weekday'; });
+        var day = parts.find(function(p){ return p.type === 'day'; });
+        return (dow ? dow.value : DAY_ABBR[d.getDay()]) + ' ' + (day ? day.value : d.getDate());
+    }
+
+    function fmtMMDD(ms, tz) {
+        var parts = new Intl.DateTimeFormat('en-GB', {timeZone: tz, month:'2-digit', day:'2-digit'}).formatToParts(new Date(ms));
+        var mo  = parts.find(function(p){ return p.type === 'month'; });
+        var day = parts.find(function(p){ return p.type === 'day'; });
+        return (mo ? mo.value : '') + '-' + (day ? day.value : '');
     }
 
     function getWindow(mode) {
@@ -662,10 +679,23 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
         var winEnd   = w.e;
         var barEnd   = data.barEnd;
         var dataEnd  = Math.min(barEnd, winEnd);
-        var spanMs   = winEnd - winStart || 1;
-        var spanH    = spanMs / H;
-        var tickStep = spanH <= 8 ? H : 2 * H;
-        var firstTick = Math.ceil(winStart / tickStep) * tickStep;
+        var spanMs  = winEnd - winStart || 1;
+        var spanH   = spanMs / H;
+
+        // Tick config: multi-day uses pre-computed labor-day starts from view
+        var tickList, tickLblFn;
+        if (spanMs > DAY && data.whDayStarts && data.whDayStarts.length) {
+            tickList   = data.whDayStarts.filter(function(t){ return t >= winStart && t <= winEnd; });
+            tickLblFn  = spanMs > 7 * DAY ? function(t){ return fmtMMDD(t, data.tzName); }
+                                           : function(t){ return fmtDayLbl(t, data.tzName); };
+        } else {
+            // Hourly / 2h for same-day spans (today, 10h, WH zoom)
+            var tickStep  = spanH <= 8 ? H : 2 * H;
+            var firstTick = Math.ceil(winStart / tickStep) * tickStep;
+            tickList  = [];
+            for (var _t = firstTick; _t < winEnd; _t += tickStep) tickList.push(_t);
+            tickLblFn = function(t){ return fmtTime(t, data.tzName); };
+        }
 
         // ── Bracket row ──────────────────────────────────────────
         var bHtml = '';
@@ -703,9 +733,9 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
         }
 
         // Tick grid lines
-        for (var t = firstTick; t < winEnd; t += tickStep) {
+        tickList.forEach(function(t) {
             tHtml += '<div class="position-absolute top-0 bottom-0" style="left:' + pct(t,winStart,winEnd) + '%;border-left:1px solid rgba(0,0,0,0.12)"></div>';
-        }
+        });
 
         // IP segments
         data.bars.forEach(function (bar) {
@@ -722,11 +752,9 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
 
         // ── Tick labels ──────────────────────────────────────────
         var lHtml = '';
-        for (var t = firstTick; t <= winEnd; t += tickStep) {
-            var isNowTick = (t === barEnd);
-            var color = isNowTick ? 'color:#0d6efd;font-weight:600;' : '';
-            lHtml += '<span class="position-absolute text-muted" style="left:' + pct(t,winStart,winEnd) + '%;font-size:0.65rem;transform:translateX(-50%);' + color + '">' + fmtTime(t, data.tzName) + '</span>';
-        }
+        tickList.forEach(function(t) {
+            lHtml += '<span class="position-absolute text-muted" style="left:' + pct(t,winStart,winEnd) + '%;font-size:0.65rem;transform:translateX(-50%)">' + tickLblFn(t) + '</span>';
+        });
         // "now" label when it falls between ticks in WH mode
         if (w.future && winEnd > barEnd) {
             lHtml += '<span class="position-absolute" style="left:' + pct(barEnd,winStart,winEnd) + '%;font-size:0.65rem;transform:translateX(-50%);color:#0d6efd;font-weight:600">now</span>';
