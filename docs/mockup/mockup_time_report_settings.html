@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Time Report Settings</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  body { background:#f4f6f8; }
+  .section-card  { background:#fff; border:1px solid #dee2e6; border-radius:.5rem; padding:1.25rem; margin-bottom:1.25rem; }
+  .section-title { font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#6c757d; margin-bottom:1rem; }
+
+  /* Project row */
+  .project-row { display:flex; align-items:center; gap:8px; padding:4px 0; }
+  .project-name { font-weight:600; font-size:.9rem; }
+
+  /* Service block — indented under project */
+  .service-block { margin-left:20px; border-left:2px solid #dee2e6; padding-left:12px; margin-top:2px; }
+  .service-row   { display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-bottom:1px solid #f4f6f8; }
+  .service-row:last-of-type { border-bottom:none; }
+  .service-name  { font-size:.85rem; font-weight:500; min-width:160px; padding-top:2px; }
+
+  /* Environment pills under a service */
+  .env-pills { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .env-pill  {
+    display:inline-flex; align-items:center; gap:3px;
+    padding:1px 7px; border-radius:20px; font-size:.72rem;
+    background:#fff3cd; color:#664d03; border:1px solid #ffe69c;
+  }
+  .env-pill .ep-rm { cursor:pointer; opacity:.6; font-size:.8rem; line-height:1; }
+  .env-pill .ep-rm:hover { opacity:1; }
+  .env-add-btn {
+    display:inline-flex; align-items:center; gap:2px;
+    padding:1px 7px; border-radius:20px; font-size:.72rem;
+    background:transparent; color:#6c757d; border:1px dashed #adb5bd; cursor:pointer;
+  }
+  .env-add-btn:hover { border-color:#6c757d; color:#343a40; }
+
+  /* Env dropdown */
+  .env-dropdown {
+    position:absolute; z-index:300; background:#fff;
+    border:1px solid #dee2e6; border-radius:6px;
+    box-shadow:0 4px 12px rgba(0,0,0,.12);
+    min-width:160px; max-height:180px; overflow-y:auto; padding:4px 0;
+  }
+  .env-dd-item { padding:4px 12px; font-size:.82rem; cursor:pointer; }
+  .env-dd-item:hover { background:#f8f9fa; }
+
+  /* Add rows */
+  .add-svc-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+                 padding:6px 0 2px; margin-top:4px; }
+  .add-proj-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+                  padding-top:1rem; margin-top:.75rem; border-top:1px solid #f0f0f0; }
+
+  .remove-btn { color:#dc3545; background:none; border:none; padding:0 4px;
+                cursor:pointer; opacity:.5; font-size:.8rem; white-space:nowrap; }
+  .remove-btn:hover { opacity:1; }
+  .tag-note { font-size:.7rem; color:#adb5bd; margin-top:.4rem; }
+</style>
+</head>
+<body class="p-3">
+<div class="container-fluid" style="max-width:720px">
+
+  <!-- Breadcrumb -->
+  <nav class="mb-3">
+    <a href="#" class="text-muted text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>App Settings</a>
+  </nav>
+
+  <div class="d-flex align-items-center gap-2 mb-1">
+    <h5 class="mb-0"><i class="bi bi-clock-history me-1 text-primary"></i>Time Report Settings</h5>
+  </div>
+  <p class="text-muted small mb-4">
+    Configure the tag hierarchy (Project → Service → Environments) used by the Time by Project card on the report.
+  </p>
+
+  <!-- ── PROJECTS ── -->
+  <div class="section-card">
+    <div class="section-title"><i class="bi bi-briefcase me-1"></i>Projects &amp; Services</div>
+    <div id="projects-list"></div>
+    <div class="add-proj-row">
+      <select class="form-select form-select-sm" id="sel-project" style="max-width:210px">
+        <option value="">Select project tag…</option>
+      </select>
+      <button class="btn btn-sm btn-primary" onclick="addProject()">
+        <i class="bi bi-plus"></i> Add project
+      </button>
+      <a href="#" class="text-muted small ms-1"><i class="bi bi-tag me-1"></i>New tag?</a>
+    </div>
+    <div class="tag-note">Shows all existing tags. A tag can appear in multiple levels.</div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── All tags in the system ─────────────────────────────────────────
+var ALL_TAGS = [
+  'BackOffice','ClubSiteG2','ConcentradorService',
+  'main','MobileAppService','PlatformService',
+  'prepro','production','SmartLoyalty','SmartPedidos',
+  'SMTPRL','stg','TaskOperatorService','test02','Testing',
+  'tst','WebService','WebServiceCG','WebServiceV2','WebSite',
+];
+
+// ── State: Project → [Service → [envs]] ──────────────────────────
+var state = {
+  projects: [
+    {
+      name: 'SmartLoyalty',
+      services: [
+        { name: 'MobileAppService',    envs: ['test02','prepro','main'] },
+        { name: 'WebService',          envs: ['test02','prepro','main'] },
+        { name: 'WebServiceCG',        envs: ['test02','prepro','main'] },
+        { name: 'ClubSiteG2',          envs: [] },
+      ],
+    },
+    {
+      name: 'SmartPedidos',
+      services: [
+        { name: 'BackOffice',          envs: ['production','stg','tst'] },
+        { name: 'ConcentradorService', envs: ['production','stg','tst'] },
+      ],
+    },
+  ],
+};
+
+// ── Render ────────────────────────────────────────────────────────
+function render() {
+  var el = document.getElementById('projects-list');
+
+  if (state.projects.length === 0) {
+    el.innerHTML = '<p class="text-muted small">No projects configured yet.</p>';
+    fillSelect('sel-project', ALL_TAGS);
+    return;
+  }
+
+  var html = '';
+  state.projects.forEach(function(proj, pi) {
+    // Project header
+    html += '<div class="project-row">'
+          + '<i class="bi bi-circle-fill text-primary" style="font-size:.4rem"></i>'
+          + '<span class="project-name">' + proj.name + '</span>'
+          + '<button class="remove-btn ms-auto" onclick="removeProject(' + pi + ')">'
+          + '<i class="bi bi-x-lg"></i> Remove</button>'
+          + '</div>';
+
+    // Services block
+    html += '<div class="service-block" id="svc-block-' + pi + '">';
+
+    proj.services.forEach(function(svc, si) {
+      html += '<div class="service-row">';
+      // Service name + remove
+      html += '<div class="service-name d-flex align-items-start gap-1">'
+            + '<i class="bi bi-dash text-muted mt-1" style="font-size:.7rem;flex-shrink:0"></i>'
+            + '<span>' + svc.name + '</span>'
+            + '</div>';
+
+      // Env pills + add button
+      html += '<div class="env-pills flex-grow-1">';
+      svc.envs.forEach(function(env, ei) {
+        html += '<span class="env-pill">' + env
+              + ' <span class="ep-rm" data-pi="' + pi + '" data-si="' + si + '" data-ei="' + ei + '">&times;</span>'
+              + '</span>';
+      });
+      // Add-env anchor + dropdown
+      html += '<div class="position-relative d-inline-block">'
+            + '<span class="env-add-btn" data-pi="' + pi + '" data-si="' + si + '"><i class="bi bi-plus"></i> env</span>'
+            + '<div class="env-dropdown" id="envdd-' + pi + '-' + si + '" style="display:none;top:24px;left:0"></div>'
+            + '</div>';
+      html += '</div>'; // /env-pills
+
+      // Service remove
+      html += '<button class="remove-btn flex-shrink-0" onclick="removeService(' + pi + ',' + si + ')">'
+            + '<i class="bi bi-x"></i></button>';
+
+      html += '</div>'; // /service-row
+    });
+
+    // Add service row
+    html += '<div class="add-svc-row">'
+          + '<select class="form-select form-select-sm" id="sel-svc-' + pi + '" style="max-width:200px">'
+          + '<option value="">Select service tag…</option></select>'
+          + '<button class="btn btn-sm btn-outline-primary" onclick="addService(' + pi + ')">'
+          + '<i class="bi bi-plus"></i> Add service</button>'
+          + '<a href="#" class="text-muted small"><i class="bi bi-tag me-1"></i>New tag?</a>'
+          + '</div>';
+
+    html += '</div>'; // /service-block
+    html += '<div class="mb-3"></div>';
+  });
+
+  el.innerHTML = html;
+
+  // Fill service dropdowns
+  state.projects.forEach(function(proj, pi) {
+    var sel = document.getElementById('sel-svc-' + pi);
+    if (sel) fillSelect('sel-svc-' + pi, ALL_TAGS);
+  });
+  fillSelect('sel-project', ALL_TAGS);
+
+  // Bind env pill remove
+  document.querySelectorAll('.ep-rm').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      removeEnv(+this.dataset.pi, +this.dataset.si, +this.dataset.ei);
+    });
+  });
+
+  // Bind env add buttons
+  document.querySelectorAll('.env-add-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openEnvDropdown(+this.dataset.pi, +this.dataset.si, this);
+    });
+  });
+}
+
+// ── Dropdowns ─────────────────────────────────────────────────────
+function fillSelect(id, tags) {
+  var sel = document.getElementById(id);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">' + sel.options[0].text + '</option>';
+  tags.forEach(function(t) {
+    var opt = document.createElement('option');
+    opt.value = t; opt.textContent = t; sel.appendChild(opt);
+  });
+}
+
+function openEnvDropdown(pi, si, anchor) {
+  closeEnvDropdowns();
+  var dd = document.getElementById('envdd-' + pi + '-' + si);
+  if (!dd) return;
+  dd.innerHTML = ALL_TAGS.map(function(t) {
+    return '<div class="env-dd-item" data-pi="' + pi + '" data-si="' + si + '" data-tag="' + t + '">' + t + '</div>';
+  }).join('');
+  dd.querySelectorAll('.env-dd-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      addEnv(+this.dataset.pi, +this.dataset.si, this.dataset.tag);
+    });
+  });
+  dd.style.display = 'block';
+}
+
+function closeEnvDropdowns() {
+  document.querySelectorAll('.env-dropdown').forEach(function(d) { d.style.display = 'none'; });
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.env-add-btn') && !e.target.closest('.env-dropdown')) closeEnvDropdowns();
+});
+
+// ── Actions ───────────────────────────────────────────────────────
+function addProject() {
+  var sel = document.getElementById('sel-project');
+  if (!sel.value) return;
+  state.projects.push({ name: sel.value, services: [] });
+  render();
+}
+
+function removeProject(pi) {
+  var proj = state.projects[pi];
+  if (!confirm('Remove "' + proj.name + '" and its ' + proj.services.length + ' service(s)?')) return;
+  state.projects.splice(pi, 1);
+  render();
+}
+
+function addService(pi) {
+  var sel = document.getElementById('sel-svc-' + pi);
+  if (!sel || !sel.value) return;
+  state.projects[pi].services.push({ name: sel.value, envs: [] });
+  render();
+}
+
+function removeService(pi, si) {
+  state.projects[pi].services.splice(si, 1);
+  render();
+}
+
+function addEnv(pi, si, tag) {
+  if (!state.projects[pi].services[si].envs.includes(tag)) {
+    state.projects[pi].services[si].envs.push(tag);
+  }
+  closeEnvDropdowns();
+  render();
+}
+
+function removeEnv(pi, si, ei) {
+  state.projects[pi].services[si].envs.splice(ei, 1);
+  render();
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>

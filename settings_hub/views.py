@@ -12,7 +12,7 @@ from contacts.models import Contact, ContactChannel
 from core.models import UserProfile
 from itsm.models import Category, Tag
 from jira_integration.models import JiraEvent
-from timetracking.models import WorkSchedule
+from timetracking.models import ReportEnvironment, ReportProject, ReportService, WorkSchedule
 from .models import get_app_setting, AppSetting, JiraStatusConfig
 
 _DAYS = [
@@ -333,6 +333,66 @@ class UserChannelDeleteView(LoginRequiredMixin, View):
 class AppSettingsHubView(StaffRequiredMixin, View):
     def get(self, request):
         return render(request, 'settings_hub/app_hub.html')
+
+
+class TimeReportSettingsView(StaffRequiredMixin, View):
+    def _ctx(self):
+        all_tags = list(Tag.objects.order_by('name'))
+        projects = list(ReportProject.objects.prefetch_related('services__environments').all())
+        existing_proj_names = {p.tag_name for p in projects}
+        for proj in projects:
+            svc_names = {s.tag_name for s in proj.services.all()}
+            proj.available_svc_tags = [t for t in all_tags if t.name not in svc_names]
+            for svc in proj.services.all():
+                env_names = {e.tag_name for e in svc.environments.all()}
+                svc.available_env_tags = [t for t in all_tags if t.name not in env_names]
+        return {
+            'projects': projects,
+            'project_available_tags': [t for t in all_tags if t.name not in existing_proj_names],
+        }
+
+    def get(self, request):
+        return render(request, 'settings_hub/time_report_settings.html', self._ctx())
+
+    def post(self, request):
+        action = request.POST.get('action')
+
+        if action == 'add_project':
+            for name in request.POST.getlist('tag_name'):
+                name = name.strip()
+                if name:
+                    ReportProject.objects.get_or_create(tag_name=name)
+
+        elif action == 'remove_project':
+            ReportProject.objects.filter(pk=request.POST.get('project_id')).delete()
+
+        elif action == 'add_service':
+            try:
+                proj = ReportProject.objects.get(pk=request.POST.get('project_id'))
+                for name in request.POST.getlist('tag_name'):
+                    name = name.strip()
+                    if name:
+                        ReportService.objects.get_or_create(project=proj, tag_name=name)
+            except ReportProject.DoesNotExist:
+                pass
+
+        elif action == 'remove_service':
+            ReportService.objects.filter(pk=request.POST.get('service_id')).delete()
+
+        elif action == 'add_env':
+            try:
+                svc = ReportService.objects.get(pk=request.POST.get('service_id'))
+                for name in request.POST.getlist('tag_name'):
+                    name = name.strip()
+                    if name:
+                        ReportEnvironment.objects.get_or_create(service=svc, tag_name=name)
+            except ReportService.DoesNotExist:
+                pass
+
+        elif action == 'remove_env':
+            ReportEnvironment.objects.filter(pk=request.POST.get('env_id')).delete()
+
+        return redirect('settings-time-report')
 
 
 class JiraSettingsView(StaffRequiredMixin, View):

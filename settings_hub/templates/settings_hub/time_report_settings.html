@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}Time Report Settings – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+    <a href="{% url 'settings-app' %}" class="text-muted text-decoration-none small me-1">
+        <i class="bi bi-arrow-left"></i> App Settings
+    </a>
+    <h5 class="mb-0 me-auto"><i class="bi bi-clock-history me-1"></i> Time Report</h5>
+</div>
+<p class="text-muted small mb-4">
+    Configure the tag hierarchy (Project → Service → Environments) used by the Time by Project card on the report.
+</p>
+
+<div class="col-12 col-md-10 col-lg-8">
+
+    <div class="section-card">
+        <div class="section-title"><i class="bi bi-briefcase me-1"></i>Projects &amp; Services</div>
+
+        {% if not projects %}
+        <p class="text-muted small mb-3">No projects configured yet.</p>
+        {% endif %}
+
+        {% for proj in projects %}
+        <div class="project-row">
+            <i class="bi bi-circle-fill text-primary" style="font-size:.4rem;flex-shrink:0"></i>
+            <span class="project-name">{{ proj.tag_name }}</span>
+            <form method="post" class="ms-auto d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="remove_project">
+                <input type="hidden" name="project_id" value="{{ proj.pk }}">
+                <button type="submit" class="remove-btn"
+                    onclick="return confirm('Remove &quot;{{ proj.tag_name }}&quot; and all its services?')">
+                    <i class="bi bi-x-lg"></i> Remove
+                </button>
+            </form>
+        </div>
+
+        <div class="service-block">
+            {% for svc in proj.services.all %}
+            <div class="service-row">
+                <div class="service-name">
+                    <i class="bi bi-dash text-muted" style="font-size:.7rem;flex-shrink:0"></i>
+                    <span>{{ svc.tag_name }}</span>
+                </div>
+
+                <div class="env-pills flex-grow-1">
+                    {% for env in svc.environments.all %}
+                    <form method="post" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove_env">
+                        <input type="hidden" name="env_id" value="{{ env.pk }}">
+                        <span class="env-pill">{{ env.tag_name }}
+                            <button type="submit" class="ep-rm border-0 bg-transparent p-0">&times;</button>
+                        </span>
+                    </form>
+                    {% endfor %}
+
+                    {# Env multiselect panel #}
+                    <div class="position-relative d-inline-block">
+                        <span class="ms-trigger env-add-btn" data-target="envdd-{{ svc.pk }}">
+                            <i class="bi bi-plus"></i> env
+                            <span class="ms-badge" id="env-badge-{{ svc.pk }}"></span>
+                        </span>
+                        <div class="ms-panel" id="envdd-{{ svc.pk }}" style="display:none">
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="add_env">
+                                <input type="hidden" name="service_id" value="{{ svc.pk }}">
+                                <input type="text" class="ms-search form-control form-control-sm mb-1" placeholder="Filter tags…">
+                                <div class="ms-list">
+                                    {% for tag in svc.available_env_tags %}
+                                    <label class="ms-item">
+                                        <input type="checkbox" name="tag_name" value="{{ tag.name }}"> {{ tag.name }}
+                                    </label>
+                                    {% endfor %}
+                                    {% if not svc.available_env_tags %}<div class="ms-item text-muted">All tags added</div>{% endif %}
+                                </div>
+                                <div class="ms-footer">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary w-100">Add selected</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="remove_service">
+                    <input type="hidden" name="service_id" value="{{ svc.pk }}">
+                    <button type="submit" class="remove-btn"><i class="bi bi-x"></i></button>
+                </form>
+            </div>
+            {% endfor %}
+
+            {# Add services multiselect #}
+            <div class="add-svc-row">
+                <form method="post" class="d-flex flex-wrap gap-2 align-items-center">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_service">
+                    <input type="hidden" name="project_id" value="{{ proj.pk }}">
+                    <div class="position-relative">
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-trigger"
+                                data-target="svc-panel-{{ proj.pk }}">
+                            <i class="bi bi-tags me-1"></i>Select services
+                            <span class="ms-badge" id="svc-badge-{{ proj.pk }}"></span>
+                        </button>
+                        <div class="ms-panel" id="svc-panel-{{ proj.pk }}" style="display:none">
+                            <input type="text" class="ms-search form-control form-control-sm mb-1" placeholder="Filter tags…">
+                            <div class="ms-list">
+                                {% for tag in proj.available_svc_tags %}
+                                <label class="ms-item">
+                                    <input type="checkbox" name="tag_name" value="{{ tag.name }}"> {{ tag.name }}
+                                </label>
+                                {% endfor %}
+                                {% if not proj.available_svc_tags %}<div class="ms-item text-muted">All tags added</div>{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-plus"></i> Add
+                    </button>
+                    <a href="{% url 'settings-tickets' %}" class="text-muted small">
+                        <i class="bi bi-tag me-1"></i>New tag?
+                    </a>
+                </form>
+            </div>
+        </div>
+        <div class="mb-3"></div>
+        {% endfor %}
+
+        {# Add project multiselect #}
+        <div class="add-proj-row">
+            <form method="post" class="d-flex flex-wrap gap-2 align-items-center">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_project">
+                <div class="position-relative">
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-trigger"
+                            data-target="proj-panel">
+                        <i class="bi bi-briefcase me-1"></i>Select projects
+                        <span class="ms-badge" id="proj-badge"></span>
+                    </button>
+                    <div class="ms-panel" id="proj-panel" style="display:none">
+                        <input type="text" class="ms-search form-control form-control-sm mb-1" placeholder="Filter tags…">
+                        <div class="ms-list">
+                            {% for tag in project_available_tags %}
+                            <label class="ms-item">
+                                <input type="checkbox" name="tag_name" value="{{ tag.name }}"> {{ tag.name }}
+                            </label>
+                            {% endfor %}
+                            {% if not project_available_tags %}<div class="ms-item text-muted">All tags added</div>{% endif %}
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus"></i> Add project
+                </button>
+                <a href="{% url 'settings-tickets' %}" class="text-muted small ms-1">
+                    <i class="bi bi-tag me-1"></i>New tag?
+                </a>
+            </form>
+        </div>
+        <div class="tag-note">Shows all existing tags. A tag can appear in multiple levels.</div>
+    </div>
+
+</div>
+
+<style>
+.section-card  { background:#fff; border:1px solid #dee2e6; border-radius:.5rem; padding:1.25rem; margin-bottom:1.25rem; }
+.section-title { font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#6c757d; margin-bottom:1rem; }
+
+.project-row  { display:flex; align-items:center; gap:8px; padding:4px 0; }
+.project-name { font-weight:600; font-size:.9rem; }
+
+.service-block { margin-left:20px; border-left:2px solid #dee2e6; padding-left:12px; margin-top:2px; }
+.service-row   { display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-bottom:1px solid #f4f6f8; }
+.service-row:last-of-type { border-bottom:none; }
+.service-name  { font-size:.85rem; font-weight:500; min-width:160px; padding-top:2px; display:flex; align-items:flex-start; gap:4px; }
+
+.env-pills   { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.env-pill    { display:inline-flex; align-items:center; gap:3px; padding:1px 7px; border-radius:20px; font-size:.72rem; background:#fff3cd; color:#664d03; border:1px solid #ffe69c; }
+.ep-rm       { cursor:pointer; opacity:.6; font-size:.8rem; line-height:1; color:inherit; }
+.ep-rm:hover { opacity:1; }
+
+.env-add-btn       { display:inline-flex; align-items:center; gap:2px; padding:1px 7px; border-radius:20px; font-size:.72rem; background:transparent; color:#6c757d; border:1px dashed #adb5bd; cursor:pointer; user-select:none; }
+.env-add-btn:hover { border-color:#6c757d; color:#343a40; }
+
+/* Shared multiselect panel */
+.ms-panel  { position:absolute; z-index:400; background:#fff; border:1px solid #dee2e6; border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,.13); min-width:200px; padding:8px; top:28px; left:0; }
+.ms-search { font-size:.82rem; }
+.ms-list   { max-height:180px; overflow-y:auto; margin:4px 0 0; }
+.ms-item   { display:flex; align-items:center; gap:7px; padding:3px 4px; font-size:.82rem; cursor:pointer; border-radius:4px; margin:0; font-weight:400; }
+.ms-item:hover { background:#f8f9fa; }
+.ms-item input { margin:0; flex-shrink:0; cursor:pointer; }
+.ms-badge  { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; border-radius:10px; font-size:.65rem; font-weight:700; background:#0d6efd; color:#fff; margin-left:4px; vertical-align:middle; }
+.ms-badge:empty { display:none; }
+.ms-footer { margin-top:6px; border-top:1px solid #f0f0f0; padding-top:6px; }
+
+.add-svc-row  { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 0 2px; margin-top:4px; }
+.add-proj-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding-top:1rem; margin-top:.75rem; border-top:1px solid #f0f0f0; }
+
+.remove-btn       { color:#dc3545; background:none; border:none; padding:0 4px; cursor:pointer; opacity:.5; font-size:.8rem; white-space:nowrap; }
+.remove-btn:hover { opacity:1; }
+.tag-note { font-size:.7rem; color:#adb5bd; margin-top:.5rem; }
+</style>
+
+<script>
+// ── Multiselect panel ─────────────────────────────────────────────
+
+function openPanel(panelId) {
+    closeAllPanels();
+    var p = document.getElementById(panelId);
+    if (p) {
+        p.style.display = 'block';
+        var s = p.querySelector('.ms-search');
+        if (s) { s.value = ''; filterList(s); s.focus(); }
+    }
+}
+
+function closeAllPanels() {
+    document.querySelectorAll('.ms-panel').forEach(function(p) { p.style.display = 'none'; });
+}
+
+function filterList(input) {
+    var q = input.value.toLowerCase();
+    var list = input.closest('.ms-panel').querySelector('.ms-list');
+    list.querySelectorAll('.ms-item').forEach(function(item) {
+        var text = item.textContent.toLowerCase();
+        item.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+
+function updateBadge(panelId, badgeId) {
+    var panel = document.getElementById(panelId);
+    var badge = document.getElementById(badgeId);
+    if (!panel || !badge) return;
+    var count = panel.querySelectorAll('input[type=checkbox]:checked').length;
+    badge.textContent = count > 0 ? count : '';
+}
+
+// Trigger buttons (non-env, data-target attribute)
+document.querySelectorAll('.ms-trigger[data-target]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var panelId = this.dataset.target;
+        var panel = document.getElementById(panelId);
+        if (panel && panel.style.display === 'block') {
+            closeAllPanels();
+        } else {
+            openPanel(panelId);
+        }
+    });
+});
+
+// Search inputs
+document.querySelectorAll('.ms-search').forEach(function(input) {
+    input.addEventListener('input', function() { filterList(this); });
+    input.addEventListener('click', function(e) { e.stopPropagation(); });
+});
+
+// Checkbox changes → update badge
+document.querySelectorAll('.ms-panel').forEach(function(panel) {
+    panel.addEventListener('change', function(e) {
+        if (e.target.type !== 'checkbox') return;
+        // Find the associated badge
+        var panelId = panel.id;
+        // Badge ID convention: env-badge-{pk}, svc-badge-{pk}, proj-badge
+        var trigger = document.querySelector('[data-target="' + panelId + '"]');
+        if (trigger) {
+            var badge = trigger.querySelector('.ms-badge');
+            if (badge) {
+                var count = panel.querySelectorAll('input[type=checkbox]:checked').length;
+                badge.textContent = count > 0 ? count : '';
+            }
+        }
+    });
+    // Prevent panel from closing when clicking inside
+    panel.addEventListener('click', function(e) { e.stopPropagation(); });
+});
+
+// Close on outside click
+document.addEventListener('click', function() { closeAllPanels(); });
+</script>
+{% endblock %}

@@ -11,7 +11,7 @@ from django.views import View
 from jira_integration.models import JiraEvent, JiraTicket
 from settings_hub.models import get_app_setting, JiraStatusConfig
 
-from .models import TimeEntry, WorkSchedule
+from .models import ReportProject, TimeEntry, WorkSchedule
 
 
 class TimeEntryListView(LoginRequiredMixin, View):
@@ -1086,6 +1086,29 @@ class DailyReportView(LoginRequiredMixin, View):
         _tag_totals_raw = json.dumps(tag_totals)
         tag_totals_json = _tag_totals_raw.replace('&', '\\u0026').replace('<', '\\u003C').replace('>', '\\u003E')
 
+        # --- Hierarchy (Project → Service) for Time by Project card ---
+        _rp_qs = ReportProject.objects.prefetch_related('services').all()
+        if _rp_qs.exists():
+            _tag_sec = {r['tag']: r['secs'] for r in tag_totals}
+            _hierarchy = []
+            for _rp in _rp_qs:
+                _svc_rows = []
+                _proj_total = 0
+                for _svc in _rp.services.all():
+                    _s = _tag_sec.get(_svc.tag_name, 0)
+                    _proj_total += _s
+                    _svc_rows.append({'name': _svc.tag_name, 'secs': _s, 'display': fmt(_s)})
+                _hierarchy.append({
+                    'project': _rp.tag_name,
+                    'total_secs': _proj_total,
+                    'display': fmt(_proj_total),
+                    'services': _svc_rows,
+                })
+            _rh_raw = json.dumps(_hierarchy)
+            report_hierarchy_json = _rh_raw.replace('&', '\\u0026').replace('<', '\\u003C').replace('>', '\\u003E')
+        else:
+            report_hierarchy_json = 'null'
+
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
             'today_rows': today_rows,
@@ -1114,6 +1137,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'daily_ticks': daily_ticks,
             'ip_bar_json': ip_bar_json,
             'tag_totals_json': tag_totals_json,
+            'report_hierarchy_json': report_hierarchy_json,
         })
 
 

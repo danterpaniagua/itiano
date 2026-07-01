@@ -328,9 +328,10 @@
 {# ── Time by Project / Time by Environment ── #}
 {% if tag_totals %}
 <script type="application/json" id="tag-totals-data">{{ tag_totals_json|safe }}</script>
+<script type="application/json" id="report-hierarchy-data">{{ report_hierarchy_json|safe }}</script>
 <div class="row g-3 mb-3" id="tbg-row">
 
-    {# Time by Project #}
+    {# Time by Project — pill UI when no hierarchy; hierarchy view when configured #}
     <div class="col-12 col-md-6">
         <div class="card">
             <div class="card-header py-2 d-flex align-items-center gap-2">
@@ -861,10 +862,17 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
 .tbg-bar-track { height:10px; background:#e9ecef; border-radius:4px; overflow:hidden; }
 .tbg-bar-fill  { height:100%; border-radius:4px; }
 .tbg-empty { color:#adb5bd; font-size:.85rem; padding:1.25rem 0; text-align:center; }
+.tbh-proj-row { margin-bottom:2px; }
+.tbh-proj-label { display:flex; align-items:baseline; font-size:.85rem; font-weight:600; margin-bottom:2px; }
+.tbh-svc-row  { margin-left:16px; border-left:2px solid #dee2e6; padding-left:8px; margin-bottom:4px; }
+.tbh-svc-label { display:flex; align-items:baseline; font-size:.8rem; color:#495057; margin-bottom:2px; }
+.tbh-time { margin-left:auto; font-size:.75rem; color:#6c757d; white-space:nowrap; }
 </style>
 <script>
 (function() {
     var TAG_DATA = JSON.parse(document.getElementById('tag-totals-data').textContent);
+    var _hierarchyEl = document.getElementById('report-hierarchy-data');
+    var HIERARCHY    = _hierarchyEl ? JSON.parse(_hierarchyEl.textContent) : null;
     // {tag: name, secs: N, display: '2h 15m'}
 
     var state = { project: [], env: [] };
@@ -971,8 +979,51 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
         if (!e.target.closest('.tbg-dropdown')) closeDropdowns();
     });
 
-    render('project');
-    render('env');
+    // Hierarchy renderer for Time by Project (when ReportProject configured)
+    function renderHierarchy() {
+        var pillsEl = document.getElementById('tbp-pills');
+        var barsEl  = document.getElementById('tbp-bars');
+        var countEl = document.getElementById('tbp-count');
+        if (pillsEl) pillsEl.style.display = 'none';
+
+        var active = HIERARCHY.filter(function(p) { return p.total_secs > 0; });
+
+        if (!active.length) {
+            barsEl.innerHTML = '<div class="tbg-empty"><i class="bi bi-briefcase"></i><br>No project time in this period.</div>';
+            if (countEl) countEl.textContent = '';
+            return;
+        }
+
+        var maxSecs = 0;
+        active.forEach(function(p) { if (p.total_secs > maxSecs) maxSecs = p.total_secs; });
+
+        var html = '';
+        active.forEach(function(proj) {
+            var pp = (proj.total_secs / maxSecs * 100).toFixed(1);
+            html += '<div class="tbh-proj-row">'
+                  + '<div class="tbh-proj-label">' + proj.project + '<span class="tbh-time">' + proj.display + '</span></div>'
+                  + '<div class="tbg-bar-track mb-2"><div class="tbg-bar-fill" style="width:' + pp + '%;background:#0d6efd"></div></div>'
+                  + '</div>';
+            proj.services.forEach(function(svc) {
+                if (svc.secs === 0) return;
+                var sp = (svc.secs / maxSecs * 100).toFixed(1);
+                html += '<div class="tbh-svc-row">'
+                      + '<div class="tbh-svc-label">' + svc.name + '<span class="tbh-time">' + svc.display + '</span></div>'
+                      + '<div class="tbg-bar-track mb-2"><div class="tbg-bar-fill" style="width:' + sp + '%;background:#6ea8fe"></div></div>'
+                      + '</div>';
+            });
+        });
+        barsEl.innerHTML = html;
+        if (countEl) countEl.textContent = active.length + (active.length === 1 ? ' project' : ' projects');
+    }
+
+    if (HIERARCHY && HIERARCHY.length > 0) {
+        renderHierarchy();
+        render('env');
+    } else {
+        render('project');
+        render('env');
+    }
 })();
 </script>
 {% endif %}

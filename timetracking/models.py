@@ -53,3 +53,37 @@ class TimeEntry(models.Model):
         if h:
             return f"{h}h"
         return f"{m}m"
+
+
+class ReportProject(models.Model):
+    tag_name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        ordering = ['tag_name']
+
+    def __str__(self):
+        return self.tag_name
+
+
+class ReportService(models.Model):
+    project = models.ForeignKey(ReportProject, on_delete=models.CASCADE, related_name='services')
+    tag_name = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = ['tag_name']
+        unique_together = [('project', 'tag_name')]
+
+    def __str__(self):
+        return f"{self.project.tag_name} / {self.tag_name}"
+
+
+class ReportEnvironment(models.Model):
+    service = models.ForeignKey(ReportService, on_delete=models.CASCADE, related_name='environments')
+    tag_name = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = ['tag_name']
+        unique_together = [('service', 'tag_name')]
+
+    def __str__(self):
+        return f"{self.service.tag_name} / {self.tag_name}"

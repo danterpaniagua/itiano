@@ -10,6 +10,7 @@ urlpatterns = [
     path('user/channels/<int:pk>/edit/', views.UserChannelEditView.as_view(), name='settings-user-channel-edit'),
     path('user/channels/<int:pk>/delete/', views.UserChannelDeleteView.as_view(), name='settings-user-channel-delete'),
     path('app/', views.AppSettingsHubView.as_view(), name='settings-app'),
+    path('time-report/', views.TimeReportSettingsView.as_view(), name='settings-time-report'),
     path('jira/', views.JiraSettingsView.as_view(), name='settings-jira'),
     path('jira/status/add/', views.JiraStatusAddView.as_view(), name='settings-jira-status-add'),
     path('jira/status/<int:pk>/delete/', views.JiraStatusDeleteView.as_view(), name='settings-jira-status-delete'),
