@@ -103,4 +103,6 @@
 | v5.8.29 | Gantt Timeline Parent-Child Grouping (Visual) | Delivered | [v5/v5.8.29.md](v5/v5.8.29.md) |
 | v5.8.30 | Closed Tickets Panel on Time Report | Delivered | [v5/v5.8.30.md](v5/v5.8.30.md) |
 | v5.8.31 | IP Bar Zoom Toggle + Auto-Update on Time Report | Delivered | — |
+| v5.8.32 | Time by Project & Environment Cards on Time Report | Delivered | — |
+| v5.8.33 | IP Bar Range-Aware Ticks (Week/Month) | Delivered | — |
 | v5.9.0 | Google SSO + Email Invitations | Scoped (blocked) | — |
