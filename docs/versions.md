@@ -107,3 +107,5 @@
 | v5.8.33 | IP Bar Range-Aware Ticks (Week/Month) | Delivered | [v5/v5.8.33.md](v5/v5.8.33.md) |
 | v5.8.34 | Time Report: Tag Hierarchy Settings | Delivered | [v5/v5.8.34.md](v5/v5.8.34.md) |
 | v5.8.35 | Settings: Closed Status Flag for Ticket Statuses | Delivered | [v5/v5.8.35.md](v5/v5.8.35.md) |
+| v5.8.36 | Time by Status Revamp: Working-Hours Calculation + Agent Self-Tracking | Delivered | [v5/v5.8.36.md](v5/v5.8.36.md) |
+| v5.9.0 | Time by Status: Trend, Oldest-Offender, Stuck Alert | Delivered | [v5/v5.9.0.md](v5/v5.9.0.md) |
