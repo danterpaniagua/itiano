@@ -196,7 +196,7 @@ class DailyReportView(LoginRequiredMixin, View):
         from jira_integration.models import JiraEvent
         from itsm.models import TicketTag
 
-        schedule = WorkSchedule.objects.filter(user=request.user).first()
+        schedule, _ = WorkSchedule.objects.get_or_create(user=request.user)
         jira_username = schedule.jira_username.strip() if schedule and schedule.jira_username else ''
         try:
             jira_account_id = request.user.userprofile.jira_account_id.strip()
@@ -206,7 +206,7 @@ class DailyReportView(LoginRequiredMixin, View):
         _jira_configs = list(JiraStatusConfig.objects.all())
         if _jira_configs:
             _ip_statuses       = {c.status_name.lower() for c in _jira_configs if c.category == 'in_progress'}
-            _terminal_statuses = {c.status_name.lower() for c in _jira_configs if c.category == 'done'}
+            _terminal_statuses = {c.status_name.lower() for c in _jira_configs if c.is_terminal}
         else:
             _ip_statuses       = {'in progress'}
             _terminal_statuses = {'done', 'descartado'}
@@ -258,21 +258,64 @@ class DailyReportView(LoginRequiredMixin, View):
         else:
             start_dt = (now_local - dt_module.timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(dt_module.timezone.utc)
 
-        def range_seconds(entered_at, exited_at, ongoing_in_progress=False):
+        def range_bounds(entered_at, exited_at, ongoing_in_progress=False):
             """
-            Count seconds from this segment that count toward the selected range.
-            Only counts if the transition INTO this status happened within [start_dt, now],
-            or if the segment is an ongoing In Progress that started before the range
-            (the ticket is actively being worked on).
+            Resolve the (seg_start, seg_end) window of this segment that counts toward
+            the selected range, or None if it doesn't count at all. A segment counts if
+            the transition INTO this status happened within [start_dt, now], or if it's
+            an ongoing In Progress segment that started before the range (the ticket is
+            actively being worked on).
             """
             if not entered_at:
-                return 0
+                return None
             if entered_at >= start_dt:
-                seg_end = min(exited_at or now, now)
-                return max(0, int((seg_end - entered_at).total_seconds()))
-            if ongoing_in_progress and exited_at is None:
-                return max(0, int((now - start_dt).total_seconds()))
-            return 0
+                seg_start = entered_at
+            elif ongoing_in_progress and exited_at is None:
+                seg_start = start_dt
+            else:
+                return None
+            seg_end = min(exited_at or now, now)
+            if seg_end <= seg_start:
+                return None
+            return seg_start, seg_end
+
+        def range_seconds(entered_at, exited_at, ongoing_in_progress=False):
+            """Calendar (wall-clock) seconds of the segment that count toward the range."""
+            bounds = range_bounds(entered_at, exited_at, ongoing_in_progress)
+            if not bounds:
+                return 0
+            seg_start, seg_end = bounds
+            return max(0, int((seg_end - seg_start).total_seconds()))
+
+        _weekday_attrs = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+        def working_seconds_bounds(seg_start, seg_end):
+            if not schedule or not schedule.start_time or not schedule.end_time:
+                return 0
+            try:
+                tz = _zi.ZoneInfo(schedule.timezone) if schedule.timezone else dt_module.timezone.utc
+            except Exception:
+                tz = dt_module.timezone.utc
+            total = 0
+            day = seg_start.astimezone(tz).date()
+            end_day = seg_end.astimezone(tz).date()
+            while day <= end_day:
+                if getattr(schedule, _weekday_attrs[day.weekday()], False):
+                    work_start = dt_module.datetime.combine(day, schedule.start_time, tzinfo=tz)
+                    work_end = dt_module.datetime.combine(day, schedule.end_time, tzinfo=tz)
+                    overlap_start = max(seg_start, work_start)
+                    overlap_end = min(seg_end, work_end)
+                    if overlap_end > overlap_start:
+                        total += (overlap_end - overlap_start).total_seconds()
+                day += dt_module.timedelta(days=1)
+            return int(total)
+
+        def working_seconds(entered_at, exited_at, ongoing_in_progress=False):
+            """Duration of the segment clipped to the ticket owner's WorkSchedule window."""
+            bounds = range_bounds(entered_at, exited_at, ongoing_in_progress)
+            if not bounds:
+                return 0
+            return working_seconds_bounds(*bounds)
 
         def fmt(seconds):
             seconds = max(0, int(seconds))
@@ -423,18 +466,79 @@ class DailyReportView(LoginRequiredMixin, View):
             filtered_tickets.sort(key=lambda t: latest_event.get(t.pk), reverse=True)
 
         # --- Time by Status (range-scoped, filters applied) ---
+        # Terminal statuses never appear here (see the closed-tickets footer instead).
+        # In Progress: calendar Sum + Avg (Sum / distinct contributing tickets).
+        # Blocked / Testing / Backlog: working-hours-scoped Sum only, hidden if zero.
+        _status_category_map = {c.status_name.lower(): c.category for c in _jira_configs}
+
+        def _status_category_of(status_name):
+            key = status_name.lower()
+            if _jira_configs:
+                return _status_category_map.get(key, 'other')
+            if key in _ip_statuses:
+                return 'in_progress'
+            if key in _TERMINAL_STATUSES:
+                return 'done'
+            if key in ('bloqueado', 'blocked'):
+                return 'blocked'
+            if key == 'testing':
+                return 'testing'
+            if key == 'backlog':
+                return 'backlog'
+            return 'other'
+
         status_seconds = defaultdict(int)
+        status_ticket_secs = defaultdict(lambda: defaultdict(int))
+        status_working_seconds = defaultdict(int)
+
         for ticket in filtered_tickets:
             segs = ticket_segments[ticket.issue_key]
-            for seg, secs in zip(segs, ticket_seg_secs_map[ticket.issue_key]):
-                if seg['status'] and secs > 0:
-                    status_seconds[seg['status']] += secs
+            is_ip_ticket = ticket.status.lower() in _ip_statuses
+            for seg in segs:
+                if not seg['status'] or not seg['entered_at']:
+                    continue
+                category = _status_category_of(seg['status'])
+                if category not in ('in_progress', 'blocked', 'testing', 'backlog'):
+                    continue
+                ongoing_ip = is_ip_ticket and seg['exited_at'] is None
+                if category == 'in_progress':
+                    secs = range_seconds(seg['entered_at'], seg['exited_at'], ongoing_ip)
+                    if secs > 0:
+                        status_seconds[seg['status']] += secs
+                        status_ticket_secs[seg['status']][ticket.issue_key] += secs
+                else:
+                    secs = working_seconds(seg['entered_at'], seg['exited_at'], ongoing_ip)
+                    if secs > 0:
+                        status_working_seconds[seg['status']] += secs
 
-        status_totals = [
-            {'status': s, 'secs': secs, 'display': fmt(secs)}
-            for s, secs in sorted(status_seconds.items())
-            if secs > 0
-        ]
+        status_totals = []
+        for s, secs in status_seconds.items():
+            if secs <= 0:
+                continue
+            n_tickets = len(status_ticket_secs[s])
+            avg_secs = secs // n_tickets if n_tickets else 0
+            status_totals.append({
+                'status': s,
+                'secs': secs,
+                'display': fmt(secs),
+                'avg_display': fmt(avg_secs) if n_tickets else None,
+                'n_tickets': n_tickets or None,
+            })
+        for s, secs in status_working_seconds.items():
+            if secs <= 0:
+                continue
+            status_totals.append({
+                'status': s,
+                'secs': secs,
+                'display': fmt(secs),
+                'avg_display': None,
+                'n_tickets': None,
+            })
+
+        status_totals.sort(key=lambda r: (
+            _STATUS_COLUMN_ORDER.index(r['status'].lower())
+            if r['status'].lower() in _STATUS_COLUMN_ORDER else len(_STATUS_COLUMN_ORDER)
+        ))
 
         # --- Time by Tag (In Progress only, transitions that started within the range) ---
         # Using all-status time inflates weekly/monthly totals because N concurrent tickets
@@ -628,6 +732,7 @@ class DailyReportView(LoginRequiredMixin, View):
         closed_tickets_raw = []
         for row in pivot_rows:
             closed_at = None
+            closed_status = None
             for seg in ticket_segments[row['ticket'].issue_key]:
                 if not seg['status'] or not seg['entered_at']:
                     continue
@@ -636,6 +741,7 @@ class DailyReportView(LoginRequiredMixin, View):
                 if start_dt <= seg['entered_at'] <= now:
                     if closed_at is None or seg['entered_at'] > closed_at:
                         closed_at = seg['entered_at']
+                        closed_status = seg['status']
             if closed_at is None:
                 continue
             ip_secs = sum(
@@ -646,10 +752,22 @@ class DailyReportView(LoginRequiredMixin, View):
             closed_tickets_raw.append({
                 'ticket': row['ticket'],
                 'closed_at': closed_at.astimezone(user_tz),
+                'status': closed_status,
                 'ip_time': fmt(ip_secs) if ip_secs > 0 else None,
             })
 
         closed_tickets_raw.sort(key=lambda x: x['closed_at'], reverse=True)
+
+        # --- Time by Status: closed-tickets footer (count + breakdown by status) ---
+        _closed_status_counts = defaultdict(int)
+        for row in closed_tickets_raw:
+            if row['status']:
+                _closed_status_counts[row['status']] += 1
+        closed_status_totals = [
+            {'status': s, 'count': c}
+            for s, c in sorted(_closed_status_counts.items(), key=lambda x: -x[1])
+        ]
+        closed_status_total_count = len(closed_tickets_raw)
 
         _closed_child_pkeys = {r['ticket'].parent_key for r in closed_tickets_raw if r['ticket'].parent_key}
         _closed_parent_ticket_map = {}
@@ -1111,6 +1229,8 @@ class DailyReportView(LoginRequiredMixin, View):
 
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
+            'closed_status_totals': closed_status_totals,
+            'closed_status_total_count': closed_status_total_count,
             'today_rows': today_rows,
             'today_rows_alert': _today_rows_alert,
             'pivot_rows': pivot_rows,
@@ -1210,7 +1330,7 @@ class TicketTimelineView(LoginRequiredMixin, View):
 
         ticket = get_object_or_404(JiraTicket, issue_key=issue_key)
 
-        schedule = WorkSchedule.objects.filter(user=request.user).first()
+        schedule, _ = WorkSchedule.objects.get_or_create(user=request.user)
         try:
             user_tz = _zi.ZoneInfo(schedule.timezone) if schedule and schedule.timezone else _zi.ZoneInfo('UTC')
         except Exception:
@@ -1388,7 +1508,7 @@ class TicketTimelineView(LoginRequiredMixin, View):
         ]
 
         from settings_hub.models import get_app_setting, JiraStatusConfig
-        _term_statuses = {c.status_name.lower() for c in JiraStatusConfig.objects.filter(category='done')} or {'done', 'descartado'}
+        _term_statuses = {c.status_name.lower() for c in JiraStatusConfig.objects.filter(is_terminal=True)} or {'done', 'descartado'}
 
         # All-time status segments for Status History card
         all_time_segments = []

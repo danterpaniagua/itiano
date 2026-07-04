@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Time by Status (final)</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background: #f8f9fa; }
+  .bar-track { height: 10px; background: #e9ecef; border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; opacity: .85; }
+  .status-label { width: 100px; flex-shrink: 0; }
+  .status-value { width: 130px; flex-shrink: 0; text-align: right; font-size: .72rem; }
+  .avg-tag { color: #6c757d; font-size: .68rem; }
+</style>
+</head>
+<body>
+
+<div class="container-fluid py-4">
+  <div class="text-center mb-3">
+    <span class="small text-muted">Mockup — Time by Status, final design &middot; fake data &middot; range: Mon 29 Jun &ndash; Fri 03 Jul 2026</span>
+  </div>
+
+  <div class="row g-3 justify-content-center">
+    <div class="col-12 col-md-4" style="max-width:400px">
+      <div class="card">
+        <div class="card-header fw-semibold">Time by Status</div>
+        <div class="card-body">
+
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="text-muted small text-truncate status-label">Bloqueado</span>
+            <div class="flex-grow-1 bar-track"><div class="bar-fill" style="width:100%;background:#dc3545"></div></div>
+            <span class="text-muted status-value">30h 15m</span>
+          </div>
+
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="text-muted small text-truncate status-label">Por Hacer</span>
+            <div class="flex-grow-1 bar-track"><div class="bar-fill" style="width:62%;background:#6c757d"></div></div>
+            <span class="text-muted status-value">18h 40m</span>
+          </div>
+
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="text-muted small text-truncate status-label">In Progress</span>
+            <div class="flex-grow-1 bar-track"><div class="bar-fill" style="width:31%;background:#0d6efd"></div></div>
+            <span class="text-muted status-value">9h 20m <span class="avg-tag">(4h 40m &middot; 2 tickets)</span></span>
+          </div>
+
+          <hr class="my-2">
+          <p class="text-muted small mb-0">
+            <i class="bi bi-check-circle me-1"></i>7 tickets closed this range
+            <span class="d-block" style="font-size:.7rem">6 Done &middot; 1 Descartado &mdash; <a href="#">see Closed Tickets</a></span>
+          </p>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mx-auto mt-3" style="max-width:460px">
+    <p class="text-muted small mb-1">
+      Testing has no time this range, so it's hidden (reappears if used).
+    </p>
+    <p class="text-muted small mb-1">
+      <strong>Bloqueado / Por Hacer</strong> — Sum only, computed from <em>working hours only</em> (per-ticket-owner <code>WorkSchedule</code>), not raw wall-clock. Nights/weekends/holidays outside the schedule don't count, so a ticket blocked over a weekend doesn't inflate the number.
+    </p>
+    <p class="text-muted small mb-1">
+      <strong>In Progress</strong> — the only row with the <code>Sum (Avg &middot; N tickets)</code> combo, computed on raw calendar time (no working-hours restriction).
+    </p>
+    <p class="text-muted small mb-0">
+      Default <code>WorkSchedule</code> for any user without one configured: <strong>Mon&ndash;Fri, 09:00&ndash;18:00, America/Argentina/Cordoba</strong>.
+    </p>
+  </div>
+</div>
+
+</body>
+</html>
