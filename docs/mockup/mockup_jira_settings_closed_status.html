@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Jira Settings: Closed Status</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background: #f8f9fa; }
+  .viewport-toggle { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #dee2e6; padding: .5rem 1rem; }
+  .frame { border: 1px solid #dee2e6; border-radius: .5rem; background: #fff; margin: 1.5rem auto; overflow: hidden; }
+  .frame.desktop { max-width: 900px; }
+  .frame.mobile { max-width: 390px; }
+  .frame-label { background: #212529; color: #fff; font-size: .75rem; padding: .35rem .75rem; }
+  .frame-body { padding: 1.5rem; }
+  .mobile .frame-body { padding: 1rem; }
+  .form-check-input { cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="viewport-toggle text-center">
+  <span class="small text-muted">Mockup — v5.8.35: Closed Status flag on Ticket Statuses (<code>/settings/jira/</code>) — fake data</span>
+</div>
+
+<!-- ───────────── DESKTOP ───────────── -->
+<div class="frame desktop">
+  <div class="frame-label">Desktop — ≥ 768px</div>
+  <div class="frame-body">
+
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+      <a href="#" class="text-muted text-decoration-none small me-1">
+        <i class="bi bi-arrow-left"></i> App Settings
+      </a>
+      <h5 class="mb-0 me-auto"><i class="bi bi-puzzle me-1"></i> Jira</h5>
+    </div>
+
+    <h6 class="fw-semibold mb-3">Ticket Statuses</h6>
+
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Status Name</th>
+            <th>Category</th>
+            <th class="text-center">Closed Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="small">Done</td>
+            <td><span class="badge bg-secondary">Done</span></td>
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" checked title="Toggle Closed Status">
+            </td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+          <tr>
+            <td class="small">Descartado</td>
+            <td><span class="badge bg-secondary">Done</span></td>
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" checked title="Toggle Closed Status">
+            </td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+          <tr>
+            <td class="small">In Progress</td>
+            <td><span class="badge bg-secondary">In Progress</span></td>
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" title="Toggle Closed Status">
+            </td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+          <tr>
+            <td class="small">Bloqueado</td>
+            <td><span class="badge bg-secondary">Blocked</span></td>
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" title="Toggle Closed Status">
+            </td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+          <tr>
+            <td class="small">Backlog</td>
+            <td><span class="badge bg-secondary">Backlog</span></td>
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" title="Toggle Closed Status">
+            </td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <form class="d-flex flex-wrap gap-2 align-items-end">
+      <div>
+        <label class="form-label form-label-sm mb-1">Status name</label>
+        <input type="text" class="form-control form-control-sm" placeholder="e.g. En curso" style="width:180px">
+      </div>
+      <div>
+        <label class="form-label form-label-sm mb-1">Category</label>
+        <select class="form-select form-select-sm" style="width:160px">
+          <option>In Progress</option>
+          <option>Blocked</option>
+          <option>Done</option>
+          <option>Testing</option>
+          <option>Backlog</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="add-closed-desktop">
+        <label class="form-check-label small" for="add-closed-desktop">Closed Status</label>
+      </div>
+      <button type="button" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Add</button>
+    </form>
+
+  </div>
+</div>
+
+<!-- ───────────── MOBILE ───────────── -->
+<div class="frame mobile">
+  <div class="frame-label">Mobile — &lt; 768px</div>
+  <div class="frame-body">
+
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+      <a href="#" class="text-muted text-decoration-none small me-1">
+        <i class="bi bi-arrow-left"></i> App Settings
+      </a>
+      <h6 class="mb-0"><i class="bi bi-puzzle me-1"></i> Jira</h6>
+    </div>
+
+    <h6 class="fw-semibold mb-3">Ticket Statuses</h6>
+
+    <div class="card mb-2">
+      <div class="card-body py-2 d-flex align-items-center gap-2">
+        <div class="flex-grow-1">
+          <div class="small fw-semibold">Done</div>
+          <span class="badge bg-secondary small mb-1">Done</span>
+          <div class="form-check form-check-inline mt-1">
+            <input class="form-check-input" type="checkbox" checked id="cs-done">
+            <label class="form-check-label small" for="cs-done">Closed Status</label>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>
+
+    <div class="card mb-2">
+      <div class="card-body py-2 d-flex align-items-center gap-2">
+        <div class="flex-grow-1">
+          <div class="small fw-semibold">Descartado</div>
+          <span class="badge bg-secondary small mb-1">Done</span>
+          <div class="form-check form-check-inline mt-1">
+            <input class="form-check-input" type="checkbox" checked id="cs-descartado">
+            <label class="form-check-label small" for="cs-descartado">Closed Status</label>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>
+
+    <div class="card mb-2">
+      <div class="card-body py-2 d-flex align-items-center gap-2">
+        <div class="flex-grow-1">
+          <div class="small fw-semibold">Bloqueado</div>
+          <span class="badge bg-secondary small mb-1">Blocked</span>
+          <div class="form-check form-check-inline mt-1">
+            <input class="form-check-input" type="checkbox" id="cs-bloqueado">
+            <label class="form-check-label small" for="cs-bloqueado">Closed Status</label>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>
+
+    <form class="d-flex flex-column gap-2 mt-3">
+      <input type="text" class="form-control form-control-sm" placeholder="e.g. En curso">
+      <select class="form-select form-select-sm">
+        <option>In Progress</option>
+        <option>Blocked</option>
+        <option>Done</option>
+        <option>Testing</option>
+        <option>Backlog</option>
+        <option>Other</option>
+      </select>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="add-closed-mobile">
+        <label class="form-check-label small" for="add-closed-mobile">Closed Status</label>
+      </div>
+      <button type="button" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Add</button>
+    </form>
+
+  </div>
+</div>
+
+</body>
+</html>

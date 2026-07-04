@@ -11,5 +11,5 @@ class AppSettingAdmin(admin.ModelAdmin):
 
 @admin.register(JiraStatusConfig)
 class JiraStatusConfigAdmin(admin.ModelAdmin):
-    list_display = ('status_name', 'category')
-    list_filter = ('category',)
+    list_display = ('status_name', 'category', 'is_terminal')
+    list_filter = ('category', 'is_terminal')

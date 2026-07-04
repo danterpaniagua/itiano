@@ -33,6 +33,7 @@ class JiraStatusConfig(models.Model):
 
     status_name = models.CharField(max_length=100, unique=True)
     category    = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='other')
+    is_terminal = models.BooleanField(default=False, verbose_name='Closed Status')
 
     class Meta:
         ordering = ['category', 'status_name']

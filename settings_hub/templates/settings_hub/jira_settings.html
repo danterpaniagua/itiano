@@ -38,6 +38,7 @@
                     <tr>
                         <th>Status Name</th>
                         <th>Category</th>
+                        <th class="text-center">Closed Status</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -46,6 +47,13 @@
                 <tr>
                     <td class="small">{{ s.status_name }}</td>
                     <td><span class="badge bg-secondary">{{ s.get_category_display }}</span></td>
+                    <td class="text-center">
+                        <form method="post" action="{% url 'settings-jira-status-toggle-terminal' s.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <input type="checkbox" class="form-check-input" onchange="this.form.submit()"
+                                   {% if s.is_terminal %}checked{% endif %} title="Toggle Closed Status">
+                        </form>
+                    </td>
                     <td class="text-end">
                         <form method="post" action="{% url 'settings-jira-status-delete' s.pk %}" class="d-inline">
                             {% csrf_token %}
@@ -67,7 +75,14 @@
                 <div class="card-body py-2 d-flex align-items-center gap-2">
                     <div class="flex-grow-1">
                         <div class="small fw-semibold">{{ s.status_name }}</div>
-                        <span class="badge bg-secondary small">{{ s.get_category_display }}</span>
+                        <span class="badge bg-secondary small mb-1">{{ s.get_category_display }}</span>
+                        <form method="post" action="{% url 'settings-jira-status-toggle-terminal' s.pk %}"
+                              class="form-check form-check-inline mt-1">
+                            {% csrf_token %}
+                            <input type="checkbox" class="form-check-input" onchange="this.form.submit()"
+                                   {% if s.is_terminal %}checked{% endif %} id="cs-{{ s.pk }}">
+                            <label class="form-check-label small" for="cs-{{ s.pk }}">Closed Status</label>
+                        </form>
                     </div>
                     <form method="post" action="{% url 'settings-jira-status-delete' s.pk %}">
                         {% csrf_token %}
@@ -98,6 +113,10 @@
                     <option value="{{ val }}">{{ label }}</option>
                     {% endfor %}
                 </select>
+            </div>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="is_terminal" id="add-closed-status">
+                <label class="form-check-label small" for="add-closed-status">Closed Status</label>
             </div>
             <button type="submit" class="btn btn-sm btn-primary">
                 <i class="bi bi-plus-lg"></i> Add

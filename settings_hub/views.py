@@ -433,6 +433,7 @@ class JiraStatusAddView(StaffRequiredMixin, View):
     def post(self, request):
         name = request.POST.get('status_name', '').strip()
         category = request.POST.get('category', 'other').strip()
+        is_terminal = request.POST.get('is_terminal') == 'on'
         valid_cats = {c for c, _ in JiraStatusConfig.CATEGORY_CHOICES}
         if not name:
             messages.error(request, 'Status name is required.')
@@ -441,7 +442,7 @@ class JiraStatusAddView(StaffRequiredMixin, View):
         elif JiraStatusConfig.objects.filter(status_name__iexact=name).exists():
             messages.error(request, f'"{name}" is already configured.')
         else:
-            JiraStatusConfig.objects.create(status_name=name, category=category)
+            JiraStatusConfig.objects.create(status_name=name, category=category, is_terminal=is_terminal)
             messages.success(request, f'"{name}" added.')
         return redirect('settings-jira')
 
@@ -449,4 +450,13 @@ class JiraStatusAddView(StaffRequiredMixin, View):
 class JiraStatusDeleteView(StaffRequiredMixin, View):
     def post(self, request, pk):
         JiraStatusConfig.objects.filter(pk=pk).delete()
+        return redirect('settings-jira')
+
+
+class JiraStatusToggleTerminalView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        status = JiraStatusConfig.objects.filter(pk=pk).first()
+        if status:
+            status.is_terminal = not status.is_terminal
+            status.save(update_fields=['is_terminal'])
         return redirect('settings-jira')
