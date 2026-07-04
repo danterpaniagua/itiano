@@ -258,6 +258,17 @@ class DailyReportView(LoginRequiredMixin, View):
         else:
             start_dt = (now_local - dt_module.timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(dt_module.timezone.utc)
 
+        # Equal-length window immediately preceding the current range, for trend comparison.
+        if range_param == 'today':
+            prev_start_dt = start_dt - dt_module.timedelta(days=1)
+        elif range_param == 'week':
+            prev_start_dt = start_dt - dt_module.timedelta(days=7)
+        elif range_param == 'month':
+            prev_start_dt = start_dt - dt_module.timedelta(days=30)
+        else:
+            prev_start_dt = start_dt - dt_module.timedelta(days=(dt_val - df).days + 1)
+        prev_end_dt = start_dt
+
         def range_bounds(entered_at, exited_at, ongoing_in_progress=False):
             """
             Resolve the (seg_start, seg_end) window of this segment that counts toward
@@ -519,6 +530,7 @@ class DailyReportView(LoginRequiredMixin, View):
             avg_secs = secs // n_tickets if n_tickets else 0
             status_totals.append({
                 'status': s,
+                'category': 'in_progress',
                 'secs': secs,
                 'display': fmt(secs),
                 'avg_display': fmt(avg_secs) if n_tickets else None,
@@ -529,6 +541,7 @@ class DailyReportView(LoginRequiredMixin, View):
                 continue
             status_totals.append({
                 'status': s,
+                'category': _status_category_of(s),
                 'secs': secs,
                 'display': fmt(secs),
                 'avg_display': None,
@@ -539,6 +552,100 @@ class DailyReportView(LoginRequiredMixin, View):
             _STATUS_COLUMN_ORDER.index(r['status'].lower())
             if r['status'].lower() in _STATUS_COLUMN_ORDER else len(_STATUS_COLUMN_ORDER)
         ))
+
+        # --- Trend vs. previous equivalent range (Blocked/Testing/Backlog only) ---
+        def _prev_window_bounds(entered_at, exited_at):
+            if not entered_at or entered_at < prev_start_dt:
+                return None
+            seg_end = min(exited_at or prev_end_dt, prev_end_dt)
+            if seg_end <= entered_at:
+                return None
+            return entered_at, seg_end
+
+        prev_status_working_seconds = defaultdict(int)
+        for ticket in filtered_tickets:
+            for seg in ticket_segments[ticket.issue_key]:
+                if not seg['status'] or not seg['entered_at']:
+                    continue
+                if _status_category_of(seg['status']) not in ('blocked', 'testing', 'backlog'):
+                    continue
+                bounds = _prev_window_bounds(seg['entered_at'], seg['exited_at'])
+                if not bounds:
+                    continue
+                secs = working_seconds_bounds(*bounds)
+                if secs > 0:
+                    prev_status_working_seconds[seg['status']] += secs
+
+        for r in status_totals:
+            if r['category'] not in ('blocked', 'testing', 'backlog'):
+                continue
+            prev_secs = prev_status_working_seconds.get(r['status'], 0)
+            if prev_secs > 0:
+                r['trend_pct'] = round((r['secs'] - prev_secs) / prev_secs * 100)
+                r['trend_new'] = False
+            else:
+                r['trend_pct'] = None
+                r['trend_new'] = True
+
+        # --- Oldest-offender callout (Blocked/Testing/Backlog only) ---
+        # Ticket currently sitting in that exact status the longest, measured in working hours
+        # from its (ongoing) entry into the status to now — not clipped to the selected range.
+        _work_day_seconds = None
+        if schedule and schedule.start_time and schedule.end_time:
+            _work_day_seconds = (
+                (schedule.end_time.hour * 3600 + schedule.end_time.minute * 60)
+                - (schedule.start_time.hour * 3600 + schedule.start_time.minute * 60)
+            )
+
+        _oldest_by_status = {}
+        for ticket in filtered_tickets:
+            segs = ticket_segments[ticket.issue_key]
+            if not segs:
+                continue
+            current_seg = segs[-1]
+            if current_seg['exited_at'] is not None or not current_seg['status'] or not current_seg['entered_at']:
+                continue
+            if _status_category_of(current_seg['status']) not in ('blocked', 'testing', 'backlog'):
+                continue
+            existing = _oldest_by_status.get(current_seg['status'])
+            if existing is None or current_seg['entered_at'] < existing['entered_at']:
+                _oldest_by_status[current_seg['status']] = {
+                    'ticket': ticket,
+                    'entered_at': current_seg['entered_at'],
+                }
+
+        for r in status_totals:
+            if r['category'] not in ('blocked', 'testing', 'backlog'):
+                continue
+            offender = _oldest_by_status.get(r['status'])
+            if not offender or not _work_day_seconds:
+                r['oldest_ticket'] = None
+                continue
+            stuck_secs = working_seconds_bounds(offender['entered_at'], now)
+            r['oldest_ticket'] = offender['ticket']
+            r['oldest_working_days'] = max(1, round(stuck_secs / _work_day_seconds))
+
+        # --- Stuck-ticket alert (Blocked/Testing only) ---
+        _stuck_threshold_hours = 16
+        try:
+            _stuck_threshold_hours = float(get_app_setting('stuck_threshold_hours', '16'))
+        except (TypeError, ValueError):
+            pass
+        _stuck_threshold_secs = _stuck_threshold_hours * 3600
+
+        _stuck_count = 0
+        for ticket in filtered_tickets:
+            segs = ticket_segments[ticket.issue_key]
+            if not segs:
+                continue
+            current_seg = segs[-1]
+            if current_seg['exited_at'] is not None or not current_seg['status'] or not current_seg['entered_at']:
+                continue
+            if _status_category_of(current_seg['status']) not in ('blocked', 'testing'):
+                continue
+            if working_seconds_bounds(current_seg['entered_at'], now) > _stuck_threshold_secs:
+                _stuck_count += 1
+        _status_stuck_alert = _stuck_count > 0
 
         # --- Time by Tag (In Progress only, transitions that started within the range) ---
         # Using all-status time inflates weekly/monthly totals because N concurrent tickets
@@ -728,15 +835,20 @@ class DailyReportView(LoginRequiredMixin, View):
                     'standalone': row,
                 })
 
-        # --- Closed tickets panel ---
+        # --- Done tickets panel ---
+        # Done only (not Descartado or other terminal statuses) — a ticket only counts if
+        # it's still currently sitting in Done; one that closed within the range but was
+        # later reopened doesn't count.
         closed_tickets_raw = []
         for row in pivot_rows:
+            if row['ticket'].status.lower() != 'done':
+                continue
             closed_at = None
             closed_status = None
             for seg in ticket_segments[row['ticket'].issue_key]:
                 if not seg['status'] or not seg['entered_at']:
                     continue
-                if seg['status'].lower() not in _TERMINAL_STATUSES:
+                if seg['status'].lower() != 'done':
                     continue
                 if start_dt <= seg['entered_at'] <= now:
                     if closed_at is None or seg['entered_at'] > closed_at:
@@ -759,15 +871,31 @@ class DailyReportView(LoginRequiredMixin, View):
         closed_tickets_raw.sort(key=lambda x: x['closed_at'], reverse=True)
 
         # --- Time by Status: closed-tickets footer (count + breakdown by status) ---
+        # Independent of the Done panel above — covers all terminal statuses (Done,
+        # Descartado, ...), not just Done, since the footer is a full closed-status summary.
         _closed_status_counts = defaultdict(int)
-        for row in closed_tickets_raw:
-            if row['status']:
-                _closed_status_counts[row['status']] += 1
+        for row in pivot_rows:
+            if row['ticket'].status.lower() not in _TERMINAL_STATUSES:
+                continue
+            latest_terminal_at = None
+            latest_terminal_status = None
+            for seg in ticket_segments[row['ticket'].issue_key]:
+                if not seg['status'] or not seg['entered_at']:
+                    continue
+                if seg['status'].lower() not in _TERMINAL_STATUSES:
+                    continue
+                if start_dt <= seg['entered_at'] <= now:
+                    if latest_terminal_at is None or seg['entered_at'] > latest_terminal_at:
+                        latest_terminal_at = seg['entered_at']
+                        latest_terminal_status = seg['status']
+            if latest_terminal_status:
+                _closed_status_counts[latest_terminal_status] += 1
         closed_status_totals = [
             {'status': s, 'count': c}
             for s, c in sorted(_closed_status_counts.items(), key=lambda x: -x[1])
         ]
-        closed_status_total_count = len(closed_tickets_raw)
+        closed_status_total_count = sum(_closed_status_counts.values())
+        done_ticket_count = len(closed_tickets_raw)
 
         _closed_child_pkeys = {r['ticket'].parent_key for r in closed_tickets_raw if r['ticket'].parent_key}
         _closed_parent_ticket_map = {}
@@ -1229,8 +1357,11 @@ class DailyReportView(LoginRequiredMixin, View):
 
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
+            'status_stuck_alert': _status_stuck_alert,
+            'status_stuck_count': _stuck_count,
             'closed_status_totals': closed_status_totals,
             'closed_status_total_count': closed_status_total_count,
+            'done_ticket_count': done_ticket_count,
             'today_rows': today_rows,
             'today_rows_alert': _today_rows_alert,
             'pivot_rows': pivot_rows,

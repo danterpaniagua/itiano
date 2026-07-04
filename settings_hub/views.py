@@ -349,6 +349,7 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
         return {
             'projects': projects,
             'project_available_tags': [t for t in all_tags if t.name not in existing_proj_names],
+            'stuck_threshold_hours': get_app_setting('stuck_threshold_hours', '16'),
         }
 
     def get(self, request):
@@ -357,7 +358,21 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
     def post(self, request):
         action = request.POST.get('action')
 
-        if action == 'add_project':
+        if action == 'set_stuck_threshold':
+            value = request.POST.get('stuck_threshold_hours', '').strip()
+            try:
+                hours = float(value)
+                if hours <= 0:
+                    raise ValueError
+            except ValueError:
+                messages.error(request, 'Stuck threshold must be a positive number of hours.')
+            else:
+                AppSetting.objects.update_or_create(
+                    key='stuck_threshold_hours', defaults={'value': str(hours)}
+                )
+                messages.success(request, 'Stuck threshold saved.')
+
+        elif action == 'add_project':
             for name in request.POST.getlist('tag_name'):
                 name = name.strip()
                 if name:

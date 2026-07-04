@@ -15,6 +15,23 @@
 <div class="col-12 col-md-10 col-lg-8">
 
     <div class="section-card">
+        <div class="section-title"><i class="bi bi-exclamation-triangle me-1"></i>Stuck Ticket Alert</div>
+        <p class="text-muted small mb-3">
+            Time by Status flags a ticket as "stuck" once it spends more than this many working hours in Blocked or Testing.
+        </p>
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="set_stuck_threshold">
+            <div>
+                <label class="form-label form-label-sm mb-1">Threshold (working hours)</label>
+                <input type="number" name="stuck_threshold_hours" class="form-control form-control-sm"
+                       value="{{ stuck_threshold_hours }}" min="0.5" step="0.5" style="width:140px" required>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Save</button>
+        </form>
+    </div>
+
+    <div class="section-card">
         <div class="section-title"><i class="bi bi-briefcase me-1"></i>Projects &amp; Services</div>
 
         {% if not projects %}

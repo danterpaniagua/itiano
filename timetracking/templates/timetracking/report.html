@@ -222,12 +222,12 @@
             {% endif %}
         </div>
 
-        {# Closed Tickets #}
+        {# Done Tickets #}
         <div class="card" id="closed-tickets-panel">
             <div class="card-header d-flex align-items-center gap-2">
                 <i class="bi bi-check-circle-fill text-success" style="font-size:.85rem"></i>
-                <span class="fw-semibold">Closed</span>
-                <span class="badge {% if closed_groups %}bg-success{% else %}bg-secondary{% endif %} ms-1">{{ closed_groups|length }}</span>
+                <span class="fw-semibold">Done</span>
+                <span class="badge {% if closed_groups %}bg-success{% else %}bg-secondary{% endif %} ms-1">{{ done_ticket_count }}</span>
                 <span class="text-muted small ms-auto">{{ jira_username }}</span>
             </div>
             {% if closed_groups %}
@@ -281,20 +281,38 @@
 
     {# Time by Status #}
     <div class="col-12 col-md-4">
-        <div class="card">
-            <div class="card-header fw-semibold">Time by Status</div>
+        <div class="card {% if status_stuck_alert %}border-warning{% endif %}">
+            <div class="card-header d-flex align-items-center gap-2 fw-semibold {% if status_stuck_alert %}bg-warning text-dark{% endif %}">
+                {% if status_stuck_alert %}<i class="bi bi-exclamation-triangle-fill"></i>{% endif %}
+                <span>Time by Status</span>
+                {% if status_stuck_alert %}<span class="badge bg-dark ms-1">{{ status_stuck_count }} stuck</span>{% endif %}
+            </div>
             <div class="card-body">
                 {% if status_totals %}
                 {% for item in status_totals %}
-                <div class="d-flex align-items-center gap-2 mb-2">
+                <div class="d-flex align-items-center gap-2 mb-1">
                     <span class="text-muted small text-truncate flex-shrink-0" style="width:100px">{{ item.status }}</span>
                     <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
                         <div style="width:{{ item.pct }}%;height:100%;background:{{ item.color }};border-radius:3px;opacity:.85"></div>
                     </div>
                     <span class="text-muted flex-shrink-0" style="font-size:.72rem;text-align:right">
                         {{ item.display }}{% if item.avg_display %} <span class="text-muted" style="font-size:.68rem">({{ item.avg_display }} &middot; {{ item.n_tickets }})</span>{% endif %}
+                        {% if item.trend_new %} <span class="text-muted" style="font-size:.68rem">new</span>
+                        {% elif item.trend_pct %}
+                            {% if item.trend_pct > 0 %} <span class="text-danger" style="font-size:.68rem">&#9650; {{ item.trend_pct }}%</span>
+                            {% elif item.trend_pct < 0 %} <span class="text-success" style="font-size:.68rem">&#9660; {{ item.trend_pct }}%</span>
+                            {% endif %}
+                        {% endif %}
                     </span>
                 </div>
+                {% if item.oldest_ticket %}
+                <div class="text-end mb-2" style="font-size:.68rem" >
+                    <span class="text-muted">Oldest:
+                        <a href="{% url 'timetracking-ticket-timeline' item.oldest_ticket.issue_key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}">{{ item.oldest_ticket.issue_key }}</a>
+                        &middot; {{ item.oldest_working_days }} working day{{ item.oldest_working_days|pluralize }}
+                    </span>
+                </div>
+                {% endif %}
                 {% endfor %}
                 {% else %}
                 <p class="text-muted small mb-0">No activity in this period.</p>
@@ -305,7 +323,7 @@
                     <i class="bi bi-check-circle me-1"></i>{{ closed_status_total_count }} ticket{{ closed_status_total_count|pluralize }} closed this range
                     <span class="d-block" style="font-size:.7rem">
                         {% for cs in closed_status_totals %}{{ cs.count }} {{ cs.status }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
-                        &mdash; <a href="#closed-tickets-panel">see Closed Tickets</a>
+                        &mdash; <a href="#closed-tickets-panel">see Done</a>
                     </span>
                 </p>
                 {% endif %}
