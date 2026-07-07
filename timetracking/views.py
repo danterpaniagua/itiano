@@ -966,10 +966,6 @@ class DailyReportView(LoginRequiredMixin, View):
             for r in status_totals:
                 r['pct'] = round(r['secs'] / _max_status_secs * 100) if _max_status_secs else 0
                 r['color'] = status_color(r['status'])
-        if tag_totals:
-            _max_tag_secs = max(r['secs'] for r in tag_totals)
-            for r in tag_totals:
-                r['pct'] = round(r['secs'] / _max_tag_secs * 100) if _max_tag_secs else 0
 
         range_total_secs = max(1, (now - start_dt).total_seconds())
 

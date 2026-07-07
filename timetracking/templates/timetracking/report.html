@@ -157,11 +157,11 @@
 </div>
 {% endif %}
 
-{# ── Top row: In Progress + Time by Status + Time by Tag ── #}
+{# ── Top row: In Progress + Time by Status ── #}
 <div class="row g-3 mb-3">
 
     {# Left column: In Progress + Closed #}
-    <div class="col-12 col-md-4 d-flex flex-column gap-3">
+    <div class="col-12 col-md-6 d-flex flex-column gap-3">
         <div class="card {% if today_rows_alert %}border-warning{% endif %}">
             <div class="card-header d-flex align-items-center gap-2 {% if today_rows_alert %}bg-warning text-dark{% endif %}">
                 {% if today_rows_alert %}<i class="bi bi-exclamation-triangle-fill"></i>{% endif %}
@@ -280,7 +280,7 @@
     </div>{# /left column #}
 
     {# Time by Status #}
-    <div class="col-12 col-md-4">
+    <div class="col-12 col-md-6">
         <div class="card {% if status_stuck_alert %}border-warning{% endif %}">
             <div class="card-header d-flex align-items-center gap-2 fw-semibold {% if status_stuck_alert %}bg-warning text-dark{% endif %}">
                 {% if status_stuck_alert %}<i class="bi bi-exclamation-triangle-fill"></i>{% endif %}
@@ -331,27 +331,6 @@
         </div>
     </div>
 
-    {# Time by Tag #}
-    <div class="col-12 col-md-4">
-        <div class="card">
-            <div class="card-header fw-semibold">Time by Tag</div>
-            <div class="card-body">
-                {% if tag_totals %}
-                {% for item in tag_totals %}
-                <div class="d-flex align-items-center gap-2 mb-2">
-                    <span class="text-muted small text-truncate flex-shrink-0" style="width:100px">{{ item.tag }}</span>
-                    <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:3px;overflow:hidden">
-                        <div style="width:{{ item.pct }}%;height:100%;background:#6c757d;border-radius:3px;opacity:.85"></div>
-                    </div>
-                    <span class="text-muted flex-shrink-0" style="font-size:.72rem;width:44px;text-align:right">{{ item.display }}</span>
-                </div>
-                {% endfor %}
-                {% else %}
-                <p class="text-muted small mb-0">No tagged tickets with activity in this period.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
 
 </div>{# /top row #}
 
