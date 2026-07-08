@@ -350,6 +350,7 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
             'projects': projects,
             'project_available_tags': [t for t in all_tags if t.name not in existing_proj_names],
             'stuck_threshold_hours': get_app_setting('stuck_threshold_hours', '16'),
+            'trend_min_baseline_seconds': get_app_setting('trend_min_baseline_seconds', '300'),
         }
 
     def get(self, request):
@@ -371,6 +372,20 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
                     key='stuck_threshold_hours', defaults={'value': str(hours)}
                 )
                 messages.success(request, 'Stuck threshold saved.')
+
+        elif action == 'set_trend_min_baseline':
+            value = request.POST.get('trend_min_baseline_seconds', '').strip()
+            try:
+                seconds = int(value)
+                if seconds < 0:
+                    raise ValueError
+            except ValueError:
+                messages.error(request, 'Trend minimum baseline must be a non-negative number of seconds.')
+            else:
+                AppSetting.objects.update_or_create(
+                    key='trend_min_baseline_seconds', defaults={'value': str(seconds)}
+                )
+                messages.success(request, 'Trend minimum baseline saved.')
 
         elif action == 'add_project':
             for name in request.POST.getlist('tag_name'):

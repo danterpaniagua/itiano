@@ -32,6 +32,23 @@
     </div>
 
     <div class="section-card">
+        <div class="section-title"><i class="bi bi-graph-up me-1"></i>Trend Minimum Baseline</div>
+        <p class="text-muted small mb-3">
+            Time by Status hides the trend percentage (shows "new" instead) when the previous period's value is below this many seconds — avoids misleading spikes from brief status flickers.
+        </p>
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="set_trend_min_baseline">
+            <div>
+                <label class="form-label form-label-sm mb-1">Minimum baseline (seconds)</label>
+                <input type="number" name="trend_min_baseline_seconds" class="form-control form-control-sm"
+                       value="{{ trend_min_baseline_seconds }}" min="0" step="1" style="width:140px" required>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Save</button>
+        </form>
+    </div>
+
+    <div class="section-card">
         <div class="section-title"><i class="bi bi-briefcase me-1"></i>Projects &amp; Services</div>
 
         {% if not projects %}

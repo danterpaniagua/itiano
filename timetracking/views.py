@@ -576,11 +576,17 @@ class DailyReportView(LoginRequiredMixin, View):
                 if secs > 0:
                     prev_status_working_seconds[seg['status']] += secs
 
+        _trend_min_baseline_secs = 300
+        try:
+            _trend_min_baseline_secs = float(get_app_setting('trend_min_baseline_seconds', '300'))
+        except (TypeError, ValueError):
+            pass
+
         for r in status_totals:
             if r['category'] not in ('blocked', 'testing', 'backlog'):
                 continue
             prev_secs = prev_status_working_seconds.get(r['status'], 0)
-            if prev_secs > 0:
+            if prev_secs > _trend_min_baseline_secs:
                 r['trend_pct'] = round((r['secs'] - prev_secs) / prev_secs * 100)
                 r['trend_new'] = False
             else:
