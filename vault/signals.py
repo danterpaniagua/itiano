@@ -2,11 +2,12 @@ from django.db.models.signals import post_save, post_delete, m2m_changed
 from django.dispatch import receiver
 
 _PLAINTEXT_FIELDS = ['name', 'credential_type', 'visibility', 'url', 'username',
-                     'notes', 'public_key', 'certificate_pem', 'expiry_date']
+                     'public_key', 'certificate_pem', 'expiry_date']
 _SECRET_LABELS = {
     'encrypted_password': 'password changed',
     'encrypted_private_key': 'private key changed',
     'encrypted_passphrase': 'passphrase changed',
+    'encrypted_notes': 'notes changed',
 }
 
 
@@ -27,6 +28,8 @@ def create_version(sender, instance, created, **kwargs):
                 changed.append(label)
         if bool(last.is_deleted) != bool(instance.is_deleted):
             changed.append('deleted' if instance.is_deleted else 'restored')
+        if bool(last.notes_shared) != bool(instance.notes_shared):
+            changed.append('notes shared' if instance.notes_shared else 'notes unshared')
     else:
         changed.append('created')
 
@@ -40,14 +43,15 @@ def create_version(sender, instance, created, **kwargs):
         visibility=instance.visibility,
         url=instance.url,
         username=instance.username,
-        notes=instance.notes,
         public_key=instance.public_key,
         certificate_pem=instance.certificate_pem,
         expiry_date=instance.expiry_date,
         is_deleted=instance.is_deleted,
+        notes_shared=instance.notes_shared,
         encrypted_password=instance.encrypted_password,
         encrypted_private_key=instance.encrypted_private_key,
         encrypted_passphrase=instance.encrypted_passphrase,
+        encrypted_notes=instance.encrypted_notes,
     )
 
 

@@ -288,3 +288,52 @@ def reconcile_container_access(container):
     if missing_ids and ContainerKeyWrap.objects.filter(container=container).exists():
         for user in User.objects.filter(pk__in=missing_ids):
             wrap_container_key_for_user(container, user)
+
+
+def _resolve_credential_boundary(credential):
+    """How a credential's SECRET fields are actually encrypted: container
+    beats legacy team beats personal. Must match credential_copy/CredentialForm
+    exactly — this is the single source of truth both defer to.
+    """
+    from .models import Credential
+    if credential.container_id:
+        return ('container', credential.container)
+    if credential.visibility == Credential.VIS_TEAM and credential.team_id:
+        return ('team', credential.team)
+    return ('personal', credential.owner)
+
+
+def encrypt_for_credential(credential, acting_user, plaintext: str) -> str:
+    kind, target = _resolve_credential_boundary(credential)
+    if kind == 'container':
+        return encrypt_for_container(target, acting_user, plaintext)
+    if kind == 'team':
+        return encrypt_for_team(target, acting_user, plaintext)
+    return encrypt_for_user(target, plaintext)
+
+
+def decrypt_for_credential(credential, acting_user, token: str) -> str:
+    kind, target = _resolve_credential_boundary(credential)
+    if kind == 'container':
+        return decrypt_for_container(target, acting_user, token)
+    if kind == 'team':
+        return decrypt_for_team(target, acting_user, token)
+    return decrypt_for_user(target, token)
+
+
+def encrypt_notes_for_credential(credential, acting_user, plaintext: str) -> str:
+    """Notes have their own independent sharing boundary (notes_shared),
+    separate from _resolve_credential_boundary — sharing the secret must
+    never imply sharing notes. Only the container path is ever shared;
+    a legacy team credential's notes_shared has no observable effect (see
+    v5.10.3.md known limitation) — not worth a third encryption path.
+    """
+    if credential.notes_shared and credential.container_id:
+        return encrypt_for_container(credential.container, acting_user, plaintext)
+    return encrypt_for_user(credential.owner, plaintext)
+
+
+def decrypt_notes_for_credential(credential, acting_user, token: str) -> str:
+    if credential.notes_shared and credential.container_id:
+        return decrypt_for_container(credential.container, acting_user, token)
+    return decrypt_for_user(credential.owner, token)

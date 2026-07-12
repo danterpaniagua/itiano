@@ -131,7 +131,12 @@ class Credential(models.Model):
     visibility = models.CharField(max_length=10, choices=VISIBILITIES, default=VIS_PERSONAL)
     credential_type = models.CharField(max_length=20, choices=TYPES)
     name = models.CharField(max_length=200)
-    notes = models.TextField(blank=True)
+    # Notes are encrypted independently from the secret fields, with their own
+    # sharing toggle — sharing a credential's password must never imply
+    # sharing its notes. Default (notes_shared=False) always uses the
+    # owner's personal key, regardless of how the secret itself is shared.
+    encrypted_notes = models.TextField(blank=True)
+    notes_shared = models.BooleanField(default=False)
     tags = models.ManyToManyField(Tag, blank=True, related_name='credentials')
     expiry_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -178,16 +183,17 @@ class CredentialVersion(models.Model):
     visibility = models.CharField(max_length=10, blank=True)
     url = models.CharField(max_length=500, blank=True)
     username = models.CharField(max_length=200, blank=True)
-    notes = models.TextField(blank=True)
     public_key = models.TextField(blank=True)
     certificate_pem = models.TextField(blank=True)
     expiry_date = models.DateField(null=True, blank=True)
     is_deleted = models.BooleanField(default=False)
+    notes_shared = models.BooleanField(default=False)
 
     # Encrypted snapshot (ciphertext stored as-is)
     encrypted_password = models.TextField(blank=True)
     encrypted_private_key = models.TextField(blank=True)
     encrypted_passphrase = models.TextField(blank=True)
+    encrypted_notes = models.TextField(blank=True)
 
     class Meta:
         ordering = ['-version_number']

@@ -75,7 +75,12 @@ def credential_edit(request, pk):
     credential = get_object_or_404(Credential, pk=pk, is_deleted=False)
     if not _can_edit(request.user, credential):
         raise PermissionDenied
-    form = CredentialForm(request.POST or None, instance=credential, user=request.user)
+    is_owner = credential.owner == request.user
+    show_notes = is_owner or credential.notes_shared
+    form = CredentialForm(
+        request.POST or None, instance=credential, user=request.user,
+        show_notes=show_notes, can_toggle_notes_shared=is_owner,
+    )
     if form.is_valid():
         obj = form.save(commit=False)
         obj._changed_by = request.user
@@ -111,24 +116,8 @@ def credential_copy(request, pk):
         raise PermissionDenied
     field = 'encrypted_password' if credential.credential_type == Credential.TYPE_PASSWORD else 'encrypted_private_key'
     token = getattr(credential, field)
-    # Branch on HOW the secret is actually encrypted, not on who's asking —
-    # container takes priority even for the owner, since an owner whose
-    # credential lives in a container has their secret encrypted with the
-    # container key, not their personal key. Checking `owner == request.user`
-    # first (as this used to) broke credential_copy for owners of any
-    # container-based credential: it tried decrypt_for_user on a token that
-    # was actually encrypted with encrypt_for_container, raising InvalidToken.
-    if credential.container_id:
-        from .crypto import decrypt_for_container
-        secret = decrypt_for_container(credential.container, request.user, token)
-    elif credential.owner == request.user:
-        from .crypto import decrypt_for_user
-        secret = decrypt_for_user(credential.owner, token)
-    else:
-        # Legacy path: team credential never migrated into a container
-        # (shouldn't happen post-migration, kept defensively).
-        from .crypto import decrypt_for_team
-        secret = decrypt_for_team(credential.team, request.user, token)
+    from .crypto import decrypt_for_credential
+    secret = decrypt_for_credential(credential, request.user, token)
     return JsonResponse({'secret': secret})
 
 
