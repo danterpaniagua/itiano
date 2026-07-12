@@ -118,3 +118,5 @@
 | v5.10.3 | Credential Vault: Notes Sharing Toggle + Secret-Encryption Bug Fix | Delivered | [v5/v5.10.3.md](v5/v5.10.3.md) |
 | v5.10.4 | Credential Vault: Move Team Model to core (App-Wide) | Delivered | [v5/v5.10.4.md](v5/v5.10.4.md) |
 | v5.10.5 | Credential Vault: Team & Container Settings UI | Delivered | [v5/v5.10.5.md](v5/v5.10.5.md) |
+| v5.10.6 | Credential Vault: Container Tree Sidebar + Search + Inline Container Creation | Delivered | [v5/v5.10.6.md](v5/v5.10.6.md) |
+| v5.10.7 | Credential Vault: Sidebar Personal/Shared Regrouping + Share Shortcut | Delivered | [v5/v5.10.7.md](v5/v5.10.7.md) |
