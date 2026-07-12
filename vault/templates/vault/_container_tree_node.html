@@ -1,0 +1,27 @@
+{% comment %}
+Recursive container-tree row. `group_prefix` scopes DOM ids per group (a
+container shared with two teams renders once per team, each with its own
+collapsible-children id, so prefixes must not collide across groups).
+{% endcomment %}
+<div class="vtree-row-wrap{% if depth > 0 %} vtree-child{% endif %}">
+    <a href="{% url 'vault-list' %}?container={{ node.pk }}{% if tag_filter %}&tag={{ tag_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+       class="vtree-link{% if container_filter == node.pk|stringformat:'s' %} active{% endif %}">
+        <i class="bi {% if depth > 0 %}bi-folder2{% else %}bi-folder{% endif %}"></i> {{ node.name }}
+        <span class="badge {% if container_filter == node.pk|stringformat:'s' %}bg-primary{% else %}bg-light text-secondary border{% endif %} vtree-count">{{ node.visible_count }}</span>
+    </a>
+    {% if node.node_children %}
+    <button type="button" class="vtree-collapse-btn tree-collapse-toggle" data-target="tree-{{ group_prefix }}-{{ node.pk }}" title="Show/hide {{ node.name }}">&minus;</button>
+    {% endif %}
+    {% if show_share and user.is_staff %}
+    <a href="{% url 'settings-vault' %}#container-{{ node.pk }}" class="vtree-share-btn" title="Share (manage access grants)">
+        <i class="bi bi-link-45deg"></i>
+    </a>
+    {% endif %}
+</div>
+{% if node.node_children %}
+<div id="tree-{{ group_prefix }}-{{ node.pk }}">
+    {% for child in node.node_children %}
+    {% include "vault/_container_tree_node.html" with node=child depth=depth|add:1 group_prefix=group_prefix show_share=show_share %}
+    {% endfor %}
+</div>
+{% endif %}

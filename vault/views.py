@@ -67,32 +67,50 @@ def credential_list(request):
     # level via a team, or they created it) — not every container that
     # exists globally. Per-node counts reflect what THIS user can see
     # (_visible_credentials), not the container's total credential count.
-    # Flattened into depth-first order with a `.depth` attribute here in
-    # Python rather than fighting Django templates' limited recursion —
-    # the template just indents by depth, no recursive {% include %}.
+    #
+    # v5.10.7: regrouped into a Personal root (zero ContainerAccess grants —
+    # created_by-only) and a Shared root, one sub-tree per team with a grant
+    # (a container shared with two teams appears once under each). Trees are
+    # built as real nested structures (`.node_children`), not the old flat
+    # `.depth`-annotated list, so the template can wrap each parent's
+    # children in a collapsible div (v5.10.6 avoided recursion for a simple
+    # indent-only list; the new per-node collapse UI genuinely needs nesting).
     visible_all = _visible_credentials(request.user)
     personal_count = visible_all.filter(container__isnull=True).count()
     accessible_containers = list(
         Container.objects.filter(
             Q(access_grants__team__members=request.user) | Q(created_by=request.user)
-        ).distinct().select_related('parent').order_by('name')
+        ).distinct().select_related('parent').prefetch_related('access_grants__team').order_by('name')
     )
     for c in accessible_containers:
         c.visible_count = visible_all.filter(container_id=c.pk).count()
 
-    children_by_parent = {}
+    def _build_tree(containers):
+        """Nest a flat, name-ordered container list into root nodes with
+        `.node_children`. A container whose parent isn't ALSO in this same
+        list becomes a root here instead of being dropped — this is what
+        lets a child show at the top level of a team's tree when only the
+        child (not its parent) is shared with that team.
+        """
+        by_id = {c.pk: c for c in containers}
+        for c in containers:
+            c.node_children = []
+        roots = []
+        for c in containers:
+            parent = by_id.get(c.parent_id)
+            (parent.node_children if parent else roots).append(c)
+        return roots
+
+    personal_containers = _build_tree([c for c in accessible_containers if not c.access_grants.all()])
+
+    containers_by_team = {}
     for c in accessible_containers:
-        children_by_parent.setdefault(c.parent_id, []).append(c)
-
-    sidebar_containers = []
-
-    def _walk(parent_id, depth):
-        for node in children_by_parent.get(parent_id, []):
-            node.depth = depth
-            sidebar_containers.append(node)
-            _walk(node.pk, depth + 1)
-
-    _walk(None, 0)
+        for grant in c.access_grants.all():
+            containers_by_team.setdefault(grant.team, []).append(c)
+    shared_by_team = [
+        (team, _build_tree(team_containers))
+        for team, team_containers in sorted(containers_by_team.items(), key=lambda kv: kv[0].name)
+    ]
 
     return render(request, 'vault/credential_list.html', {
         'credentials': credentials,
@@ -100,7 +118,8 @@ def credential_list(request):
         'tag_filter': tag_filter,
         'q': q,
         'container_filter': container_filter,
-        'sidebar_containers': sidebar_containers,
+        'personal_containers': personal_containers,
+        'shared_by_team': shared_by_team,
         'personal_count': personal_count,
         'total_visible_count': visible_all.count(),
     })
