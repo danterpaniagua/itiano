@@ -1,4 +1,4 @@
-from django.db.models.signals import post_save, m2m_changed
+from django.db.models.signals import post_save, post_delete, m2m_changed
 from django.dispatch import receiver
 
 _PLAINTEXT_FIELDS = ['name', 'credential_type', 'visibility', 'url', 'username',
@@ -51,20 +51,44 @@ def create_version(sender, instance, created, **kwargs):
 @receiver(m2m_changed, sender='vault.Team_members')
 def handle_team_membership_change(sender, instance, action, pk_set, **kwargs):
     from django.contrib.auth.models import User
-    from .crypto import wrap_team_key_for_user, rotate_team_key
-    from .models import TeamKeyWrap
+    from .crypto import wrap_team_key_for_user, rotate_team_key, reconcile_container_access
+    from .models import TeamKeyWrap, ContainerAccess
 
     if action == 'post_add':
+        added_users = list(User.objects.filter(pk__in=pk_set))
         if TeamKeyWrap.objects.filter(team=instance).exists():
-            for user in User.objects.filter(pk__in=pk_set):
+            for user in added_users:
                 wrap_team_key_for_user(instance, user)
     elif action == 'pre_remove':
         removed_users = list(User.objects.filter(pk__in=pk_set))
         if removed_users:
             rotate_team_key(instance, excluded_users=removed_users)
+    # Containers this team has access to: reconcile against current ground
+    # truth (see reconcile_container_access docstring) rather than pk_set.
+    # Must run on post_add / post_remove specifically — pre_remove fires
+    # BEFORE the membership row is actually gone, so a ground-truth query
+    # at that point would still see the about-to-be-removed user as valid.
+    # rotate_team_key above doesn't have this problem because it takes an
+    # explicit exclusion list instead of re-querying membership.
+    if action in ('post_add', 'post_remove'):
+        for grant in ContainerAccess.objects.filter(team=instance).select_related('container'):
+            reconcile_container_access(grant.container)
     # 'pre_clear'/'post_clear' (removing all members at once) intentionally
-    # unhandled — see v5.10.0.md Out of Scope. Rotating-to-zero-members here
-    # would orphan the just-rotated ciphertext the next time it's accessed
-    # (provisioning would silently generate yet another key), which is worse
-    # than doing nothing. Existing wraps are left in place until a real
-    # design for this edge case is scoped.
+    # unhandled for TeamKeyWrap — see v5.10.0.md Out of Scope. Rotating-to-
+    # zero-members here would orphan the just-rotated ciphertext the next
+    # time it's accessed (provisioning would silently generate yet another
+    # key), which is worse than doing nothing.
+
+
+@receiver(post_save, sender='vault.ContainerAccess')
+def handle_container_access_created(sender, instance, created, **kwargs):
+    if not created:
+        return
+    from .crypto import reconcile_container_access
+    reconcile_container_access(instance.container)
+
+
+@receiver(post_delete, sender='vault.ContainerAccess')
+def handle_container_access_deleted(sender, instance, **kwargs):
+    from .crypto import reconcile_container_access
+    reconcile_container_access(instance.container)

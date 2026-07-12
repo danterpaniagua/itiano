@@ -11,7 +11,9 @@ from .models import Credential, Tag
 def _visible_credentials(user):
     from django.db.models import Q
     return Credential.objects.filter(
-        Q(owner=user) | Q(visibility='team', team__members=user)
+        Q(owner=user)
+        | Q(visibility='team', team__members=user)
+        | Q(container__access_grants__team__members=user)
     ).distinct().prefetch_related('tags')
 
 
@@ -19,6 +21,18 @@ def _can_access(user, credential):
     if credential.owner == user:
         return True
     if credential.visibility == 'team' and credential.team and credential.team.members.filter(pk=user.pk).exists():
+        return True
+    if credential.container_id and credential.container.access_grants.filter(team__members=user).exists():
+        return True
+    return False
+
+
+def _can_edit(user, credential):
+    if credential.owner == user:
+        return True
+    if credential.container_id and credential.container.access_grants.filter(
+        team__members=user, access_level='read_write',
+    ).exists():
         return True
     return False
 
@@ -56,7 +70,7 @@ def credential_create(request):
 @login_required
 def credential_edit(request, pk):
     credential = get_object_or_404(Credential, pk=pk)
-    if credential.owner != request.user:
+    if not _can_edit(request.user, credential):
         raise PermissionDenied
     form = CredentialForm(request.POST or None, instance=credential, user=request.user)
     if form.is_valid():
@@ -95,7 +109,12 @@ def credential_copy(request, pk):
     if credential.owner == request.user:
         from .crypto import decrypt_for_user
         secret = decrypt_for_user(credential.owner, token)
+    elif credential.container_id:
+        from .crypto import decrypt_for_container
+        secret = decrypt_for_container(credential.container, request.user, token)
     else:
+        # Legacy path: team credential never migrated into a container
+        # (shouldn't happen post-migration, kept defensively).
         from .crypto import decrypt_for_team
         secret = decrypt_for_team(credential.team, request.user, token)
     return JsonResponse({'secret': secret})

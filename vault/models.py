@@ -14,6 +14,18 @@ class Team(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        if not self.code:
+            from django.utils.text import slugify
+            base = slugify(self.name) or 'team'
+            code = base
+            suffix = 2
+            while Team.objects.exclude(pk=self.pk).filter(code=code).exists():
+                code = f'{base}-{suffix}'
+                suffix += 1
+            self.code = code
+        super().save(*args, **kwargs)
+
 
 class TeamKeyWrap(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='key_wraps')
@@ -26,6 +38,51 @@ class TeamKeyWrap(models.Model):
 
     def __str__(self):
         return f"TeamKeyWrap({self.team}, {self.user})"
+
+
+class Container(models.Model):
+    name = models.CharField(max_length=200)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class ContainerAccess(models.Model):
+    ACCESS_READ = 'read'
+    ACCESS_READ_WRITE = 'read_write'
+    ACCESS_LEVELS = [
+        (ACCESS_READ, 'Read'),
+        (ACCESS_READ_WRITE, 'Read/Write'),
+    ]
+
+    container = models.ForeignKey(Container, on_delete=models.CASCADE, related_name='access_grants')
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='container_access_grants')
+    access_level = models.CharField(max_length=10, choices=ACCESS_LEVELS, default=ACCESS_READ)
+
+    class Meta:
+        unique_together = [('container', 'team')]
+
+    def __str__(self):
+        return f"{self.team} → {self.container} ({self.access_level})"
+
+
+class ContainerKeyWrap(models.Model):
+    container = models.ForeignKey(Container, on_delete=models.CASCADE, related_name='key_wraps')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='container_key_wraps')
+    wrapped_key = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('container', 'user')]
+
+    def __str__(self):
+        return f"ContainerKeyWrap({self.container}, {self.user})"
 
 
 class UserVaultKey(models.Model):
@@ -68,6 +125,9 @@ class Credential(models.Model):
 
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='credentials')
     team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='credentials')
+    # Legacy team-sharing fields (team/visibility) are kept as-is — not repurposed or
+    # removed — until the tree UI (v5.10.3) fully replaces them as the navigation model.
+    container = models.ForeignKey('Container', on_delete=models.PROTECT, null=True, blank=True, related_name='credentials')
     visibility = models.CharField(max_length=10, choices=VISIBILITIES, default=VIS_PERSONAL)
     credential_type = models.CharField(max_length=20, choices=TYPES)
     name = models.CharField(max_length=200)
