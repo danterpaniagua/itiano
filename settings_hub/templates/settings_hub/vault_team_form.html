@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Settings – Edit Team – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-gear"></i> Settings</h5>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-2 mb-3 mb-md-0">
+        {% with active='app' %}{% include 'settings_hub/_sidebar.html' %}{% endwith %}
+    </div>
+
+    <div class="col-12 col-md-6">
+        <h6 class="mb-3">Edit Team</h6>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <input type="text" name="name" class="form-control"
+                       value="{{ team.name }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Code</label>
+                <input type="text" name="code" class="form-control"
+                       value="{{ team.code }}">
+                <div class="form-text">Short technical identifier. Leave blank to auto-generate from the name.</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <textarea name="description" class="form-control" rows="3">{{ team.description }}</textarea>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <a href="{% url 'settings-vault' %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

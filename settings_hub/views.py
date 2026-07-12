@@ -8,11 +8,15 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
+from django.contrib.auth.models import User
+from django.db.models import ProtectedError
+
 from contacts.models import Contact, ContactChannel
-from core.models import UserProfile
+from core.models import Team, UserProfile
 from itsm.models import Category, Tag
 from jira_integration.models import JiraEvent
 from timetracking.models import ReportEnvironment, ReportProject, ReportService, WorkSchedule
+from vault.models import Container, ContainerAccess
 from .models import get_app_setting, AppSetting, JiraStatusConfig
 
 _DAYS = [
@@ -155,6 +159,190 @@ class CategoryDeleteView(StaffRequiredMixin, View):
         category.delete()
         messages.success(request, f'Categoría "{name}" eliminada.')
         return redirect('settings-tickets')
+
+
+class VaultSettingsView(StaffRequiredMixin, View):
+    def get(self, request):
+        teams = Team.objects.prefetch_related('members').all()
+        containers = Container.objects.select_related('parent').prefetch_related('access_grants__team').all()
+        return render(request, 'settings_hub/vault_settings.html', {
+            'teams': teams,
+            'containers': containers,
+            'all_users': User.objects.order_by('username'),
+            'all_teams': teams,
+            'active': 'app',
+        })
+
+
+class TeamCreateView(StaffRequiredMixin, View):
+    def post(self, request):
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+        if not name:
+            messages.error(request, 'Name is required.')
+            return redirect('settings-vault')
+        if Team.objects.filter(name=name).exists():
+            messages.error(request, f'Team "{name}" already exists.')
+            return redirect('settings-vault')
+        team = Team.objects.create(name=name, description=description)
+        messages.success(request, f'Team "{team.name}" created.')
+        return redirect('settings-vault')
+
+
+class TeamEditView(StaffRequiredMixin, View):
+    def get(self, request, pk):
+        team = get_object_or_404(Team, pk=pk)
+        return render(request, 'settings_hub/vault_team_form.html', {'team': team, 'active': 'app'})
+
+    def post(self, request, pk):
+        team = get_object_or_404(Team, pk=pk)
+        name = request.POST.get('name', '').strip()
+        code = request.POST.get('code', '').strip()
+        description = request.POST.get('description', '').strip()
+        if not name:
+            messages.error(request, 'Name is required.')
+            return render(request, 'settings_hub/vault_team_form.html', {'team': team, 'active': 'app'})
+        if Team.objects.filter(name=name).exclude(pk=pk).exists():
+            messages.error(request, f'Team "{name}" already exists.')
+            return render(request, 'settings_hub/vault_team_form.html', {'team': team, 'active': 'app'})
+        if code and Team.objects.filter(code=code).exclude(pk=pk).exists():
+            messages.error(request, f'Team code "{code}" is already in use.')
+            return render(request, 'settings_hub/vault_team_form.html', {'team': team, 'active': 'app'})
+        team.name = name
+        team.code = code
+        team.description = description
+        team.save()
+        messages.success(request, f'Team "{team.name}" updated.')
+        return redirect('settings-vault')
+
+
+class TeamMemberAddView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        team = get_object_or_404(Team, pk=pk)
+        user_id = request.POST.get('user_id')
+        user = User.objects.filter(pk=user_id).first()
+        if not user:
+            messages.error(request, 'Select a user to add.')
+            return redirect('settings-vault')
+        team.members.add(user)
+        messages.success(request, f'{user.username} added to {team.name}.')
+        return redirect('settings-vault')
+
+
+class TeamMemberRemoveView(StaffRequiredMixin, View):
+    def post(self, request, pk, user_pk):
+        team = get_object_or_404(Team, pk=pk)
+        user = get_object_or_404(User, pk=user_pk)
+        team.members.remove(user)
+        messages.success(request, f'{user.username} removed from {team.name}.')
+        return redirect('settings-vault')
+
+
+def _container_is_descendant(container, candidate_ancestor):
+    """True if candidate_ancestor is container itself or anywhere in
+    container's ancestor chain — used to block a parent assignment that
+    would create a cycle in the container tree.
+    """
+    node = candidate_ancestor
+    while node is not None:
+        if node.pk == container.pk:
+            return True
+        node = node.parent
+    return False
+
+
+class ContainerCreateView(StaffRequiredMixin, View):
+    def post(self, request):
+        name = request.POST.get('name', '').strip()
+        parent_id = request.POST.get('parent_id')
+        if not name:
+            messages.error(request, 'Name is required.')
+            return redirect('settings-vault')
+        parent = Container.objects.filter(pk=parent_id).first() if parent_id else None
+        container = Container.objects.create(name=name, parent=parent, created_by=request.user)
+        messages.success(request, f'Container "{container.name}" created.')
+        return redirect('settings-vault')
+
+
+class ContainerEditView(StaffRequiredMixin, View):
+    def get(self, request, pk):
+        container = get_object_or_404(Container, pk=pk)
+        other_containers = Container.objects.exclude(pk=pk)
+        return render(request, 'settings_hub/vault_container_form.html', {
+            'container': container, 'other_containers': other_containers, 'active': 'app',
+        })
+
+    def post(self, request, pk):
+        container = get_object_or_404(Container, pk=pk)
+        other_containers = Container.objects.exclude(pk=pk)
+        name = request.POST.get('name', '').strip()
+        parent_id = request.POST.get('parent_id')
+        if not name:
+            messages.error(request, 'Name is required.')
+            return render(request, 'settings_hub/vault_container_form.html', {
+                'container': container, 'other_containers': other_containers, 'active': 'app',
+            })
+        parent = Container.objects.filter(pk=parent_id).first() if parent_id else None
+        if parent and _container_is_descendant(container, parent):
+            messages.error(request, f'Cannot set "{parent.name}" as parent — it would create a cycle.')
+            return render(request, 'settings_hub/vault_container_form.html', {
+                'container': container, 'other_containers': other_containers, 'active': 'app',
+            })
+        container.name = name
+        container.parent = parent
+        container.save()
+        messages.success(request, f'Container "{container.name}" updated.')
+        return redirect('settings-vault')
+
+
+class ContainerDeleteView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        container = get_object_or_404(Container, pk=pk)
+        name = container.name
+        try:
+            container.delete()
+            messages.success(request, f'Container "{name}" deleted.')
+        except ProtectedError:
+            count = container.credentials.count()
+            messages.error(request, f'Cannot delete "{name}": still holds {count} credential(s).')
+        return redirect('settings-vault')
+
+
+class ContainerAccessAddView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        container = get_object_or_404(Container, pk=pk)
+        team = get_object_or_404(Team, pk=request.POST.get('team_id'))
+        access_level = request.POST.get('access_level', ContainerAccess.ACCESS_READ)
+        _, created = ContainerAccess.objects.get_or_create(
+            container=container, team=team, defaults={'access_level': access_level},
+        )
+        if created:
+            messages.success(request, f'{team.name} granted {access_level.replace("_", "/")} access to "{container.name}".')
+        else:
+            messages.error(request, f'{team.name} already has access to "{container.name}".')
+        return redirect('settings-vault')
+
+
+class ContainerAccessLevelEditView(StaffRequiredMixin, View):
+    def post(self, request, pk, access_pk):
+        access = get_object_or_404(ContainerAccess, pk=access_pk, container_id=pk)
+        access_level = request.POST.get('access_level')
+        if access_level not in dict(ContainerAccess.ACCESS_LEVELS):
+            messages.error(request, 'Invalid access level.')
+            return redirect('settings-vault')
+        access.access_level = access_level
+        access.save()
+        messages.success(request, f'{access.team.name} is now {access_level.replace("_", "/")} on "{access.container.name}".')
+        return redirect('settings-vault')
+
+
+class ContainerAccessRemoveView(StaffRequiredMixin, View):
+    def post(self, request, pk, access_pk):
+        access = get_object_or_404(ContainerAccess, pk=access_pk, container_id=pk)
+        team_name, container_name = access.team.name, access.container.name
+        access.delete()
+        messages.success(request, f'Removed {team_name}\'s access to "{container_name}".')
+        return redirect('settings-vault')
 
 
 def _jira_accounts():

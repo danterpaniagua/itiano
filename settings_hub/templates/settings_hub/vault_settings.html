@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Vault Settings – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-gear"></i> Settings</h5>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-2 mb-3 mb-md-0">
+        {% with active='app' %}{% include 'settings_hub/_sidebar.html' %}{% endwith %}
+    </div>
+
+    <div class="col-12 col-md-10">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <a href="{% url 'settings-app' %}" class="text-muted text-decoration-none small me-1">
+                <i class="bi bi-arrow-left"></i> App Settings
+            </a>
+            <h5 class="mb-0 me-auto"><i class="bi bi-key me-1"></i> Vault: Teams &amp; Sharing</h5>
+        </div>
+
+        {# ── Teams ── #}
+        <div class="section-card">
+            <div class="section-title"><i class="bi bi-people me-1"></i>Teams</div>
+
+            <form method="post" action="{% url 'settings-vault-team-create' %}" class="row g-2 align-items-end mb-3">
+                {% csrf_token %}
+                <div class="col-12 col-md-4">
+                    <label class="form-label form-label-sm mb-1">Name</label>
+                    <input type="text" name="name" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-12 col-md-5">
+                    <label class="form-label form-label-sm mb-1">Description</label>
+                    <input type="text" name="description" class="form-control form-control-sm">
+                </div>
+                <div class="col-12 col-md-3">
+                    <button type="submit" class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-plus-lg"></i> New Team
+                    </button>
+                </div>
+            </form>
+
+            {% if not teams %}
+            <p class="text-muted small mb-0">No teams yet.</p>
+            {% endif %}
+
+            {% for team in teams %}
+            <div class="card mb-2">
+                <div class="card-body py-2">
+                    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                        <div class="me-auto">
+                            <span class="fw-semibold">{{ team.name }}</span>
+                            <span class="badge bg-light text-secondary border ms-1">{{ team.code }}</span>
+                        </div>
+                        <a href="{% url 'settings-vault-team-edit' team.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+                            <i class="bi bi-pencil"></i> <span class="d-none d-md-inline">Edit</span>
+                        </a>
+                    </div>
+                    {% if team.description %}<p class="text-muted small mb-2">{{ team.description }}</p>{% endif %}
+
+                    <div class="d-flex flex-wrap gap-1 align-items-center">
+                        {% for member in team.members.all %}
+                        <form method="post" action="{% url 'settings-vault-team-member-remove' team.pk member.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <span class="badge bg-light text-dark border d-inline-flex align-items-center gap-1">
+                                {{ member.username }}
+                                <button type="submit" class="btn-close" style="font-size:.55rem" title="Remove"></button>
+                            </span>
+                        </form>
+                        {% endfor %}
+                        {% if not team.members.all %}<span class="text-muted small">No members.</span>{% endif %}
+                    </div>
+
+                    <form method="post" action="{% url 'settings-vault-team-member-add' team.pk %}" class="d-flex gap-2 mt-2">
+                        {% csrf_token %}
+                        <select name="user_id" class="form-select form-select-sm" style="max-width:220px" required>
+                            <option value="">Add member…</option>
+                            {% for u in all_users %}
+                            <option value="{{ u.pk }}">{{ u.username }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {# ── Containers ── #}
+        <div class="section-card">
+            <div class="section-title"><i class="bi bi-folder me-1"></i>Containers</div>
+
+            <form method="post" action="{% url 'settings-vault-container-create' %}" class="row g-2 align-items-end mb-3">
+                {% csrf_token %}
+                <div class="col-12 col-md-4">
+                    <label class="form-label form-label-sm mb-1">Name</label>
+                    <input type="text" name="name" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-12 col-md-5">
+                    <label class="form-label form-label-sm mb-1">Parent</label>
+                    <select name="parent_id" class="form-select form-select-sm">
+                        <option value="">— None (root) —</option>
+                        {% for c in containers %}
+                        <option value="{{ c.pk }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-3">
+                    <button type="submit" class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-plus-lg"></i> New Container
+                    </button>
+                </div>
+            </form>
+
+            {% if not containers %}
+            <p class="text-muted small mb-0">No containers yet.</p>
+            {% endif %}
+
+            {% for container in containers %}
+            <div class="card mb-2">
+                <div class="card-body py-2">
+                    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                        <div class="me-auto">
+                            <span class="fw-semibold">{{ container.name }}</span>
+                            {% if container.parent %}<span class="text-muted small">in {{ container.parent.name }}</span>{% endif %}
+                            <span class="badge bg-light text-secondary border ms-1">{{ container.credentials.count }} credential{{ container.credentials.count|pluralize }}</span>
+                        </div>
+                        <a href="{% url 'settings-vault-container-edit' container.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+                            <i class="bi bi-pencil"></i> <span class="d-none d-md-inline">Edit</span>
+                        </a>
+                        <form method="post" action="{% url 'settings-vault-container-delete' container.pk %}" class="d-inline"
+                              onsubmit="return confirm('Delete &quot;{{ container.name }}&quot;?')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2">
+                                <i class="bi bi-trash"></i> <span class="d-none d-md-inline">Delete</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="d-flex flex-column gap-1">
+                        {% for grant in container.access_grants.all %}
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <span class="small">{{ grant.team.name }}</span>
+                            <form method="post" action="{% url 'settings-vault-access-edit' container.pk grant.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <select name="access_level" class="form-select form-select-sm d-inline-block w-auto" onchange="this.form.submit()">
+                                    <option value="read" {% if grant.access_level == 'read' %}selected{% endif %}>Read</option>
+                                    <option value="read_write" {% if grant.access_level == 'read_write' %}selected{% endif %}>Read/Write</option>
+                                </select>
+                            </form>
+                            <form method="post" action="{% url 'settings-vault-access-remove' container.pk grant.pk %}" class="d-inline ms-auto">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                        {% if not container.access_grants.all %}<span class="text-muted small">No access grants.</span>{% endif %}
+                    </div>
+
+                    <form method="post" action="{% url 'settings-vault-access-add' container.pk %}" class="d-flex flex-wrap gap-2 mt-2">
+                        {% csrf_token %}
+                        <select name="team_id" class="form-select form-select-sm" style="max-width:200px" required>
+                            <option value="">Team…</option>
+                            {% for t in all_teams %}
+                            <option value="{{ t.pk }}">{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <select name="access_level" class="form-select form-select-sm" style="max-width:140px">
+                            <option value="read">Read</option>
+                            <option value="read_write">Read/Write</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-plus"></i> Add grant
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}
