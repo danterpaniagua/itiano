@@ -13,30 +13,52 @@ def migrate_team_credentials_into_containers(apps, schema_editor):
     credential was created, so a failure here is logged and that one
     credential is skipped (left un-migrated, container stays None) rather
     than aborting the whole batch.
+
+    Queries via apps.get_model throughout (historical state — Credential's
+    live shape has fields added by later migrations, like is_deleted/
+    encrypted_notes, that don't exist in the DB yet at this point in a
+    fresh replay; Team specifically moved out of vault.models entirely in
+    v5.10.4). Anything passed into a vault.crypto function is re-fetched as
+    a live-typed instance first — those functions query live models
+    (TeamKeyWrap now points to core.Team, ContainerKeyWrap points to the
+    still-in-vault but live Container class), which reject historical
+    apps.get_model instances of the "same" model as a type mismatch. Fixed
+    retroactively in v5.10.4 — this bug predates the Team move and was only
+    ever exercised via manage.py migrate against an incrementally-applied
+    dev DB, never a from-scratch replay (manage.py test), until now.
     """
+    from django.contrib.auth.models import User
+    from core.models import Team as LiveTeam
     from vault.crypto import decrypt_for_team, encrypt_for_container
-    from vault.models import Container, ContainerAccess, Credential, Team
+    from vault.models import Container as LiveContainer
+    Container = apps.get_model('vault', 'Container')
+    ContainerAccess = apps.get_model('vault', 'ContainerAccess')
+    Credential = apps.get_model('vault', 'Credential')
+    Team = apps.get_model('vault', 'Team')
 
     secret_fields = ['encrypted_password', 'encrypted_private_key', 'encrypted_passphrase']
 
     for team in Team.objects.all():
-        team_credentials = Credential.objects.filter(team=team, visibility=Credential.VIS_TEAM)
+        team_credentials = Credential.objects.filter(team=team, visibility='team')
         if not team_credentials.exists():
             continue
 
         container = Container.objects.create(name=team.name, created_by=None)
         ContainerAccess.objects.create(
-            container=container, team=team, access_level=ContainerAccess.ACCESS_READ_WRITE,
+            container=container, team=team, access_level='read_write',
         )
+        live_team = LiveTeam.objects.get(pk=team.pk)
+        live_container = LiveContainer.objects.get(pk=container.pk)
 
         for credential in team_credentials:
             try:
+                owner = User.objects.get(pk=credential.owner_id)
                 updates = {'container_id': container.pk}
                 for field in secret_fields:
                     token = getattr(credential, field)
                     if token:
-                        plaintext = decrypt_for_team(team, credential.owner, token)
-                        updates[field] = encrypt_for_container(container, credential.owner, plaintext)
+                        plaintext = decrypt_for_team(live_team, owner, token)
+                        updates[field] = encrypt_for_container(live_container, owner, plaintext)
                 Credential.objects.filter(pk=credential.pk).update(**updates)
             except Exception as exc:
                 print(
@@ -59,6 +81,10 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('vault', '0004_team_code_team_description_teamkeywrap'),
+        # Transitively true via vault's 0004 already, but explicit here too
+        # since this migration's RunPython also imports core.models.Team
+        # live (see v5.10.4 fix note above).
+        ('core', '0004_team'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

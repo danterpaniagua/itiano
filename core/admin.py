@@ -3,7 +3,12 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from django.utils.html import format_html
 
-from .models import UserProfile
+from .models import Team, UserProfile
+
+
+class TeamAdmin(admin.ModelAdmin):
+    list_display = ['name']
+    filter_horizontal = ['members']
 
 
 class UserProfileInline(admin.StackedInline):
@@ -43,3 +48,4 @@ class CustomUserAdmin(UserAdmin):
 admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(UserProfile)
+admin.site.register(Team, TeamAdmin)

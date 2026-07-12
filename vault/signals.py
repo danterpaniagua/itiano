@@ -55,7 +55,7 @@ def create_version(sender, instance, created, **kwargs):
     )
 
 
-@receiver(m2m_changed, sender='vault.Team_members')
+@receiver(m2m_changed, sender='core.Team_members')
 def handle_team_membership_change(sender, instance, action, pk_set, **kwargs):
     from django.contrib.auth.models import User
     from .crypto import wrap_team_key_for_user, rotate_team_key, reconcile_container_access

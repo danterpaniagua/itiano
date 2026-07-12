@@ -1,6 +1,8 @@
 from django import forms
 
-from .models import Credential, Tag, Team
+from core.models import Team
+
+from .models import Credential, Tag
 
 
 class CredentialForm(forms.ModelForm):

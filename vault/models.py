@@ -2,33 +2,8 @@ from django.contrib.auth.models import User
 from django.db import models
 
 
-class Team(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    code = models.SlugField(max_length=50, unique=True, blank=True)
-    description = models.TextField(blank=True, default='')
-    members = models.ManyToManyField(User, blank=True, related_name='vault_teams')
-
-    class Meta:
-        ordering = ['name']
-
-    def __str__(self):
-        return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.code:
-            from django.utils.text import slugify
-            base = slugify(self.name) or 'team'
-            code = base
-            suffix = 2
-            while Team.objects.exclude(pk=self.pk).filter(code=code).exists():
-                code = f'{base}-{suffix}'
-                suffix += 1
-            self.code = code
-        super().save(*args, **kwargs)
-
-
 class TeamKeyWrap(models.Model):
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='key_wraps')
+    team = models.ForeignKey('core.Team', on_delete=models.CASCADE, related_name='key_wraps')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='team_key_wraps')
     wrapped_key = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -62,7 +37,7 @@ class ContainerAccess(models.Model):
     ]
 
     container = models.ForeignKey(Container, on_delete=models.CASCADE, related_name='access_grants')
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='container_access_grants')
+    team = models.ForeignKey('core.Team', on_delete=models.CASCADE, related_name='container_access_grants')
     access_level = models.CharField(max_length=10, choices=ACCESS_LEVELS, default=ACCESS_READ)
 
     class Meta:
@@ -124,7 +99,7 @@ class Credential(models.Model):
     ]
 
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='credentials')
-    team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='credentials')
+    team = models.ForeignKey('core.Team', on_delete=models.SET_NULL, null=True, blank=True, related_name='credentials')
     # Legacy team-sharing fields (team/visibility) are kept as-is — not repurposed or
     # removed — until the tree UI (v5.10.3) fully replaces them as the navigation model.
     container = models.ForeignKey('Container', on_delete=models.PROTECT, null=True, blank=True, related_name='credentials')

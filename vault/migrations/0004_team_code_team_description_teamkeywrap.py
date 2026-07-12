@@ -27,22 +27,40 @@ def reverse_backfill_team_codes(apps, schema_editor):
 def reencrypt_team_credentials(apps, schema_editor):
     """One-time move of existing visibility='team' credential secrets from
     owner-key encryption to team-key encryption (v5.10.0). Uses the real
-    vault.crypto helpers (not historical apps.get_model versions) since the
-    Fernet/key-wrapping logic isn't something a migration should reimplement.
+    vault.crypto helpers for the actual Fernet/key-wrapping logic (not
+    something a migration should reimplement), but queries via apps.get_model
+    (historical state) and re-fetches owners as live User instances by pk —
+    crypto.py's get_user_fernet requires a live User, not the historical
+    apps.get_model version (see v5.10.3.md Delivery Note for the same
+    lesson learned later). Fixed retroactively in v5.10.4 when Team moved
+    to core — this function's original live `from vault.models import Team`
+    stopped resolving once Team left vault.models, exposing that it had
+    always needed apps.get_model for a correct from-scratch migration replay.
     """
+    from django.contrib.auth.models import User
+    from core.models import Team as LiveTeam
     from vault.crypto import decrypt_for_user, encrypt_for_team
-    from vault.models import Credential, Team
+    Credential = apps.get_model('vault', 'Credential')
+    Team = apps.get_model('vault', 'Team')
 
     secret_fields = ['encrypted_password', 'encrypted_private_key', 'encrypted_passphrase']
 
     for team in Team.objects.all():
-        for credential in Credential.objects.filter(team=team, visibility=Credential.VIS_TEAM):
+        # encrypt_for_team queries the live TeamKeyWrap model, whose `team`
+        # FK now points to core.Team (post-v5.10.4) — needs a live-typed
+        # instance, not this historical one, same reasoning as `owner` below.
+        # The underlying vault_team table/row is identical either way (this
+        # migration makes no schema change to Team), so this is safe
+        # regardless of core's Team migration's relative ordering.
+        live_team = LiveTeam.objects.get(pk=team.pk)
+        for credential in Credential.objects.filter(team=team, visibility='team'):
+            owner = User.objects.get(pk=credential.owner_id)
             updates = {}
             for field in secret_fields:
                 token = getattr(credential, field)
                 if token:
-                    plaintext = decrypt_for_user(credential.owner, token)
-                    updates[field] = encrypt_for_team(team, credential.owner, plaintext)
+                    plaintext = decrypt_for_user(owner, token)
+                    updates[field] = encrypt_for_team(live_team, owner, plaintext)
             if updates:
                 Credential.objects.filter(pk=credential.pk).update(**updates)
 
@@ -60,6 +78,13 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('vault', '0003_uservaultkey_salt'),
+        # Added in v5.10.4: reencrypt_team_credentials (below) now needs a
+        # live core.models.Team for encrypt_for_team — not strictly required
+        # at the DB level (vault_team's physical table never changes across
+        # this whole migration sequence), but makes the real runtime
+        # dependency explicit and guarantees deterministic ordering on a
+        # fresh replay.
+        ('core', '0004_team'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

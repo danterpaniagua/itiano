@@ -1,12 +1,6 @@
 from django.contrib import admin
 
-from .models import Credential, Tag, Team, UserVaultKey
-
-
-@admin.register(Team)
-class TeamAdmin(admin.ModelAdmin):
-    list_display = ['name']
-    filter_horizontal = ['members']
+from .models import Credential, Tag, UserVaultKey
 
 
 @admin.register(Tag)
