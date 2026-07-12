@@ -3,9 +3,10 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from .forms import CredentialForm
+from .forms import ContainerQuickCreateForm, CredentialForm
 from .models import Container, Credential, Tag
 
 
@@ -103,6 +104,15 @@ def credential_list(request):
         'personal_count': personal_count,
         'total_visible_count': visible_all.count(),
     })
+
+
+@login_required
+def container_create(request):
+    form = ContainerQuickCreateForm(request.POST or None, user=request.user)
+    if form.is_valid():
+        container = form.save()
+        return redirect(f"{reverse('vault-list')}?container={container.pk}")
+    return render(request, 'vault/container_form.html', {'form': form})
 
 
 @login_required

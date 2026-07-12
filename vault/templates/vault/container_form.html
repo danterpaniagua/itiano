@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}New Container – Vault – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">New Container</h5>
+    <a href="{% url 'vault-list' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="row">
+<div class="col-12 col-md-8 col-lg-6">
+<form method="post">
+    {% csrf_token %}
+
+    <div class="mb-3">
+        <label for="{{ form.name.id_for_label }}" class="form-label fw-semibold">Name</label>
+        {{ form.name }}
+        {% for e in form.name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="mb-3">
+        <label for="{{ form.parent.id_for_label }}" class="form-label fw-semibold">Parent</label>
+        {{ form.parent }}
+        <div class="form-text">Optional — nest under a container you already have access to.</div>
+    </div>
+
+    <div class="form-text mb-3">
+        Team access grants are managed separately at
+        <a href="{% url 'settings-vault' %}">Settings → App → Vault</a>. You'll have access to
+        this container immediately as its creator.
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mt-4">
+        <button type="submit" class="btn btn-primary">Create</button>
+        <a href="{% url 'vault-list' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+</div>
+</div>
+{% endblock %}

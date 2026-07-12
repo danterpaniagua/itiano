@@ -6,6 +6,32 @@ from core.models import Team
 from .models import Container, ContainerAccess, Credential, Tag
 
 
+class ContainerQuickCreateForm(forms.ModelForm):
+    class Meta:
+        model = Container
+        fields = ['name', 'parent']
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-select' if isinstance(field.widget, forms.Select) else 'form-control'
+        accessible = Container.objects.filter(
+            Q(access_grants__team__members=user, access_grants__access_level=ContainerAccess.ACCESS_READ_WRITE)
+            | Q(created_by=user)
+        ) if user else Container.objects.none()
+        self.fields['parent'].queryset = accessible.distinct().order_by('name')
+        self.fields['parent'].required = False
+        self.fields['parent'].empty_label = '— No parent —'
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.created_by = self.user
+        if commit:
+            instance.save()
+        return instance
+
+
 class CredentialForm(forms.ModelForm):
     tags_input = forms.CharField(
         required=False,
