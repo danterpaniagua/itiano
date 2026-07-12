@@ -88,15 +88,16 @@ def credential_delete(request, pk):
 @require_POST
 def credential_copy(request, pk):
     credential = get_object_or_404(Credential, pk=pk)
-    # Decryption requires ownership — credentials are encrypted with the owner's key.
-    # Team members can view metadata but cannot extract the plaintext secret.
-    if credential.owner != request.user:
+    if not _can_access(request.user, credential):
         raise PermissionDenied
-    from .crypto import decrypt_for_user
-    if credential.credential_type == Credential.TYPE_PASSWORD:
-        secret = decrypt_for_user(credential.owner, credential.encrypted_password)
+    field = 'encrypted_password' if credential.credential_type == Credential.TYPE_PASSWORD else 'encrypted_private_key'
+    token = getattr(credential, field)
+    if credential.owner == request.user:
+        from .crypto import decrypt_for_user
+        secret = decrypt_for_user(credential.owner, token)
     else:
-        secret = decrypt_for_user(credential.owner, credential.encrypted_private_key)
+        from .crypto import decrypt_for_team
+        secret = decrypt_for_team(credential.team, request.user, token)
     return JsonResponse({'secret': secret})
 
 

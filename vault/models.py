@@ -4,6 +4,8 @@ from django.db import models
 
 class Team(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    code = models.SlugField(max_length=50, unique=True, blank=True)
+    description = models.TextField(blank=True, default='')
     members = models.ManyToManyField(User, blank=True, related_name='vault_teams')
 
     class Meta:
@@ -11,6 +13,19 @@ class Team(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class TeamKeyWrap(models.Model):
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='key_wraps')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='team_key_wraps')
+    wrapped_key = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('team', 'user')]
+
+    def __str__(self):
+        return f"TeamKeyWrap({self.team}, {self.user})"
 
 
 class UserVaultKey(models.Model):
