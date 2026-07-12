@@ -653,7 +653,7 @@ class DailyReportView(LoginRequiredMixin, View):
                 _stuck_count += 1
         _status_stuck_alert = _stuck_count > 0
 
-        # --- Time by Tag (In Progress only, transitions that started within the range) ---
+        # --- Tag totals, used by Time by Project/Environment (In Progress only, transitions started within the range) ---
         # Using all-status time inflates weekly/monthly totals because N concurrent tickets
         # each contribute the full range duration. Only IP segments with entered_at >= start_dt
         # are counted — ongoing IP from before the range contributes 0 here.

@@ -109,3 +109,6 @@
 | v5.8.35 | Settings: Closed Status Flag for Ticket Statuses | Delivered | [v5/v5.8.35.md](v5/v5.8.35.md) |
 | v5.8.36 | Time by Status Revamp: Working-Hours Calculation + Agent Self-Tracking | Delivered | [v5/v5.8.36.md](v5/v5.8.36.md) |
 | v5.9.0 | Time by Status: Trend, Oldest-Offender, Stuck Alert | Delivered | [v5/v5.9.0.md](v5/v5.9.0.md) |
+| v5.9.1 | Time Report: Remove Time by Tag, Widen Report Columns | Delivered | [v5/v5.9.1.md](v5/v5.9.1.md) |
+| v5.9.2 | Time by Status: Trend Baseline Guard | Delivered | [v5/v5.9.2.md](v5/v5.9.2.md) |
+| v5.9.3 | Timeline Card: Title Label instead of ID-only | Delivered | [v5/v5.9.3.md](v5/v5.9.3.md) |
