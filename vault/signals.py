@@ -25,6 +25,8 @@ def create_version(sender, instance, created, **kwargs):
         for enc_field, label in _SECRET_LABELS.items():
             if getattr(instance, enc_field, '') != getattr(last, enc_field, ''):
                 changed.append(label)
+        if bool(last.is_deleted) != bool(instance.is_deleted):
+            changed.append('deleted' if instance.is_deleted else 'restored')
     else:
         changed.append('created')
 
@@ -42,6 +44,7 @@ def create_version(sender, instance, created, **kwargs):
         public_key=instance.public_key,
         certificate_pem=instance.certificate_pem,
         expiry_date=instance.expiry_date,
+        is_deleted=instance.is_deleted,
         encrypted_password=instance.encrypted_password,
         encrypted_private_key=instance.encrypted_private_key,
         encrypted_passphrase=instance.encrypted_passphrase,

@@ -112,3 +112,5 @@
 | v5.9.1 | Time Report: Remove Time by Tag, Widen Report Columns | Delivered | [v5/v5.9.1.md](v5/v5.9.1.md) |
 | v5.9.2 | Time by Status: Trend Baseline Guard | Delivered | [v5/v5.9.2.md](v5/v5.9.2.md) |
 | v5.9.3 | Timeline Card: Title Label instead of ID-only | Delivered | [v5/v5.9.3.md](v5/v5.9.3.md) |
+| v5.10.0 | Credential Vault: Team Shared-Key Encryption | Delivered | [v5/v5.10.0.md](v5/v5.10.0.md) |
+| v5.10.1 | Credential Vault: Container/ContainerAccess R-RW Permissions | Delivered | [v5/v5.10.1.md](v5/v5.10.1.md) |

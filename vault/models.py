@@ -150,6 +150,8 @@ class Credential(models.Model):
     # Certificate fields
     certificate_pem = models.TextField(blank=True)
 
+    is_deleted = models.BooleanField(default=False)
+
     class Meta:
         ordering = ['name']
 
@@ -180,6 +182,7 @@ class CredentialVersion(models.Model):
     public_key = models.TextField(blank=True)
     certificate_pem = models.TextField(blank=True)
     expiry_date = models.DateField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False)
 
     # Encrypted snapshot (ciphertext stored as-is)
     encrypted_password = models.TextField(blank=True)

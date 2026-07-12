@@ -14,7 +14,7 @@ def _visible_credentials(user):
         Q(owner=user)
         | Q(visibility='team', team__members=user)
         | Q(container__access_grants__team__members=user)
-    ).distinct().prefetch_related('tags')
+    ).exclude(is_deleted=True).distinct().prefetch_related('tags')
 
 
 def _can_access(user, credential):
@@ -43,6 +43,9 @@ def credential_list(request):
     credentials = _visible_credentials(request.user)
     if tag_filter:
         credentials = credentials.filter(tags__name=tag_filter)
+    credentials = list(credentials)
+    for c in credentials:
+        c.can_edit = _can_edit(request.user, c)
     all_tags = Tag.objects.filter(credentials__in=_visible_credentials(request.user)).distinct()
     return render(request, 'vault/credential_list.html', {
         'credentials': credentials,
@@ -69,7 +72,7 @@ def credential_create(request):
 
 @login_required
 def credential_edit(request, pk):
-    credential = get_object_or_404(Credential, pk=pk)
+    credential = get_object_or_404(Credential, pk=pk, is_deleted=False)
     if not _can_edit(request.user, credential):
         raise PermissionDenied
     form = CredentialForm(request.POST or None, instance=credential, user=request.user)
@@ -91,27 +94,36 @@ def credential_edit(request, pk):
 @login_required
 @require_POST
 def credential_delete(request, pk):
-    credential = get_object_or_404(Credential, pk=pk)
-    if credential.owner != request.user:
+    credential = get_object_or_404(Credential, pk=pk, is_deleted=False)
+    if not _can_edit(request.user, credential):
         raise PermissionDenied
-    credential.delete()
+    credential.is_deleted = True
+    credential._changed_by = request.user
+    credential.save(update_fields=['is_deleted'])
     return redirect('vault-list')
 
 
 @login_required
 @require_POST
 def credential_copy(request, pk):
-    credential = get_object_or_404(Credential, pk=pk)
+    credential = get_object_or_404(Credential, pk=pk, is_deleted=False)
     if not _can_access(request.user, credential):
         raise PermissionDenied
     field = 'encrypted_password' if credential.credential_type == Credential.TYPE_PASSWORD else 'encrypted_private_key'
     token = getattr(credential, field)
-    if credential.owner == request.user:
-        from .crypto import decrypt_for_user
-        secret = decrypt_for_user(credential.owner, token)
-    elif credential.container_id:
+    # Branch on HOW the secret is actually encrypted, not on who's asking —
+    # container takes priority even for the owner, since an owner whose
+    # credential lives in a container has their secret encrypted with the
+    # container key, not their personal key. Checking `owner == request.user`
+    # first (as this used to) broke credential_copy for owners of any
+    # container-based credential: it tried decrypt_for_user on a token that
+    # was actually encrypted with encrypt_for_container, raising InvalidToken.
+    if credential.container_id:
         from .crypto import decrypt_for_container
         secret = decrypt_for_container(credential.container, request.user, token)
+    elif credential.owner == request.user:
+        from .crypto import decrypt_for_user
+        secret = decrypt_for_user(credential.owner, token)
     else:
         # Legacy path: team credential never migrated into a container
         # (shouldn't happen post-migration, kept defensively).
@@ -152,7 +164,7 @@ def import_credentials(request):
 
                 if entries is not None:
                     existing = set(
-                        Credential.objects.filter(owner=request.user).values_list('name', flat=True)
+                        Credential.objects.filter(owner=request.user).exclude(is_deleted=True).values_list('name', flat=True)
                     )
                     for e in entries:
                         e['duplicate'] = e['name'] in existing
@@ -177,7 +189,7 @@ def import_confirm(request):
     if not entries:
         return redirect('vault-import')
 
-    existing = set(Credential.objects.filter(owner=request.user).values_list('name', flat=True))
+    existing = set(Credential.objects.filter(owner=request.user).exclude(is_deleted=True).values_list('name', flat=True))
     from .crypto import encrypt_for_user
 
     for e in entries:
