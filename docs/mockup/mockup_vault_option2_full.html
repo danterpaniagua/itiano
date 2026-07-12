@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — /vault/ (Option 2: chip-strip mobile nav)</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>.card-hover{transition:box-shadow .15s,transform .1s}.card-hover:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);transform:translateY(-2px)}
+  .vtree-link {
+    display: flex; align-items: center; gap: .5rem; padding: .4rem .65rem;
+    border-radius: .375rem; text-decoration: none; color: #343a40; font-size: .85rem;
+    cursor: pointer; border: none; background: none; width: 100%; text-align: left;
+  }
+  .vtree-link:hover { background: #f1f3f5; }
+  .vtree-link.active { background: #e7f1ff; font-weight: 600; color: #0d6efd; }
+  .vtree-count { margin-left: auto; font-size: .68rem; }
+  .vtree-child { margin-left: 1.35rem; width: calc(100% - 1.35rem); }
+
+  .chip-strip { display: flex; gap: .4rem; overflow-x: auto; padding: .1rem .1rem .5rem; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+  .chip-strip::-webkit-scrollbar { height: 4px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: .3rem; padding: .35rem .7rem;
+    border-radius: 999px; background: #fff; border: 1px solid #dee2e6;
+    font-size: .8rem; color: #343a40; flex-shrink: 0; cursor: pointer;
+  }
+  .chip.active { background: #0d6efd; border-color: #0d6efd; color: #fff; }
+  .chip .opacity-75 { font-size: .7rem; }
+</style>
+</head>
+<body>
+
+{# ── Exact copy of core/templates/base.html's navbar, "Vault" marked active, a real logged-in user ── #}
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="#">Itiano</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="nav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item"><a class="nav-link" href="#">Tickets</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">New Ticket</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Jira</a></li>
+                <li class="nav-item"><a class="nav-link active fw-semibold" href="#">Vault</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Notes</a></li>
+                <li class="nav-item"><a class="nav-link" href="#"><i class="bi bi-clock-history"></i> Time</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Docs</a></li>
+                <li class="nav-item">
+                    <button class="btn btn-link nav-link" type="button"><i class="bi bi-journal-text"></i> Clipboard</button>
+                </li>
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle text-light d-flex align-items-center gap-2" href="#" role="button">
+                        <img src="https://www.gravatar.com/avatar/00000000000000000000000000000000?s=80&d=identicon" width="32" height="32"
+                             class="rounded-circle border border-secondary" style="object-fit:cover" alt="">
+                        dpaniagua
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<main class="container-fluid py-3">
+
+  {# ── Exact copy of vault/credential_list.html's header row, unchanged ── #}
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+      <h5 class="mb-0">Credential Vault</h5>
+      {# NEW in v5.10.6: search input, same form-control-sm sizing as the existing tag select #}
+      <input type="text" class="form-control form-control-sm" id="searchInput"
+             placeholder="Search name, username, URL…" style="width:200px">
+      <select class="form-select form-select-sm" style="width:auto" id="tagFilterSelect">
+          <option value="">All tags</option>
+          <option value="production">production</option>
+          <option value="ci">ci</option>
+          <option value="readonly">readonly</option>
+      </select>
+      <span class="me-auto"></span>
+      <a href="#" class="btn btn-outline-secondary btn-sm" title="Refresh"><i class="bi bi-arrow-clockwise"></i></a>
+      <a href="#" class="btn btn-outline-secondary btn-sm"><i class="bi bi-upload"></i> Import</a>
+      <a href="#" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> New</a>
+  </div>
+
+  {# ── NEW in v5.10.6: mobile chip strip (Option 2), only below md ── #}
+  <div class="d-md-none mb-3">
+    <div class="chip-strip" id="chipStrip"></div>
+  </div>
+
+  <div class="row g-3">
+    {# ── NEW in v5.10.6: desktop sidebar column, only at md+ ── #}
+    <div class="col-md-3 d-none d-md-block">
+      <div class="card">
+        <div class="card-body p-2" id="sidebarTree"></div>
+      </div>
+    </div>
+
+    {# ── Everything below this line is credential_list.html's EXISTING table/mobile-card markup, unchanged — only the data feeding it now reflects the sidebar/chip/search/tag filter state ── #}
+    <div class="col-12 col-md-9">
+
+      <div id="emptyState" class="text-muted" style="display:none">No credentials match.</div>
+
+      {# Mobile: card list — exact existing markup #}
+      <div class="d-md-none" id="mobileCards"></div>
+
+      {# Desktop: table — exact existing markup #}
+      <div class="d-none d-md-block">
+          <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                  <thead class="table-light">
+                      <tr>
+                          <th>Name</th>
+                          <th>Type</th>
+                          <th>Username / Info</th>
+                          <th>Visibility</th>
+                          <th>Tags</th>
+                          <th>Expiry</th>
+                          <th></th>
+                      </tr>
+                  </thead>
+                  <tbody id="desktopTableBody"></tbody>
+              </table>
+          </div>
+      </div>
+
+      <div class="text-muted small mt-2" id="resultSummary"></div>
+
+    </div>
+  </div>
+</main>
+
+<footer class="border-top mt-4 py-2 text-center text-muted small">
+    Itiano v5.10.6-mockup
+</footer>
+
+<script>
+  const CONTAINERS = [
+    { id: 'all',      name: 'All',         icon: 'bi-collection', parent: null },
+    { id: 'personal', name: 'Personal',    icon: 'bi-person',     parent: null },
+    { id: 'azure',    name: 'Azure Prod',  icon: 'bi-folder',     parent: null },
+    { id: 'backups',  name: 'Backups',     icon: 'bi-folder2',    parent: 'azure' },
+    { id: 'gcp',      name: 'GCP',         icon: 'bi-folder',     parent: null },
+  ];
+
+  // Shape matches vault.Credential fields used by the real template:
+  // name, credential_type (password/ssh_key), username, url, public_key,
+  // visibility (Personal/Team), tags[], expiry_date, is_expiring_soon.
+  const CREDENTIALS = [
+    { name: 'svc-account', credential_type: 'password', type_label: 'Password', username: 'admin', url: 'https://portal.internal', visibility: 'Personal', tags: ['production'], expiry_date: null, container: 'personal' },
+    { name: 'db-readonly', credential_type: 'password', type_label: 'Password', username: 'readonly', url: 'postgres://db.internal:5432', visibility: 'Personal', tags: ['readonly'], expiry_date: null, container: 'personal' },
+    { name: 'deploy-key', credential_type: 'ssh_key', type_label: 'SSH Key', public_key: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...', visibility: 'Personal', tags: ['ci'], expiry_date: '2026-07-24', expiring: true, container: 'personal' },
+    { name: 'personal-vpn', credential_type: 'password', type_label: 'Password', username: 'dpaniagua', url: 'https://vpn.internal', visibility: 'Personal', tags: [], expiry_date: null, container: 'personal' },
+
+    { name: 'azure-root', credential_type: 'password', type_label: 'Password', username: 'root', url: 'https://portal.azure.com', visibility: 'Team', tags: ['production'], expiry_date: null, container: 'azure' },
+    { name: 'azure-storage-key', credential_type: 'password', type_label: 'Password', username: 'storage-account-01', url: '', visibility: 'Team', tags: ['production'], expiry_date: null, container: 'azure' },
+    { name: 'azure-sql-admin', credential_type: 'password', type_label: 'Password', username: 'sqladmin', url: 'sql.database.azure.com', visibility: 'Team', tags: ['production', 'readonly'], expiry_date: null, container: 'azure' },
+    { name: 'azure-ci-sp', credential_type: 'ssh_key', type_label: 'SSH Key', public_key: 'ssh-rsa AAAAB3NzaC1yc2EAAA... ci-pipeline', visibility: 'Team', tags: ['ci'], expiry_date: null, container: 'azure' },
+    { name: 'azure-vpn-cert', credential_type: 'password', type_label: 'Password', username: '', url: '', visibility: 'Team', tags: [], expiry_date: '2027-06-17', container: 'azure' },
+    { name: 'azure-monitor-key', credential_type: 'password', type_label: 'Password', username: '', url: 'appinsights.azure.com', visibility: 'Team', tags: [], expiry_date: null, container: 'azure' },
+    { name: 'azure-registry', credential_type: 'password', type_label: 'Password', username: 'registry-push', url: 'azurecr.io', visibility: 'Team', tags: ['ci'], expiry_date: null, container: 'azure' },
+
+    { name: 'backup-storage-key', credential_type: 'password', type_label: 'Password', username: 'coldstore', url: '', visibility: 'Team', tags: ['production'], expiry_date: null, container: 'backups' },
+    { name: 'backup-encryption-key', credential_type: 'password', type_label: 'Password', username: '', url: '', visibility: 'Team', tags: [], expiry_date: null, container: 'backups' },
+
+    { name: 'gcp-sa-deploy', credential_type: 'ssh_key', type_label: 'SSH Key', public_key: 'ssh-ed25519 AAAAC3Nz... deploy@project.iam', visibility: 'Team', tags: ['ci', 'production'], expiry_date: null, container: 'gcp' },
+    { name: 'gcp-bq-readonly', credential_type: 'password', type_label: 'Password', username: 'readonly', url: 'bigquery.googleapis.com', visibility: 'Team', tags: ['readonly'], expiry_date: null, container: 'gcp' },
+    { name: 'gcp-gke-kubeconfig', credential_type: 'ssh_key', type_label: 'SSH Key', public_key: 'kubeconfig · production cluster', visibility: 'Team', tags: ['production'], expiry_date: null, container: 'gcp' },
+  ];
+
+  const ALL_TAGS = [...new Set(CREDENTIALS.flatMap(c => c.tags))].sort();
+
+  let state = { container: 'personal', search: '', tag: '' };
+
+  function containerCount(id) {
+    if (id === 'all') return CREDENTIALS.length;
+    return CREDENTIALS.filter(c => c.container === id).length;
+  }
+
+  function renderSidebar() {
+    const el = document.getElementById('sidebarTree');
+    el.innerHTML = CONTAINERS.map(c => {
+      const cls = 'vtree-link' + (c.parent ? ' vtree-child' : '') + (state.container === c.id ? ' active' : '');
+      const badgeCls = state.container === c.id ? 'bg-primary' : 'bg-light text-secondary border';
+      return `<button type="button" class="${cls}" data-container="${c.id}">
+        <i class="bi ${c.icon}"></i> ${c.name}
+        <span class="badge ${badgeCls} vtree-count">${containerCount(c.id)}</span>
+      </button>`;
+    }).join('');
+    el.querySelectorAll('[data-container]').forEach(btn => {
+      btn.addEventListener('click', () => { state.container = btn.dataset.container; renderAll(); });
+    });
+  }
+
+  function renderChips() {
+    const el = document.getElementById('chipStrip');
+    el.innerHTML = CONTAINERS.map(c => {
+      const cls = 'chip' + (state.container === c.id ? ' active' : '');
+      const prefix = c.parent ? '↳ ' : '';
+      return `<span class="${cls}" data-container="${c.id}">
+        <i class="bi ${c.icon}"></i> ${prefix}${c.name} <span class="opacity-75">${containerCount(c.id)}</span>
+      </span>`;
+    }).join('');
+    el.querySelectorAll('[data-container]').forEach(chip => {
+      chip.addEventListener('click', () => { state.container = chip.dataset.container; renderAll(); });
+    });
+  }
+
+  function filteredCredentials() {
+    return CREDENTIALS.filter(c => {
+      if (state.container !== 'all' && c.container !== state.container) return false;
+      if (state.tag && !c.tags.includes(state.tag)) return false;
+      if (state.search) {
+        const q = state.search.toLowerCase();
+        const haystack = (c.name + ' ' + (c.username||'') + ' ' + (c.url||'')).toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function tagBadges(c, extraClass) {
+    return c.tags.map(t => `<span class="badge bg-light text-dark border ${extraClass||''}">${t}</span>`).join('');
+  }
+  function expiryBadge(c, mobileInline) {
+    if (!c.expiry_date) return mobileInline ? '' : '—';
+    return c.expiring
+      ? `<span class="badge bg-warning text-dark">${mobileInline ? 'Expires ' : ''}${c.expiry_date}</span>`
+      : (mobileInline ? '' : `<span class="text-muted small">${c.expiry_date}</span>`);
+  }
+  function usernameInfo(c) {
+    if (c.credential_type === 'password') {
+      return c.username ? `${c.username}${c.url ? ' · ' + c.url.slice(0,40) : ''}` : '';
+    }
+    return c.public_key ? c.public_key.slice(0,40) : '';
+  }
+
+  function renderList() {
+    const results = filteredCredentials();
+    document.getElementById('emptyState').style.display = results.length ? 'none' : '';
+
+    // Mobile cards — exact existing card markup
+    document.getElementById('mobileCards').innerHTML = results.map(c => `
+      <div class="card mb-2">
+          <div class="card-body py-2 px-3">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                  <div class="flex-grow-1 overflow-hidden">
+                      <div class="fw-semibold text-truncate">${c.name}</div>
+                      <div class="d-flex flex-wrap gap-1 mt-1">
+                          <span class="badge bg-secondary">${c.type_label}</span>
+                          <span class="badge bg-light text-dark border">${c.visibility}</span>
+                          ${expiryBadge(c, true)}
+                          ${tagBadges(c)}
+                      </div>
+                      ${c.credential_type === 'password' && c.username ? `<small class="text-muted">${c.username}${c.url ? ' · ' + c.url.slice(0,40) : ''}</small>` : ''}
+                  </div>
+                  <div class="d-flex gap-1 align-items-start">
+                      <button class="btn btn-sm btn-outline-secondary py-0 px-1 copy-btn" title="Copy secret"><i class="bi bi-clipboard"></i></button>
+                      <a href="#" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Edit"><i class="bi bi-pencil"></i></a>
+                      <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete"><i class="bi bi-trash"></i></button>
+                  </div>
+              </div>
+          </div>
+      </div>
+    `).join('');
+
+    // Desktop table rows — exact existing table markup
+    document.getElementById('desktopTableBody').innerHTML = results.map(c => `
+      <tr>
+          <td class="fw-semibold">${c.name}</td>
+          <td><span class="badge bg-secondary">${c.type_label}</span></td>
+          <td class="text-muted small">${usernameInfo(c)}</td>
+          <td><span class="badge bg-light text-dark border">${c.visibility}</span></td>
+          <td>${tagBadges(c, 'me-1')}</td>
+          <td>${expiryBadge(c, false)}</td>
+          <td>
+              <div class="d-flex gap-1">
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-1 copy-btn" title="Copy secret"><i class="bi bi-clipboard"></i></button>
+                  <a href="#" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Edit"><i class="bi bi-pencil"></i></a>
+                  <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete"><i class="bi bi-trash"></i></button>
+              </div>
+          </td>
+      </tr>
+    `).join('');
+
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const icon = btn.querySelector('i');
+        icon.className = 'bi bi-check-lg text-success';
+        setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 1200);
+      });
+    });
+
+    const activeContainer = CONTAINERS.find(c => c.id === state.container);
+    document.getElementById('resultSummary').textContent =
+      `Showing ${results.length} of ${containerCount(state.container)} in ${activeContainer.name}` +
+      (state.tag ? ` · tag: ${state.tag}` : '') +
+      (state.search ? ` · search: "${state.search}"` : '');
+  }
+
+  function renderAll() { renderSidebar(); renderChips(); renderList(); }
+
+  document.getElementById('tagFilterSelect').addEventListener('change', (e) => {
+    state.tag = e.target.value; renderList();
+  });
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    state.search = e.target.value; renderList();
+  });
+
+  renderAll();
+</script>
+
+</body>
+</html>

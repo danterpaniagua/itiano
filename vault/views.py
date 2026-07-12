@@ -1,11 +1,12 @@
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .forms import CredentialForm
-from .models import Credential, Tag
+from .models import Container, Credential, Tag
 
 
 def _visible_credentials(user):
@@ -40,17 +41,67 @@ def _can_edit(user, credential):
 @login_required
 def credential_list(request):
     tag_filter = request.GET.get('tag', '')
+    q = request.GET.get('q', '').strip()
+    container_filter = request.GET.get('container', '')
+
     credentials = _visible_credentials(request.user)
     if tag_filter:
         credentials = credentials.filter(tags__name=tag_filter)
+    if q:
+        credentials = credentials.filter(
+            Q(name__icontains=q) | Q(username__icontains=q) | Q(url__icontains=q)
+        )
+    if container_filter == 'none':
+        credentials = credentials.filter(container__isnull=True)
+    elif container_filter:
+        credentials = credentials.filter(container_id=container_filter)
+
     credentials = list(credentials)
     for c in credentials:
         c.can_edit = _can_edit(request.user, c)
+
     all_tags = Tag.objects.filter(credentials__in=_visible_credentials(request.user)).distinct()
+
+    # Sidebar: containers this user has some access to (any ContainerAccess
+    # level via a team, or they created it) — not every container that
+    # exists globally. Per-node counts reflect what THIS user can see
+    # (_visible_credentials), not the container's total credential count.
+    # Flattened into depth-first order with a `.depth` attribute here in
+    # Python rather than fighting Django templates' limited recursion —
+    # the template just indents by depth, no recursive {% include %}.
+    visible_all = _visible_credentials(request.user)
+    personal_count = visible_all.filter(container__isnull=True).count()
+    accessible_containers = list(
+        Container.objects.filter(
+            Q(access_grants__team__members=request.user) | Q(created_by=request.user)
+        ).distinct().select_related('parent').order_by('name')
+    )
+    for c in accessible_containers:
+        c.visible_count = visible_all.filter(container_id=c.pk).count()
+
+    children_by_parent = {}
+    for c in accessible_containers:
+        children_by_parent.setdefault(c.parent_id, []).append(c)
+
+    sidebar_containers = []
+
+    def _walk(parent_id, depth):
+        for node in children_by_parent.get(parent_id, []):
+            node.depth = depth
+            sidebar_containers.append(node)
+            _walk(node.pk, depth + 1)
+
+    _walk(None, 0)
+
     return render(request, 'vault/credential_list.html', {
         'credentials': credentials,
         'all_tags': all_tags,
         'tag_filter': tag_filter,
+        'q': q,
+        'container_filter': container_filter,
+        'sidebar_containers': sidebar_containers,
+        'personal_count': personal_count,
+        'total_visible_count': visible_all.count(),
     })
 
 

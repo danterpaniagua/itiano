@@ -1,8 +1,9 @@
 from django import forms
+from django.db.models import Q
 
 from core.models import Team
 
-from .models import Credential, Tag
+from .models import Container, ContainerAccess, Credential, Tag
 
 
 class CredentialForm(forms.ModelForm):
@@ -16,7 +17,7 @@ class CredentialForm(forms.ModelForm):
     class Meta:
         model = Credential
         fields = [
-            'name', 'credential_type', 'visibility', 'team',
+            'name', 'credential_type', 'visibility', 'team', 'container',
             'url', 'username',
             'public_key', 'certificate_pem',
             'expiry_date',
@@ -46,6 +47,25 @@ class CredentialForm(forms.ModelForm):
         self._apply_bootstrap()
         self.fields['team'].queryset = Team.objects.filter(members=user) if user else Team.objects.none()
         self.fields['team'].required = False
+
+        # Container choices: containers the user can actually write into
+        # (RW access via some team, or they created it), plus the
+        # credential's current container if editing — always keep the
+        # current value selectable even if access has since lapsed, so an
+        # unrelated save doesn't silently clear it.
+        if user:
+            accessible = Container.objects.filter(
+                Q(access_grants__team__members=user, access_grants__access_level=ContainerAccess.ACCESS_READ_WRITE)
+                | Q(created_by=user)
+            )
+            if self.instance.pk and self.instance.container_id:
+                accessible = accessible | Container.objects.filter(pk=self.instance.container_id)
+            self.fields['container'].queryset = accessible.distinct().order_by('name')
+        else:
+            self.fields['container'].queryset = Container.objects.none()
+        self.fields['container'].required = False
+        self.fields['container'].empty_label = '— Personal (no container) —'
+
         if self.instance.pk:
             self.fields['tags_input'].initial = ', '.join(
                 self.instance.tags.values_list('name', flat=True)
@@ -66,6 +86,20 @@ class CredentialForm(forms.ModelForm):
         if not can_toggle_notes_shared:
             self.fields['notes_shared'].disabled = True
 
+        # Boundary-determining fields, captured here (before any binding/
+        # validation) for the same reason as _original_notes above: Django's
+        # ModelForm._post_clean() (called inside is_valid(), before save()
+        # ever runs) already mutates self.instance's fields with the
+        # submitted values. Reading self.instance.container_id etc. at the
+        # START of save() would read the NEW value, not the old one —
+        # comparing new-vs-new always looks unchanged. Must capture here,
+        # and must use these captured values (not self.instance) for any
+        # "decrypt under the OLD boundary" step in save() too.
+        self._original_container_id = self.instance.container_id
+        self._original_visibility = self.instance.visibility
+        self._original_team_id = self.instance.team_id
+        self._original_owner = self.instance.owner if self.instance.pk else None
+
     def _apply_bootstrap(self):
         for name, field in self.fields.items():
             widget = field.widget
@@ -76,7 +110,92 @@ class CredentialForm(forms.ModelForm):
             elif 'class' not in widget.attrs:
                 widget.attrs['class'] = 'form-control'
 
+    def _decrypt_under_old_secret_boundary(self, container_id, visibility, team_id, token):
+        """Resolve and decrypt using EXPLICIT old boundary values, not
+        self.instance (unreliable mid-save, see save()'s comment) and not
+        crypto._resolve_credential_boundary (which reads a live instance).
+        Mirrors that function's container > team > personal priority.
+        """
+        from .crypto import decrypt_for_container, decrypt_for_team, decrypt_for_user
+        if container_id:
+            container = Container.objects.get(pk=container_id)
+            return decrypt_for_container(container, self.user, token)
+        if visibility == Credential.VIS_TEAM and team_id:
+            team = Team.objects.get(pk=team_id)
+            return decrypt_for_team(team, self.user, token)
+        return decrypt_for_user(self._original_owner, token)
+
+    def _decrypt_under_old_notes_boundary(self, container_id, notes_shared, token):
+        from .crypto import decrypt_for_container, decrypt_for_user
+        if notes_shared and container_id:
+            container = Container.objects.get(pk=container_id)
+            return decrypt_for_container(container, self.user, token)
+        return decrypt_for_user(self._original_owner, token)
+
     def save(self, commit=True):
+        from .crypto import encrypt_for_credential, encrypt_notes_for_credential
+
+        secret_fields = ['encrypted_password', 'encrypted_private_key', 'encrypted_passphrase']
+        plaintext_field_names = {
+            'encrypted_password': 'password',
+            'encrypted_private_key': 'private_key',
+            'encrypted_passphrase': 'passphrase',
+        }
+
+        # Any of container/visibility/team can independently determine the
+        # SECRET boundary (see crypto._resolve_credential_boundary). Compare
+        # against the values captured in __init__ — self.instance itself is
+        # unreliable here: Django's ModelForm._post_clean() (run inside
+        # is_valid(), before save() is ever called) already mutates
+        # self.instance's fields with the submitted values, so reading
+        # self.instance.container_id at this point would read the NEW value
+        # and always report "unchanged".
+        old_container_id = self._original_container_id
+        old_visibility = self._original_visibility
+        old_team_id = self._original_team_id
+
+        new_container = self.cleaned_data.get('container')
+        new_container_id = new_container.pk if new_container else None
+        new_team = self.cleaned_data.get('team')
+        new_team_id = new_team.pk if new_team else None
+        new_visibility = self.cleaned_data.get('visibility')
+
+        secret_boundary_changing = (
+            new_container_id != old_container_id
+            or new_visibility != old_visibility
+            or new_team_id != old_team_id
+        )
+
+        # For any secret field NOT getting a freshly-typed value in this
+        # submission, and the boundary is changing: decrypt it under the OLD
+        # boundary now (resolved from the captured old_* values, NOT from
+        # self.instance — same reliability issue as above), so it can be
+        # re-encrypted under the NEW boundary afterward. A field that DID
+        # get a fresh value is simply encrypted under the new boundary below
+        # — no need to touch its old ciphertext at all.
+        stashed_plaintexts = {}
+        if secret_boundary_changing and self.instance.pk:
+            for field in secret_fields:
+                if not self.cleaned_data.get(plaintext_field_names[field]):
+                    token = getattr(self.instance, field)
+                    if token:
+                        stashed_plaintexts[field] = self._decrypt_under_old_secret_boundary(
+                            old_container_id, old_visibility, old_team_id, token,
+                        )
+
+        # Notes boundary depends only on container_id (+ notes_shared,
+        # handled in the existing text_changed/share_changed check below) —
+        # independent of visibility/team. Only need to stash the old
+        # plaintext if the submitted text ISN'T also changing; if it is, the
+        # new text gets encrypted fresh under the new boundary regardless.
+        notes_boundary_changing = self._show_notes and (new_container_id != old_container_id)
+        stashed_notes = None
+        if notes_boundary_changing and self.instance.pk and self.instance.encrypted_notes:
+            if self.cleaned_data.get('notes', '') == self._original_notes:
+                stashed_notes = self._decrypt_under_old_notes_boundary(
+                    old_container_id, self._original_notes_shared, self.instance.encrypted_notes,
+                )
+
         instance = super().save(commit=False)
         if not instance.owner_id:
             # New credential — owner isn't assigned yet at this point (the
@@ -84,13 +203,20 @@ class CredentialForm(forms.ModelForm):
             # resolution for encryption needs it now.
             instance.owner = self.user
 
-        from .crypto import encrypt_for_credential, encrypt_notes_for_credential
         if self.cleaned_data.get('password'):
             instance.encrypted_password = encrypt_for_credential(instance, self.user, self.cleaned_data['password'])
+        elif 'encrypted_password' in stashed_plaintexts:
+            instance.encrypted_password = encrypt_for_credential(instance, self.user, stashed_plaintexts['encrypted_password'])
+
         if self.cleaned_data.get('private_key'):
             instance.encrypted_private_key = encrypt_for_credential(instance, self.user, self.cleaned_data['private_key'])
+        elif 'encrypted_private_key' in stashed_plaintexts:
+            instance.encrypted_private_key = encrypt_for_credential(instance, self.user, stashed_plaintexts['encrypted_private_key'])
+
         if self.cleaned_data.get('passphrase'):
             instance.encrypted_passphrase = encrypt_for_credential(instance, self.user, self.cleaned_data['passphrase'])
+        elif 'encrypted_passphrase' in stashed_plaintexts:
+            instance.encrypted_passphrase = encrypt_for_credential(instance, self.user, stashed_plaintexts['encrypted_passphrase'])
 
         # notes_shared isn't in Meta.fields (it's declared explicitly, like the
         # secret fields), so super().save() doesn't apply it automatically.
@@ -103,8 +229,11 @@ class CredentialForm(forms.ModelForm):
             new_notes = self.cleaned_data.get('notes', '')
             text_changed = new_notes != self._original_notes
             share_changed = bool(instance.notes_shared) != bool(self._original_notes_shared)
-            if text_changed or share_changed:
-                instance.encrypted_notes = encrypt_notes_for_credential(instance, self.user, new_notes)
+            if text_changed or share_changed or notes_boundary_changing:
+                plaintext_to_encrypt = new_notes if text_changed else (
+                    stashed_notes if stashed_notes is not None else new_notes
+                )
+                instance.encrypted_notes = encrypt_notes_for_credential(instance, self.user, plaintext_to_encrypt)
 
         if commit:
             instance.save()
