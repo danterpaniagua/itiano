@@ -114,3 +114,7 @@
 | v5.9.3 | Timeline Card: Title Label instead of ID-only | Delivered | [v5/v5.9.3.md](v5/v5.9.3.md) |
 | v5.10.0 | Credential Vault: Team Shared-Key Encryption | Delivered | [v5/v5.10.0.md](v5/v5.10.0.md) |
 | v5.10.1 | Credential Vault: Container/ContainerAccess R-RW Permissions | Delivered | [v5/v5.10.1.md](v5/v5.10.1.md) |
+| v5.10.2 | Credential Vault: Soft Delete + Changelog | Delivered | [v5/v5.10.2.md](v5/v5.10.2.md) |
+| v5.10.3 | Credential Vault: Notes Sharing Toggle + Secret-Encryption Bug Fix | Delivered | [v5/v5.10.3.md](v5/v5.10.3.md) |
+| v5.10.4 | Credential Vault: Move Team Model to core (App-Wide) | Delivered | [v5/v5.10.4.md](v5/v5.10.4.md) |
+| v5.10.5 | Credential Vault: Team & Container Settings UI | Delivered | [v5/v5.10.5.md](v5/v5.10.5.md) |
