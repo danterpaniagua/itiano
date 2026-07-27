@@ -836,7 +836,10 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
         auTick = setInterval(function () {
             auRemain--;
             badge.textContent = fmt(auRemain);
-            if (auRemain <= 0) { location.reload(); }
+            if (auRemain <= 0) {
+                clearInterval(auTick);
+                location.reload();
+            }
         }, 1000);
     };
 

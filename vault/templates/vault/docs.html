@@ -1,5 +1,5 @@
 <h6>Credential Vault</h6>
-<p>Personal encrypted storage for passwords, SSH keys, and certificates.</p>
+<p>Encrypted storage for passwords, SSH keys, and certificates — personal or shared with a team via containers.</p>
 
 <h6 class="mt-3">Credential Types</h6>
 <ul>
@@ -8,17 +8,40 @@
     <li><strong>Certificate</strong> — Encrypted private key and plaintext certificate PEM.</li>
 </ul>
 
-<h6 class="mt-3">Visibility</h6>
+<h6 class="mt-3">Containers &amp; Sharing</h6>
+<p>Credentials can live in a <strong>Container</strong> (a folder, optionally nested inside another) instead of staying personal. A container is shared with one or more <strong>Teams</strong>, each with Read or Read/Write access. Everyone in any team with access to a container can see and copy its credentials; only Read/Write members can edit or delete them.</p>
 <ul>
-    <li><strong>Personal</strong> — Only you can see it.</li>
-    <li><strong>Team</strong> — All members of the selected team can see and copy it. Only the owner can edit or delete it.</li>
+    <li><strong>Personal</strong> — No container, no team; only you can see it.</li>
+    <li><strong>Team</strong> (legacy) — Shared directly with a team, no container. Still supported, but new sharing should use containers instead.</li>
+    <li><strong>Container</strong> — Shared with whichever teams have access to that container. Moving a credential between containers, or between Personal and a container, automatically re-encrypts its secret (and shared notes) for the new audience — no need to retype anything.</li>
 </ul>
+
+<h6 class="mt-3">Sidebar Navigation</h6>
+<p>The sidebar on <code>/vault/</code> splits your containers into two groups:</p>
+<ul>
+    <li><strong>Personal</strong> — containers you created that aren't shared with any team.</li>
+    <li><strong>Shared</strong> — containers shared with at least one of your teams, grouped by team. A container shared with more than one team appears once under each.</li>
+</ul>
+<p>Click any container to filter the list; click "All" to see everything, or "Personal (uncategorized)" for credentials with no container at all. Use the <i class="bi bi-search"></i> search box to filter by name, username, or URL, and the tag dropdown to filter by tag — all three filters combine. Each section (and each container with sub-containers) has a <strong>−</strong>/<strong>+</strong> button to collapse it.</p>
+<p>Staff users see a <i class="bi bi-link-45deg"></i> shortcut next to shared containers that jumps straight to that container's access-grant settings.</p>
+
+<h6 class="mt-3">Creating Containers</h6>
+<p>Use the <strong>+ New</strong> button above the sidebar to create a container (name and optional parent) directly from the vault — you'll have access to it immediately as its creator. Sharing it with a team is a separate step, done by staff at <strong>Settings → App → Vault</strong>.</p>
+
+<h6 class="mt-3">Notes</h6>
+<p>Each credential can have a private note. Owners can optionally toggle <strong>Share notes with team</strong> to make the note visible (and editable by Read/Write members) to the same audience as the credential's container — independent of whether the secret itself is shared.</p>
+
+<h6 class="mt-3">Deleting Credentials</h6>
+<p>Deleting a credential is a soft delete — it's hidden from the list but not destroyed, so it can be recovered if needed.</p>
 
 <h6 class="mt-3">Copying Secrets</h6>
 <p>Secrets are never shown in plaintext. Use the <i class="bi bi-clipboard"></i> button to copy the decrypted secret directly to your clipboard via a secure AJAX request.</p>
 
 <h6 class="mt-3">Expiry Warnings</h6>
 <p>Credentials with an expiry date within 30 days show a warning badge in the list.</p>
+
+<h6 class="mt-3">Importing</h6>
+<p>Import credentials from a KeePass <code>.kdbx</code> file or a KeePassX <code>.xml</code> export via the <strong>Import</strong> button. Entries that would duplicate an existing credential name are skipped.</p>
 
 <h6 class="mt-3 text-warning">SECRET_KEY Rotation Warning</h6>
 <p>Each user's vault key is encrypted with a key derived from <code>SECRET_KEY</code>. Rotating <code>SECRET_KEY</code> will make <strong>all vault credentials unreadable</strong>. Export or re-enter credentials before rotating.</p>

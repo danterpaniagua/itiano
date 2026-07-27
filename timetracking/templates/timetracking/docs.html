@@ -4,18 +4,21 @@
 <h6 class="mt-4">Setup</h6>
 <ol>
     <li>Go to <a href="{% url 'timetracking-schedule' %}">Settings</a> and set your <strong>Jira Username</strong>. It must match your display name in Jira exactly (e.g. <code>John Smith</code>).</li>
-    <li>Set your work schedule (days and hours) so the system knows your availability.</li>
+    <li>Set your work schedule (days and hours) so the system knows your availability. This also drives the working-hours totals in the <strong>Time by Status</strong> panel below.</li>
 </ol>
 
 <h6 class="mt-4">Active Tickets Panel</h6>
 <p>The Time Tracking home page shows all your Jira tickets currently in <strong>In Progress</strong> status. This panel updates automatically as Jira webhooks arrive.</p>
 
 <h6 class="mt-4">Time Report</h6>
-<p>The <a href="{% url 'timetracking-report' %}">Report</a> has three sections:</p>
+<p>The <a href="{% url 'timetracking-report' %}">Report</a> covers a date range (Today / Week / Month, or a custom range) and can be filtered by tag and Jira status. It can auto-refresh (Off / 1m / 5m / 10m / 15m) and includes:</p>
 <ul>
-    <li><strong>Time by Status (C)</strong> — total time accumulated in each Jira status across all your tickets.</li>
-    <li><strong>In Progress / Now (A)</strong> — tickets currently in progress with their ongoing duration.</li>
-    <li><strong>Status History by Ticket (B)</strong> — pivot table of all your tickets vs. all statuses, showing time in each cell. Ongoing durations are marked with a badge.</li>
+    <li><strong>In Progress</strong> — tickets currently in progress, with a live duration and zoomable time bars (WH-now / WH / 10h / Day-Week-Month depending on the selected range).</li>
+    <li><strong>Closed Tickets</strong> — tickets closed within the selected range, grouped by parent/subtask.</li>
+    <li><strong>Time by Status</strong> — total time accumulated in each Jira status. Flags a status as <span class="badge bg-warning text-dark">stuck</span> when a ticket has sat there too long, shows a trend arrow versus the previous equivalent range, and calls out the oldest ticket currently in each status (in working days, per your work schedule).</li>
+    <li><strong>Time by Project</strong> / <strong>Time by Environment</strong> — time grouped by tag, split into these two views.</li>
+    <li><strong>Timeline</strong> — a Gantt-style chart of each ticket's status segments over the selected range, zoomable.</li>
+    <li><strong>Status History</strong> — pivot table of your tickets vs. all statuses, showing time in each cell. Ongoing durations are marked with a <span class="badge bg-primary" style="font-size:0.6rem">now</span> badge.</li>
 </ul>
 <p class="text-muted small">Tickets marked as deleted are excluded from all report sections.</p>
 
