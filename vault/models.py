@@ -85,10 +85,14 @@ class Credential(models.Model):
     TYPE_PASSWORD = 'password'
     TYPE_SSH_KEY = 'ssh_key'
     TYPE_CERTIFICATE = 'certificate'
+    TYPE_API_KEY = 'api_key'
+    TYPE_SECRET = 'secret'
     TYPES = [
         (TYPE_PASSWORD, 'Password'),
         (TYPE_SSH_KEY, 'SSH Key'),
         (TYPE_CERTIFICATE, 'Certificate'),
+        (TYPE_API_KEY, 'API Key'),
+        (TYPE_SECRET, 'Secret'),
     ]
 
     VIS_PERSONAL = 'personal'

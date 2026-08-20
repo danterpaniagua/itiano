@@ -188,14 +188,28 @@ def credential_delete(request, pk):
     return redirect('vault-list')
 
 
+CREDENTIAL_COPY_FIELDS = {
+    Credential.TYPE_PASSWORD: {'key': 'encrypted_password'},
+    Credential.TYPE_SECRET: {'key': 'encrypted_password'},
+    Credential.TYPE_API_KEY: {'key': 'encrypted_password', 'secret': 'encrypted_passphrase'},
+    Credential.TYPE_SSH_KEY: {'key': 'encrypted_private_key'},
+    Credential.TYPE_CERTIFICATE: {'key': 'encrypted_private_key'},
+}
+
+
 @login_required
 @require_POST
 def credential_copy(request, pk):
     credential = get_object_or_404(Credential, pk=pk, is_deleted=False)
     if not _can_access(request.user, credential):
         raise PermissionDenied
-    field = 'encrypted_password' if credential.credential_type == Credential.TYPE_PASSWORD else 'encrypted_private_key'
+    slot = request.POST.get('field', 'key')
+    field = CREDENTIAL_COPY_FIELDS.get(credential.credential_type, {}).get(slot)
+    if not field:
+        raise PermissionDenied
     token = getattr(credential, field)
+    if not token:
+        raise PermissionDenied
     from .crypto import decrypt_for_credential
     secret = decrypt_for_credential(credential, request.user, token)
     return JsonResponse({'secret': secret})
