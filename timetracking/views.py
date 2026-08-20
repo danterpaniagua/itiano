@@ -748,6 +748,10 @@ class DailyReportView(LoginRequiredMixin, View):
                 'jira_today': fmt(today_ip_secs),
                 'last_message': ip_last_comment.get(ticket.pk),
                 'parent': None,
+                'parent_row': None,
+                '_ongoing_secs': total_secs if ongoing_seg else 0,
+                '_has_ongoing': bool(ongoing_seg),
+                '_today_secs': today_ip_secs,
             })
 
         # Resolve parent tickets for envelope grouping
@@ -760,6 +764,19 @@ class DailyReportView(LoginRequiredMixin, View):
             _pk = row['ticket'].parent_key
             if _pk:
                 row['parent'] = _parent_map.get(_pk)
+
+        # A parent that is itself In Progress gets its own row here too (before suppression
+        # below removes it) — capture its own ongoing/today time so it can be combined with
+        # its child's time in the envelope header, instead of being silently dropped.
+        _parent_row_by_key = {r['ticket'].issue_key: r for r in today_rows if r['ticket'].issue_key in _parent_keys}
+        for row in today_rows:
+            _parent_row = _parent_row_by_key.get(row['ticket'].parent_key) if row['parent'] else None
+            if _parent_row:
+                row['parent_row'] = {
+                    'jira_ongoing': fmt(_parent_row['_ongoing_secs'] + row['_ongoing_secs'])
+                        if (_parent_row['_has_ongoing'] or row['_has_ongoing']) else '—',
+                    'jira_today': fmt(_parent_row['_today_secs'] + row['_today_secs']),
+                }
 
         # Suppress parent tickets that are already shown as envelope headers
         today_rows = [r for r in today_rows if r['ticket'].issue_key not in _parent_keys]

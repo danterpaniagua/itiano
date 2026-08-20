@@ -178,6 +178,12 @@
                 <div class="d-flex align-items-center gap-2 px-2 py-1" style="background:#e8f0fe;border-bottom:1px solid #c7d9fb">
                     <span class="small fw-bold text-primary">{{ row.parent.issue_key }}</span>
                     <span class="small text-primary text-truncate" style="font-size:.78rem">{{ row.parent.title|truncatechars:45 }}</span>
+                    {% if row.parent_row %}
+                    <span class="ms-auto text-nowrap small">
+                        <span class="text-primary fw-semibold">{{ row.parent_row.jira_ongoing }}</span>
+                        <span class="text-muted ms-1">/ Today: {{ row.parent_row.jira_today }}</span>
+                    </span>
+                    {% endif %}
                 </div>
                 <div class="px-3 py-2">
                     <div class="d-flex align-items-baseline gap-2 mb-1">
