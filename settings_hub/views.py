@@ -618,12 +618,14 @@ class JiraSettingsView(StaffRequiredMixin, View):
         notify_usernames = [
             u.strip() for u in get_app_setting('jira_reconcile_notify_users', '').split(',') if u.strip()
         ]
-        notify_team_raw = get_app_setting('jira_reconcile_notify_team', '')
+        notify_team_ids = [
+            int(t) for t in get_app_setting('jira_reconcile_notify_teams', '').split(',') if t.strip().isdigit()
+        ]
         return {
             'jira_base_url': get_app_setting('jira_base_url'),
             'jira_reconcile_projects': get_app_setting('jira_reconcile_projects', 'GITIN'),
             'jira_reconcile_notify_users': notify_usernames,
-            'jira_reconcile_notify_team': int(notify_team_raw) if notify_team_raw.isdigit() else None,
+            'jira_reconcile_notify_teams': notify_team_ids,
             'jira_reconcile_lookback_hours': get_app_setting('jira_reconcile_lookback_hours', '24'),
             'jira_reconcile_last_count': get_app_setting('jira_reconcile_last_count', '300'),
             'all_users': User.objects.order_by('username'),
@@ -649,11 +651,13 @@ class JiraSettingsView(StaffRequiredMixin, View):
             AppSetting.objects.update_or_create(
                 key='jira_reconcile_notify_users', defaults={'value': ','.join(usernames)}
             )
-            team_id = request.POST.get('jira_reconcile_notify_team', '').strip()
-            if team_id and not Team.objects.filter(pk=team_id).exists():
-                team_id = ''
+            posted_team_ids = [t for t in request.POST.getlist('jira_reconcile_notify_teams') if t.isdigit()]
+            valid_team_ids = set(map(str, Team.objects.filter(
+                pk__in=posted_team_ids
+            ).values_list('pk', flat=True)))
+            team_ids = [t for t in posted_team_ids if t in valid_team_ids]
             AppSetting.objects.update_or_create(
-                key='jira_reconcile_notify_team', defaults={'value': team_id}
+                key='jira_reconcile_notify_teams', defaults={'value': ','.join(team_ids)}
             )
             messages.success(request, 'Reconcile notification recipients saved.')
             return redirect('settings-jira')

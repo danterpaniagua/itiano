@@ -10,7 +10,6 @@ from django.db.models import Max
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from core.models import Team
 from jira_integration.models import JiraEvent, JiraTicket
 from jira_integration.views import _build_summary, _ticket_defaults_from_fields
 from notifications.models import notify
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 WATERMARK_KEY = 'jira_reconcile_watermark'
 PROJECTS_KEY = 'jira_reconcile_projects'
 NOTIFY_USERS_KEY = 'jira_reconcile_notify_users'
-NOTIFY_TEAM_KEY = 'jira_reconcile_notify_team'
+NOTIFY_TEAMS_KEY = 'jira_reconcile_notify_teams'
 LOOKBACK_HOURS_KEY = 'jira_reconcile_lookback_hours'
 LAST_COUNT_KEY = 'jira_reconcile_last_count'
 DEFAULT_PROJECTS = 'GITIN'
@@ -175,15 +174,14 @@ class Command(BaseCommand):
 
     def _notify_completion(self, range_mode, stats):
         usernames = [u.strip() for u in get_app_setting(NOTIFY_USERS_KEY, '').split(',') if u.strip()]
-        team_id = get_app_setting(NOTIFY_TEAM_KEY, '')
-        team = Team.objects.filter(pk=team_id).first() if team_id.isdigit() else None
+        team_ids = [t for t in get_app_setting(NOTIFY_TEAMS_KEY, '').split(',') if t.strip().isdigit()]
 
         # Combine into one recipient set (deduped by pk) so a user who is both
-        # individually configured and a member of the configured team gets a
-        # single notification, not two.
+        # individually configured and a member of any configured team gets a
+        # single notification, not one per source.
         recipients = set(User.objects.filter(username__in=usernames)) if usernames else set()
-        if team:
-            recipients |= set(team.members.all())
+        if team_ids:
+            recipients |= set(User.objects.filter(vault_teams__pk__in=team_ids))
 
         if not recipients:
             return
