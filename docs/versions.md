@@ -125,3 +125,4 @@
 | v5.13.0 | In-App Notifications: Team Broadcasts + Vault/Jira Reconcile Triggers | Delivered | [v5/v5.13.0.md](v5/v5.13.0.md) |
 | v5.13.1 | Notifications On/Off Switch + Jira Reconcile Configurable Defaults | Delivered | [v5/v5.13.1.md](v5/v5.13.1.md) |
 | v5.13.2 | Jira Reconcile Notifications: Checkbox UI Fix + Team Recipients | Delivered | [v5/v5.13.2.md](v5/v5.13.2.md) |
+| v5.13.3 | Jira Reconcile Notifications: Multiple Teams as Recipients | Delivered | [v5/v5.13.3.md](v5/v5.13.3.md) |

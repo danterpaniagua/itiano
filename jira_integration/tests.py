@@ -456,7 +456,29 @@ class JiraReconcileCommandTests(TestCase):
         u1 = User.objects.create(username='teamuser1')
         u2 = User.objects.create(username='teamuser2')
         team.members.set([u1, u2])
-        AppSetting.objects.create(key='jira_reconcile_notify_team', value=str(team.pk))
+        AppSetting.objects.create(key='jira_reconcile_notify_teams', value=str(team.pk))
+        JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2026-08-27T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+
+        self.assertEqual(Notification.objects.filter(user__in=[u1, u2]).count(), 2)
+
+    def test_notifies_members_of_multiple_configured_teams(self):
+        team_a = Team.objects.create(name='Ops')
+        team_b = Team.objects.create(name='Support')
+        u1 = User.objects.create(username='opsuser')
+        u2 = User.objects.create(username='supportuser')
+        team_a.members.set([u1])
+        team_b.members.set([u2])
+        AppSetting.objects.create(
+            key='jira_reconcile_notify_teams', value=f'{team_a.pk},{team_b.pk}'
+        )
         JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
         search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
         changelog_response = {
@@ -473,7 +495,7 @@ class JiraReconcileCommandTests(TestCase):
         team = Team.objects.create(name='Ops')
         u1 = User.objects.create(username='bothuser')
         team.members.set([u1])
-        AppSetting.objects.create(key='jira_reconcile_notify_team', value=str(team.pk))
+        AppSetting.objects.create(key='jira_reconcile_notify_teams', value=str(team.pk))
         AppSetting.objects.create(key='jira_reconcile_notify_users', value='bothuser')
         JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
         search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
