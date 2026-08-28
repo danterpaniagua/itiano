@@ -1,0 +1,25 @@
+<ul class="dropdown-menu dropdown-menu-end" style="min-width:320px; max-width:90vw">
+    <li class="dropdown-header d-flex justify-content-between align-items-center">
+        Notifications
+        {% if unread_notifications_count %}
+        <form method="post" action="{% url 'notifications-mark-all-read' %}" class="m-0">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="btn btn-link btn-sm p-0">Mark all read</button>
+        </form>
+        {% endif %}
+    </li>
+    {% for n in recent_notifications %}
+    <li>
+        <a class="dropdown-item d-flex align-items-start gap-2 text-wrap {% if not n.read_at %}fw-semibold{% endif %}"
+           href="{% url 'notifications-open' n.pk %}">
+            <i class="bi {% if n.read_at %}bi-circle text-muted{% else %}bi-circle-fill text-primary{% endif %} mt-1" style="font-size:.5rem; flex-shrink:0"></i>
+            <span class="small">{{ n.message }}</span>
+        </a>
+    </li>
+    {% empty %}
+    <li><span class="dropdown-item-text text-muted small">No notifications yet.</span></li>
+    {% endfor %}
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item text-center small" href="{% url 'notifications-list' %}">View all</a></li>
+</ul>
