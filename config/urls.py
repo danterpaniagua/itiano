@@ -16,6 +16,7 @@ urlpatterns = [
     path('contacts/', include('contacts.urls')),
     path('settings/', include('settings_hub.urls')),
     path('time/', include('timetracking.urls')),
+    path('notifications/', include('notifications.urls')),
     path('', include('core.urls')),
 ]
 

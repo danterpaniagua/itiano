@@ -4,6 +4,7 @@ from datetime import timedelta
 
 import requests
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 from django.db.models import Max
 from django.utils import timezone
@@ -11,12 +12,14 @@ from django.utils.dateparse import parse_datetime
 
 from jira_integration.models import JiraEvent, JiraTicket
 from jira_integration.views import _build_summary, _ticket_defaults_from_fields
+from notifications.models import notify
 from settings_hub.models import AppSetting, get_app_setting
 
 logger = logging.getLogger(__name__)
 
 WATERMARK_KEY = 'jira_reconcile_watermark'
 PROJECTS_KEY = 'jira_reconcile_projects'
+NOTIFY_USERS_KEY = 'jira_reconcile_notify_users'
 DEFAULT_PROJECTS = 'GITIN'
 DEFAULT_LOOKBACK_HOURS = 24
 DEFAULT_LAST_COUNT = 300
@@ -125,6 +128,9 @@ class Command(BaseCommand):
             else:
                 logger.warning('jira_reconcile_partial_run', extra=stats)
 
+        if stats['issues_scanned'] > 0:
+            self._notify_completion(range_mode, stats)
+
         logger.info(
             'jira_reconcile_run_complete',
             extra={**stats, 'range_mode': range_mode, 'watermark_advanced': not range_mode and stats['errors'] == 0},
@@ -150,6 +156,17 @@ class Command(BaseCommand):
     def _get_projects(self):
         raw = get_app_setting(PROJECTS_KEY, DEFAULT_PROJECTS)
         return [key.strip() for key in raw.split(',') if key.strip()]
+
+    def _notify_completion(self, range_mode, stats):
+        usernames = [u.strip() for u in get_app_setting(NOTIFY_USERS_KEY, '').split(',') if u.strip()]
+        if not usernames:
+            return
+        recipients = User.objects.filter(username__in=usernames)
+        if range_mode:
+            message = f"jira_reconcile last: Created {stats['tickets_created']} Updated {stats['events_created']}"
+        else:
+            message = f"jira_reconcile by_time: Updated: {stats['events_created']}"
+        notify(message, source='jira_reconcile', users=recipients)
 
     # -- explicit key range ------------------------------------------------
 

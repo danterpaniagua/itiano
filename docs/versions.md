@@ -122,3 +122,4 @@
 | v5.10.7 | Credential Vault: Sidebar Personal/Shared Regrouping + Share Shortcut | Delivered | [v5/v5.10.7.md](v5/v5.10.7.md) |
 | v5.12.0 | Jira Reconciliation Crawler | Delivered | [v5/v5.12.0.md](v5/v5.12.0.md) |
 | v5.12.1 | Jira Reconciliation: Body Refresh + Comment Backfill | Delivered | [v5/v5.12.1.md](v5/v5.12.1.md) |
+| v5.13.0 | In-App Notifications: Team Broadcasts + Vault/Jira Reconcile Triggers | Delivered | [v5/v5.13.0.md](v5/v5.13.0.md) |

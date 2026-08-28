@@ -615,9 +615,14 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
 
 class JiraSettingsView(StaffRequiredMixin, View):
     def _ctx(self):
+        notify_usernames = [
+            u.strip() for u in get_app_setting('jira_reconcile_notify_users', '').split(',') if u.strip()
+        ]
         return {
             'jira_base_url': get_app_setting('jira_base_url'),
             'jira_reconcile_projects': get_app_setting('jira_reconcile_projects', 'GITIN'),
+            'jira_reconcile_notify_users': notify_usernames,
+            'all_users': User.objects.order_by('username'),
             'jira_statuses': JiraStatusConfig.objects.all(),
             'category_choices': JiraStatusConfig.CATEGORY_CHOICES,
         }
@@ -632,6 +637,14 @@ class JiraSettingsView(StaffRequiredMixin, View):
                 key='jira_reconcile_projects', defaults={'value': projects}
             )
             messages.success(request, 'Reconcile projects saved.')
+            return redirect('settings-jira')
+
+        if 'notify_users_form' in request.POST:
+            usernames = request.POST.getlist('jira_reconcile_notify_users')
+            AppSetting.objects.update_or_create(
+                key='jira_reconcile_notify_users', defaults={'value': ','.join(usernames)}
+            )
+            messages.success(request, 'Reconcile notification recipients saved.')
             return redirect('settings-jira')
 
         url = request.POST.get('jira_base_url', '').strip().rstrip('/')

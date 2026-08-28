@@ -37,7 +37,7 @@ python manage.py runserver
 Tests require PostgreSQL. Run inside the container:
 
 ```bash
-docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault notes contacts timetracking settings_hub
+docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault notes contacts timetracking settings_hub notifications
 ```
 
 Single test:
@@ -108,6 +108,7 @@ Unlike `by_time`, `last` creates the local ticket if it doesn't exist yet, and n
 | `contacts` | Contact directory with configurable HTTP notification channels |
 | `timetracking` | Jira time tracking per user: In Progress Gantt timeline, custom date range report, ticket activity drill-down with Jira comments |
 | `settings_hub` | App settings (Tags, Categories — staff only) and user settings (schedule, timezone, Jira username) |
+| `notifications` | In-app notifications: `notify()` alerts a user or a `core.Team`, surfaced via navbar bell + full list page |
 
 See `.claude/architecture.md` for full architecture detail.
 

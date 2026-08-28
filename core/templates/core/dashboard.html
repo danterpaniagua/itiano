@@ -71,6 +71,19 @@
     </div>
 
     <div class="col-12 col-md-6">
+        <a href="{% url 'notifications-list' %}" class="text-decoration-none">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Notifications</h6>
+                    <div class="display-6 fw-bold">{{ unread_notifications_count }}</div>
+                    <p class="card-text text-muted small mt-1">Unread</p>
+                </div>
+                <div class="card-footer text-muted small">View notifications →</div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-12 col-md-6">
         <a href="{% url 'timetracking-report' %}" class="text-decoration-none">
             <div class="card h-100">
                 <div class="card-body">

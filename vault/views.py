@@ -6,8 +6,19 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from notifications.models import notify
+
 from .forms import ContainerQuickCreateForm, CredentialForm
 from .models import Container, Credential, Tag
+
+
+def _notify_credential_shared(request, credential):
+    notify(
+        f"{request.user.username} shared credential '{credential.name}' with your team",
+        url=reverse('vault-list'),
+        source='vault_share',
+        team=credential.team,
+    )
 
 
 def _visible_credentials(user):
@@ -143,6 +154,8 @@ def credential_create(request):
         credential._changed_by = request.user
         credential.save()
         form._save_tags(credential)
+        if credential.visibility == Credential.VIS_TEAM and credential.team_id:
+            _notify_credential_shared(request, credential)
         return redirect('vault-list')
     return render(request, 'vault/credential_form.html', {
         'form': form,
@@ -166,6 +179,12 @@ def credential_edit(request, pk):
         obj._changed_by = request.user
         obj.save()
         form._save_tags(obj)
+        newly_team_shared = (
+            obj.visibility == Credential.VIS_TEAM and obj.team_id
+            and (obj.team_id != form._original_team_id or form._original_visibility != Credential.VIS_TEAM)
+        )
+        if newly_team_shared:
+            _notify_credential_shared(request, obj)
         return redirect('vault-list')
     history = credential.versions.select_related('changed_by')[:20]
     return render(request, 'vault/credential_form.html', {
