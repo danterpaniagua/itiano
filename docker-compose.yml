@@ -6,6 +6,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./media:/app/media
+      - ./certs:/app/certs
     env_file:
       - .env
     environment:
@@ -14,7 +15,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')"]
+      test: ["CMD", "python", "-c", "import os, ssl, urllib.request; scheme = 'https' if os.path.exists('/app/certs/dev-cert.crt') else 'http'; urllib.request.urlopen(f'{scheme}://localhost:8000/health/', context=ssl._create_unverified_context())"]
       interval: 30s
       timeout: 5s
       start_period: 30s
