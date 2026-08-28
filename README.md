@@ -74,13 +74,24 @@ Set `JIRA_API_BASE_URL`, `JIRA_API_EMAIL`, and `JIRA_API_TOKEN`, then run it on 
 host cron (there is no Celery/scheduler in this stack):
 
 ```bash
-python manage.py jira_reconcile
+python manage.py jira_reconcile          # same as: jira_reconcile by_time
 ```
 
 ```cron
 # /etc/cron.d/itiano-jira-reconcile — hourly
 0 * * * * root cd /path/to/itiano && docker compose exec -T app python manage.py jira_reconcile >> /path/to/itiano/logs/jira_reconcile.log 2>&1
 ```
+
+For a one-off backfill of recent tickets that predate the webhook or were otherwise missed
+entirely (not just their status history — the ticket itself), use `last [N]` (defaults to 300):
+
+```bash
+python manage.py jira_reconcile last          # last 300 tickets by issue number
+python manage.py jira_reconcile last 500      # last 500
+```
+
+Unlike `by_time`, `last` creates the local ticket if it doesn't exist yet, and never touches the
+`by_time` watermark.
 
 ## Architecture
 

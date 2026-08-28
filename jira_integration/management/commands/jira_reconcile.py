@@ -19,6 +19,7 @@ WATERMARK_KEY = 'jira_reconcile_watermark'
 PROJECTS_KEY = 'jira_reconcile_projects'
 DEFAULT_PROJECTS = 'GITIN'
 DEFAULT_LOOKBACK_HOURS = 24
+DEFAULT_LAST_COUNT = 300
 PAGE_SIZE = 100
 RATE_LIMIT_RETRIES = 3
 
@@ -28,6 +29,26 @@ class Command(BaseCommand):
         'Reconcile Jira status history by polling the Jira API for status transitions '
         'the webhook missed (e.g. while the app was down).'
     )
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'mode',
+            nargs='?',
+            default='by_time',
+            choices=['by_time', 'last'],
+            help="'by_time' (default): poll Jira for tickets updated since the watermark, "
+                 "for the project(s) in AppSetting jira_reconcile_projects — skips tickets "
+                 "unknown locally. 'last': backfill the N most recent tickets by issue number "
+                 "for the first configured project, creating any missing locally.",
+        )
+        parser.add_argument(
+            'count',
+            nargs='?',
+            type=int,
+            default=DEFAULT_LAST_COUNT,
+            help=f"With 'last' mode: how many of the most recent tickets to backfill "
+                 f"(default {DEFAULT_LAST_COUNT}). Ignored in 'by_time' mode.",
+        )
 
     def handle(self, *args, **options):
         base_url = getattr(settings, 'JIRA_API_BASE_URL', '').rstrip('/')
@@ -40,21 +61,54 @@ class Command(BaseCommand):
             )
             return
 
+        range_mode = options['mode'] == 'last'
+
         run_started_at = timezone.now()
-        watermark = self._get_watermark()
-        projects = self._get_projects()
 
         session = requests.Session()
         session.auth = (email, token)
         session.headers['Accept'] = 'application/json'
 
-        stats = {'issues_scanned': 0, 'events_created': 0, 'comments_created': 0, 'errors': 0}
+        stats = {
+            'issues_scanned': 0,
+            'tickets_created': 0,
+            'events_created': 0,
+            'comments_created': 0,
+            'issues_not_found': 0,
+            'errors': 0,
+        }
+
+        if range_mode:
+            projects = self._get_projects()
+            if not projects:
+                self.stderr.write(
+                    "No project configured in AppSetting jira_reconcile_projects — "
+                    "cannot determine a 'last' range."
+                )
+                return
+            project = projects[0]
+            count = options['count']
+            try:
+                highest_num = self._fetch_highest_issue_number(session, base_url, project)
+            except requests.HTTPError:
+                logger.exception('jira_reconcile_last_lookup_failed', extra={'project': project})
+                self.stderr.write(f'Could not determine the latest {project} issue number — aborting.')
+                return
+            if highest_num is None:
+                self.stderr.write(f'No issues found for project {project!r} — nothing to do.')
+                return
+            start_num = max(1, highest_num - count + 1)
+            issue_keys = self._iter_key_range(project, start_num, highest_num)
+        else:
+            watermark = self._get_watermark()
+            projects = self._get_projects()
+            issue_keys = self._iter_updated_issue_keys(session, base_url, watermark, projects)
 
         try:
-            for issue_key in self._iter_updated_issue_keys(session, base_url, watermark, projects):
+            for issue_key in issue_keys:
                 stats['issues_scanned'] += 1
                 try:
-                    self._reconcile_issue(session, base_url, issue_key, stats)
+                    self._reconcile_issue(session, base_url, issue_key, stats, create_missing=range_mode)
                 except Exception:
                     stats['errors'] += 1
                     logger.exception('jira_reconcile_issue_failed', extra={'issue_key': issue_key})
@@ -63,15 +117,22 @@ class Command(BaseCommand):
             self.stderr.write('Reconciliation run failed before completing — watermark not advanced.')
             return
 
-        if stats['errors'] == 0:
-            self._set_watermark(run_started_at)
-        else:
-            logger.warning('jira_reconcile_partial_run', extra=stats)
+        # A key-range backfill is a one-off operation unrelated to the updated-since
+        # cursor, so it must never advance the watermark used by the scheduled run.
+        if not range_mode:
+            if stats['errors'] == 0:
+                self._set_watermark(run_started_at)
+            else:
+                logger.warning('jira_reconcile_partial_run', extra=stats)
 
-        logger.info('jira_reconcile_run_complete', extra={**stats, 'watermark_advanced': stats['errors'] == 0})
+        logger.info(
+            'jira_reconcile_run_complete',
+            extra={**stats, 'range_mode': range_mode, 'watermark_advanced': not range_mode and stats['errors'] == 0},
+        )
         self.stdout.write(
-            f"Scanned {stats['issues_scanned']} issues, created {stats['events_created']} status events, "
-            f"{stats['comments_created']} comments, {stats['errors']} errors."
+            f"Scanned {stats['issues_scanned']} issues, created {stats['tickets_created']} tickets, "
+            f"{stats['events_created']} status events, {stats['comments_created']} comments, "
+            f"{stats['issues_not_found']} not found, {stats['errors']} errors."
         )
 
     # -- watermark -----------------------------------------------------
@@ -89,6 +150,30 @@ class Command(BaseCommand):
     def _get_projects(self):
         raw = get_app_setting(PROJECTS_KEY, DEFAULT_PROJECTS)
         return [key.strip() for key in raw.split(',') if key.strip()]
+
+    # -- explicit key range ------------------------------------------------
+
+    def _parse_key(self, key):
+        project, _, num = key.rpartition('-')
+        if not project or not num.isdigit():
+            raise ValueError(f'Invalid issue key: {key!r} (expected e.g. GITIN-1500)')
+        return project, int(num)
+
+    def _iter_key_range(self, project, start_num, end_num):
+        for num in range(start_num, end_num + 1):
+            yield f'{project}-{num}'
+
+    def _fetch_highest_issue_number(self, session, base_url, project):
+        response = self._get(
+            session,
+            f'{base_url}/rest/api/3/search/jql',
+            params={'jql': f'project = "{project}" ORDER BY key DESC', 'maxResults': 1, 'fields': 'key'},
+        )
+        issues = response.json().get('issues', [])
+        if not issues:
+            return None
+        _, num = self._parse_key(issues[0]['key'])
+        return num
 
     # -- Jira API --------------------------------------------------------
 
@@ -132,11 +217,19 @@ class Command(BaseCommand):
                 break
 
     def _fetch_issue_fields(self, session, base_url, issue_key):
-        response = self._get(
-            session,
-            f'{base_url}/rest/api/3/issue/{issue_key}',
-            params={'fields': 'summary,project,issuetype,assignee,labels,parent'},
-        )
+        # 'status' is fetched too, but only ever used to seed a *new* local ticket
+        # (see _reconcile_issue) — for tickets that already exist locally, status is
+        # only ever moved forward via an explicit changelog item, never the snapshot.
+        try:
+            response = self._get(
+                session,
+                f'{base_url}/rest/api/3/issue/{issue_key}',
+                params={'fields': 'summary,project,issuetype,assignee,labels,parent,status'},
+            )
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                return None
+            raise
         return response.json().get('fields', {})
 
     def _iter_comments(self, session, base_url, issue_key):
@@ -173,18 +266,38 @@ class Command(BaseCommand):
 
     # -- reconciliation ---------------------------------------------------
 
-    def _reconcile_issue(self, session, base_url, issue_key, stats):
+    def _reconcile_issue(self, session, base_url, issue_key, stats, create_missing=False):
         try:
             ticket = JiraTicket.objects.get(issue_key=issue_key)
         except JiraTicket.DoesNotExist:
-            logger.info('jira_reconcile_unknown_ticket_skipped', extra={'issue_key': issue_key})
-            return
+            if not create_missing:
+                logger.info('jira_reconcile_unknown_ticket_skipped', extra={'issue_key': issue_key})
+                return
 
-        fields = self._fetch_issue_fields(session, base_url, issue_key)
-        body_defaults = _ticket_defaults_from_fields(fields)
-        body_refreshed = any(getattr(ticket, key) != value for key, value in body_defaults.items())
-        if body_refreshed:
-            JiraTicket.objects.filter(pk=ticket.pk).update(**body_defaults)
+            fields = self._fetch_issue_fields(session, base_url, issue_key)
+            if fields is None:
+                logger.info('jira_reconcile_issue_not_found', extra={'issue_key': issue_key})
+                stats['issues_not_found'] += 1
+                return
+
+            body_defaults = _ticket_defaults_from_fields(fields)
+            initial_status = (fields.get('status') or {}).get('name', '')
+            ticket = JiraTicket.objects.create(
+                issue_key=issue_key, status=initial_status[:100], **body_defaults
+            )
+            stats['tickets_created'] += 1
+            body_refreshed = False
+        else:
+            fields = self._fetch_issue_fields(session, base_url, issue_key)
+            if fields is None:
+                logger.info('jira_reconcile_issue_not_found', extra={'issue_key': issue_key})
+                stats['issues_not_found'] += 1
+                return
+
+            body_defaults = _ticket_defaults_from_fields(fields)
+            body_refreshed = any(getattr(ticket, key) != value for key, value in body_defaults.items())
+            if body_refreshed:
+                JiraTicket.objects.filter(pk=ticket.pk).update(**body_defaults)
 
         status_histories = []
         for history in self._iter_changelog(session, base_url, issue_key):
