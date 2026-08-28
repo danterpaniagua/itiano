@@ -10,6 +10,7 @@ from django.db.models import Max
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from core.models import Team
 from jira_integration.models import JiraEvent, JiraTicket
 from jira_integration.views import _build_summary, _ticket_defaults_from_fields
 from notifications.models import notify
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 WATERMARK_KEY = 'jira_reconcile_watermark'
 PROJECTS_KEY = 'jira_reconcile_projects'
 NOTIFY_USERS_KEY = 'jira_reconcile_notify_users'
+NOTIFY_TEAM_KEY = 'jira_reconcile_notify_team'
 LOOKBACK_HOURS_KEY = 'jira_reconcile_lookback_hours'
 LAST_COUNT_KEY = 'jira_reconcile_last_count'
 DEFAULT_PROJECTS = 'GITIN'
@@ -173,13 +175,24 @@ class Command(BaseCommand):
 
     def _notify_completion(self, range_mode, stats):
         usernames = [u.strip() for u in get_app_setting(NOTIFY_USERS_KEY, '').split(',') if u.strip()]
-        if not usernames:
+        team_id = get_app_setting(NOTIFY_TEAM_KEY, '')
+        team = Team.objects.filter(pk=team_id).first() if team_id.isdigit() else None
+
+        # Combine into one recipient set (deduped by pk) so a user who is both
+        # individually configured and a member of the configured team gets a
+        # single notification, not two.
+        recipients = set(User.objects.filter(username__in=usernames)) if usernames else set()
+        if team:
+            recipients |= set(team.members.all())
+
+        if not recipients:
             return
-        recipients = User.objects.filter(username__in=usernames)
+
         if range_mode:
             message = f"jira_reconcile last: Created {stats['tickets_created']} Updated {stats['events_created']}"
         else:
             message = f"jira_reconcile by_time: Updated: {stats['events_created']}"
+
         notify(message, source='jira_reconcile', users=recipients)
 
     # -- explicit key range ------------------------------------------------
