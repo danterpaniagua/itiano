@@ -15,6 +15,7 @@ urlpatterns = [
     path('jira/status/add/', views.JiraStatusAddView.as_view(), name='settings-jira-status-add'),
     path('jira/status/<int:pk>/delete/', views.JiraStatusDeleteView.as_view(), name='settings-jira-status-delete'),
     path('jira/status/<int:pk>/toggle-terminal/', views.JiraStatusToggleTerminalView.as_view(), name='settings-jira-status-toggle-terminal'),
+    path('notifications/', views.NotificationsSettingsView.as_view(), name='settings-notifications'),
     path('tickets/', views.TicketsSettingsView.as_view(), name='settings-tickets'),
     path('tags/', views.TagListView.as_view(), name='settings-tags'),
     path('tags/create/', views.TagCreateView.as_view(), name='settings-tag-create'),

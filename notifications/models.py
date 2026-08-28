@@ -1,6 +1,8 @@
 from django.contrib.auth.models import User
 from django.db import models
 
+ENABLED_KEY = 'notifications_enabled'
+
 
 class Notification(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
@@ -24,9 +26,18 @@ def notify(message, *, url='', source='', users=None, team=None):
 
     Exactly one of `users`/`team` must be given. `users=[]` (or a team with no
     members) is a valid no-op, distinct from omitting both.
+
+    Gated by the system-wide AppSetting `notifications_enabled` (default on) —
+    when disabled, this is a no-op for every caller, checked here so no
+    individual trigger needs its own copy of that check. Argument validation
+    still runs first, so a caller bug is not silently masked by the toggle.
     """
     if (users is None) == (team is None):
         raise ValueError('notify() requires exactly one of users or team')
+
+    from settings_hub.models import get_app_setting
+    if get_app_setting(ENABLED_KEY, 'True') != 'True':
+        return []
 
     if team is not None:
         recipients = list(team.members.all())

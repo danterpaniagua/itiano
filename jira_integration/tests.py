@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -10,9 +11,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from notifications.models import Notification
 from settings_hub.models import AppSetting
 
-from .management.commands.jira_reconcile import WATERMARK_KEY
+from .management.commands.jira_reconcile import DEFAULT_LAST_COUNT, DEFAULT_LOOKBACK_HOURS, Command, WATERMARK_KEY
 from .models import JiraEvent, JiraTicket
 from .views import _build_summary
 
@@ -402,3 +404,151 @@ class JiraReconcileCommandTests(TestCase):
         events = JiraEvent.objects.filter(event_type='jira:issue_commented')
         self.assertEqual(events.count(), 1)
         self.assertEqual(events.get().payload['comment']['id'], 'c1')
+
+    def test_notifies_configured_recipients_on_by_time_completion(self):
+        AppSetting.objects.create(key='jira_reconcile_notify_users', value='alice')
+        User.objects.create(username='alice')
+        JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2026-08-27T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+
+        note = Notification.objects.get(source='jira_reconcile')
+        self.assertEqual(note.message, 'jira_reconcile by_time: Updated: 1')
+
+    def test_no_notification_when_no_recipients_configured(self):
+        JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2026-08-27T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_no_notification_when_system_wide_disabled(self):
+        AppSetting.objects.create(key='jira_reconcile_notify_users', value='alice')
+        AppSetting.objects.create(key='notifications_enabled', value='False')
+        User.objects.create(username='alice')
+        JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2026-08-27T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+
+        self.assertEqual(Notification.objects.count(), 0)
+
+
+class JiraReconcileLastModeTests(TestCase):
+    def test_creates_missing_tickets_for_explicit_range(self):
+        AppSetting.objects.create(key='jira_reconcile_projects', value='PROJ')
+        search_response = {'issues': [{'key': 'PROJ-10'}], 'total': 1}
+        changelog_response = {'values': [], 'total': 0}
+        issue_response = {'fields': {'summary': 'Bug', 'status': {'name': 'Open'}}}
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(
+                    search_response, changelog_response, issue_response=issue_response,
+                )):
+            call_command('jira_reconcile', 'last', '3')
+
+        self.assertEqual(
+            set(JiraTicket.objects.values_list('issue_key', flat=True)),
+            {'PROJ-8', 'PROJ-9', 'PROJ-10'},
+        )
+        self.assertEqual(JiraTicket.objects.get(issue_key='PROJ-10').status, 'Open')
+
+    def test_does_not_advance_by_time_watermark(self):
+        AppSetting.objects.create(key='jira_reconcile_projects', value='PROJ')
+        search_response = {'issues': [{'key': 'PROJ-5'}], 'total': 1}
+        changelog_response = {'values': [], 'total': 0}
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            call_command('jira_reconcile', 'last', '2')
+
+        self.assertFalse(AppSetting.objects.filter(key=WATERMARK_KEY).exists())
+
+    def test_uses_configured_default_count_when_omitted(self):
+        AppSetting.objects.create(key='jira_reconcile_projects', value='PROJ')
+        AppSetting.objects.create(key='jira_reconcile_last_count', value='2')
+        search_response = {'issues': [{'key': 'PROJ-20'}], 'total': 1}
+        changelog_response = {'values': [], 'total': 0}
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            call_command('jira_reconcile', 'last')
+
+        self.assertEqual(JiraTicket.objects.count(), 2)
+
+    def test_falls_back_to_constant_default_on_invalid_count_setting(self):
+        AppSetting.objects.create(key='jira_reconcile_projects', value='PROJ')
+        AppSetting.objects.create(key='jira_reconcile_last_count', value='not-a-number')
+        search_response = {'issues': [{'key': 'PROJ-500'}], 'total': 1}
+        changelog_response = {'values': [], 'total': 0}
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            call_command('jira_reconcile', 'last')
+
+        self.assertEqual(JiraTicket.objects.count(), DEFAULT_LAST_COUNT)
+
+    def test_explicit_cli_count_overrides_configured_default(self):
+        AppSetting.objects.create(key='jira_reconcile_projects', value='PROJ')
+        AppSetting.objects.create(key='jira_reconcile_last_count', value='50')
+        search_response = {'issues': [{'key': 'PROJ-20'}], 'total': 1}
+        changelog_response = {'values': [], 'total': 0}
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            call_command('jira_reconcile', 'last', '3')
+
+        self.assertEqual(JiraTicket.objects.count(), 3)
+
+    def test_notifies_with_last_mode_message_format(self):
+        AppSetting.objects.create(key='jira_reconcile_projects', value='PROJ')
+        AppSetting.objects.create(key='jira_reconcile_notify_users', value='bob')
+        User.objects.create(username='bob')
+        search_response = {'issues': [{'key': 'PROJ-10'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2026-08-27T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            call_command('jira_reconcile', 'last', '2')
+
+        note = Notification.objects.get(source='jira_reconcile')
+        self.assertEqual(note.message, 'jira_reconcile last: Created 2 Updated 2')
+
+
+class JiraReconcileWatermarkLookbackTests(TestCase):
+    def test_uses_configured_lookback_hours(self):
+        AppSetting.objects.create(key='jira_reconcile_lookback_hours', value='2')
+        watermark = Command()._get_watermark()
+        expected = timezone.now() - timedelta(hours=2)
+        self.assertAlmostEqual(watermark.timestamp(), expected.timestamp(), delta=5)
+
+    def test_falls_back_to_constant_default_when_unset(self):
+        watermark = Command()._get_watermark()
+        expected = timezone.now() - timedelta(hours=DEFAULT_LOOKBACK_HOURS)
+        self.assertAlmostEqual(watermark.timestamp(), expected.timestamp(), delta=5)
+
+    def test_falls_back_to_constant_default_on_invalid_setting(self):
+        AppSetting.objects.create(key='jira_reconcile_lookback_hours', value='oops')
+        watermark = Command()._get_watermark()
+        expected = timezone.now() - timedelta(hours=DEFAULT_LOOKBACK_HOURS)
+        self.assertAlmostEqual(watermark.timestamp(), expected.timestamp(), delta=5)
+
+    def test_falls_back_to_constant_default_on_zero_or_negative_setting(self):
+        AppSetting.objects.create(key='jira_reconcile_lookback_hours', value='0')
+        watermark = Command()._get_watermark()
+        expected = timezone.now() - timedelta(hours=DEFAULT_LOOKBACK_HOURS)
+        self.assertAlmostEqual(watermark.timestamp(), expected.timestamp(), delta=5)
