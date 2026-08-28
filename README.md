@@ -49,7 +49,7 @@ The Docker Compose `app` service serves HTTPS the same way: when `DEBUG=True` it
 Tests require PostgreSQL. Run inside the container:
 
 ```bash
-docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault notes contacts timetracking settings_hub
+docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault notes contacts timetracking settings_hub notifications
 ```
 
 Single test:
@@ -71,6 +71,39 @@ docker compose exec app python manage.py test itsm.tests.TestClassName.test_meth
 | `DB_HOST` | PostgreSQL host | `db` (Docker) / `localhost` (local) |
 | `DB_PORT` | PostgreSQL port | `5432` |
 | `JIRA_WEBHOOK_SECRET` | HMAC secret for Jira webhook validation | random string |
+| `JIRA_API_BASE_URL` | Jira Cloud base URL, used by `jira_reconcile` | `https://yourcompany.atlassian.net` |
+| `JIRA_API_EMAIL` | Jira account email for Basic Auth, used by `jira_reconcile` | — |
+| `JIRA_API_TOKEN` | Jira API token for Basic Auth, used by `jira_reconcile` | — |
+
+## Jira reconciliation
+
+The webhook (`jira_integration`) is the primary source of ticket status history. If the app is
+down when Jira sends a webhook, that event is lost — Jira does not retry indefinitely. The
+`jira_reconcile` management command polls the Jira REST API for tickets updated since the last
+successful run and backfills any missing status transitions from the changelog.
+
+Set `JIRA_API_BASE_URL`, `JIRA_API_EMAIL`, and `JIRA_API_TOKEN`, then run it on a schedule via
+host cron (there is no Celery/scheduler in this stack):
+
+```bash
+python manage.py jira_reconcile          # same as: jira_reconcile by_time
+```
+
+```cron
+# /etc/cron.d/itiano-jira-reconcile — hourly
+0 * * * * root cd /path/to/itiano && docker compose exec -T app python manage.py jira_reconcile >> /path/to/itiano/logs/jira_reconcile.log 2>&1
+```
+
+For a one-off backfill of recent tickets that predate the webhook or were otherwise missed
+entirely (not just their status history — the ticket itself), use `last [N]` (defaults to 300):
+
+```bash
+python manage.py jira_reconcile last          # last 300 tickets by issue number
+python manage.py jira_reconcile last 500      # last 500
+```
+
+Unlike `by_time`, `last` creates the local ticket if it doesn't exist yet, and never touches the
+`by_time` watermark.
 
 ## Architecture
 
@@ -87,6 +120,7 @@ docker compose exec app python manage.py test itsm.tests.TestClassName.test_meth
 | `contacts` | Contact directory with configurable HTTP notification channels |
 | `timetracking` | Jira time tracking per user: In Progress Gantt timeline, custom date range report, ticket activity drill-down with Jira comments |
 | `settings_hub` | App settings (Tags, Categories — staff only) and user settings (schedule, timezone, Jira username) |
+| `notifications` | In-app notifications: `notify()` alerts a user or a `core.Team`, surfaced via navbar bell + full list page |
 
 See `.claude/architecture.md` for full architecture detail.
 

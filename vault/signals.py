@@ -94,6 +94,16 @@ def handle_container_access_created(sender, instance, created, **kwargs):
     from .crypto import reconcile_container_access
     reconcile_container_access(instance.container)
 
+    from django.urls import reverse
+
+    from notifications.models import notify
+    notify(
+        f"Container '{instance.container.name}' was shared with your team",
+        url=f"{reverse('vault-list')}?container={instance.container_id}",
+        source='vault_share',
+        team=instance.team,
+    )
+
 
 @receiver(post_delete, sender='vault.ContainerAccess')
 def handle_container_access_deleted(sender, instance, **kwargs):

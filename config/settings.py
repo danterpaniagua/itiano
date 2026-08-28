@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'contacts',
     'settings_hub',
     'timetracking',
+    'notifications',
 ]
 
 if DEBUG:
@@ -59,6 +60,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.app_version',
+                'core.context_processors.notifications',
             ],
         },
     },
@@ -101,6 +103,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 JIRA_WEBHOOK_SECRET = os.environ.get('JIRA_WEBHOOK_SECRET', '')
 
+JIRA_API_BASE_URL = os.environ.get('JIRA_API_BASE_URL', '')
+JIRA_API_EMAIL = os.environ.get('JIRA_API_EMAIL', '')
+JIRA_API_TOKEN = os.environ.get('JIRA_API_TOKEN', '')
+
 LOGIN_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'
 
@@ -109,6 +115,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'standard': {
+            '()': 'config.logging_formatters.ExtraFormatter',
             'format': '{asctime} {levelname} {name} {message}',
             'style': '{',
         },

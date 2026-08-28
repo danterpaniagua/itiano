@@ -28,6 +28,49 @@
 
         <hr class="my-4">
 
+        {# --- Reconcile Projects --- #}
+        <h6 class="fw-semibold mb-3" id="jira-reconcile-projects">Reconcile Projects</h6>
+
+        <form method="post" class="mb-0">
+            {% csrf_token %}
+            <div class="mb-3">
+                <input type="text" name="jira_reconcile_projects" class="form-control"
+                       value="{{ jira_reconcile_projects }}"
+                       placeholder="e.g. GITIN, OPS">
+                <div class="form-text">
+                    Comma-separated Jira project keys the <code>jira_reconcile</code> command scans
+                    for missed status transitions. Leave empty to scan all projects.
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+
+        <hr class="my-4">
+
+        {# --- Reconcile Notifications --- #}
+        <h6 class="fw-semibold mb-3" id="jira-reconcile-notify">Reconcile Notifications</h6>
+
+        <form method="post" class="mb-0">
+            {% csrf_token %}
+            <input type="hidden" name="notify_users_form" value="1">
+            <div class="mb-3">
+                <select name="jira_reconcile_notify_users" class="form-select" multiple size="6">
+                    {% for u in all_users %}
+                    <option value="{{ u.username }}" {% if u.username in jira_reconcile_notify_users %}selected{% endif %}>
+                        {{ u.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">
+                    Users notified when <code>jira_reconcile</code> (either <code>by_time</code> or
+                    <code>last</code>) finishes a run. Empty = no notification sent.
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+
+        <hr class="my-4">
+
         {# --- Ticket Statuses --- #}
         <h6 class="fw-semibold mb-3" id="jira-statuses">Ticket Statuses</h6>
 

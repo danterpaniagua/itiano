@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Notifications – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto">Notifications</h5>
+    {% if unread_notifications_count %}
+    <form method="post" action="{% url 'notifications-mark-all-read' %}" class="m-0">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'notifications-list' %}">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-check2-all"></i> Mark all read
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="list-group">
+    {% for n in notifications %}
+    <a href="{% url 'notifications-open' n.pk %}"
+       class="list-group-item list-group-item-action d-flex align-items-start gap-2 {% if not n.read_at %}bg-light{% endif %}">
+        <i class="bi {% if n.read_at %}bi-circle text-muted{% else %}bi-circle-fill text-primary{% endif %} mt-1" style="font-size:.5rem; flex-shrink:0"></i>
+        <div class="flex-grow-1">
+            <div class="{% if not n.read_at %}fw-semibold{% endif %}">{{ n.message }}</div>
+            <div class="text-muted small">{{ n.created_at }}</div>
+        </div>
+    </a>
+    {% empty %}
+    <p class="text-muted">No notifications yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}

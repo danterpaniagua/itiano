@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import logging
+from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -10,6 +11,7 @@ from django.db.models import OuterRef, Subquery
 from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import JiraEvent, JiraTicket
@@ -30,6 +32,33 @@ def _verify_signature(request):
     expected = hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest()
     received = signature_header[len('sha256='):]
     return hmac.compare_digest(expected, received)
+
+
+def _ticket_defaults_from_fields(fields):
+    title = fields.get('summary', '')
+    project_key = fields.get('project', {}).get('key', '') if fields.get('project') else ''
+    issue_type = fields.get('issuetype', {}).get('name', '') if fields.get('issuetype') else ''
+    assignee_obj = fields.get('assignee') or {}
+    assignee = assignee_obj.get('displayName', '')
+    assignee_account_id = assignee_obj.get('accountId', '')
+    labels = [l for l in (fields.get('labels') or []) if isinstance(l, str)]
+    parent_key = (fields.get('parent') or {}).get('key', '')
+    return {
+        'title': title[:500],
+        'project_key': project_key[:50],
+        'issue_type': issue_type[:100],
+        'assignee': assignee[:200],
+        'assignee_account_id': assignee_account_id[:100],
+        'labels': labels,
+        'parent_key': parent_key[:50],
+    }
+
+
+def _parse_webhook_timestamp(payload):
+    raw_timestamp = payload.get('timestamp')
+    if isinstance(raw_timestamp, (int, float)):
+        return datetime.fromtimestamp(raw_timestamp / 1000, tz=dt_timezone.utc)
+    return timezone.now()
 
 
 @csrf_exempt
@@ -75,14 +104,7 @@ def webhook(request):
         return HttpResponse(status=200)
 
     fields = issue.get('fields', {})
-    title = fields.get('summary', '')
-    project_key = fields.get('project', {}).get('key', '') if fields.get('project') else ''
-    issue_type = fields.get('issuetype', {}).get('name', '') if fields.get('issuetype') else ''
-    assignee_obj = fields.get('assignee') or {}
-    assignee = assignee_obj.get('displayName', '')
-    assignee_account_id = assignee_obj.get('accountId', '')
-    labels = [l for l in (fields.get('labels') or []) if isinstance(l, str)]
-    parent_key = (fields.get('parent') or {}).get('key', '')
+    defaults = _ticket_defaults_from_fields(fields)
 
     # Only update status from an explicit changelog item — never from the snapshot field.
     # The snapshot uses localized names (e.g. "En curso") and arrives out of order on
@@ -94,15 +116,6 @@ def webhook(request):
     )
     snapshot_status = fields.get('status', {}).get('name', '') if fields.get('status') else ''
 
-    defaults = {
-        'title': title[:500],
-        'project_key': project_key[:50],
-        'issue_type': issue_type[:100],
-        'assignee': assignee[:200],
-        'assignee_account_id': assignee_account_id[:100],
-        'labels': labels,
-        'parent_key': parent_key[:50],
-    }
     if status_from_changelog is not None:
         defaults['status'] = status_from_changelog[:100]
     elif event_type == 'jira:issue_created':
@@ -126,6 +139,7 @@ def webhook(request):
         event_type=event_type,
         summary=summary,
         payload=payload,
+        received_at=_parse_webhook_timestamp(payload),
     )
 
     logger.info(
