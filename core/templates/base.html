@@ -12,9 +12,27 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
         <a class="navbar-brand fw-bold" href="{% url 'dashboard' %}">Itiano</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+
+        <div class="d-flex align-items-center gap-2">
+            {% if user.is_authenticated %}
+            <div class="dropdown d-lg-none">
+                <a class="nav-link position-relative text-light" href="#" role="button"
+                   data-bs-toggle="dropdown" aria-expanded="false" title="Notifications">
+                    <i class="bi bi-bell fs-5"></i>
+                    {% if unread_notifications_count %}
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:.6rem">
+                        {{ unread_notifications_count }}
+                    </span>
+                    {% endif %}
+                </a>
+                {% include "core/_notifications_dropdown_menu.html" %}
+            </div>
+            {% endif %}
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </div>
+
         <div class="collapse navbar-collapse" id="nav">
             <ul class="navbar-nav me-auto">
                 {% if user.is_authenticated %}
@@ -57,8 +75,8 @@
             </ul>
             {% if user.is_authenticated %}
             <ul class="navbar-nav">
-                <li class="nav-item dropdown">
-                    <a class="nav-link position-relative" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notifications">
+                <li class="nav-item dropdown d-none d-lg-block">
+                    <a class="nav-link position-relative text-light" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notifications">
                         <i class="bi bi-bell fs-5"></i>
                         {% if unread_notifications_count %}
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:.6rem">
@@ -66,31 +84,7 @@
                         </span>
                         {% endif %}
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end" style="min-width:320px; max-width:90vw">
-                        <li class="dropdown-header d-flex justify-content-between align-items-center">
-                            Notifications
-                            {% if unread_notifications_count %}
-                            <form method="post" action="{% url 'notifications-mark-all-read' %}" class="m-0">
-                                {% csrf_token %}
-                                <input type="hidden" name="next" value="{{ request.path }}">
-                                <button type="submit" class="btn btn-link btn-sm p-0">Mark all read</button>
-                            </form>
-                            {% endif %}
-                        </li>
-                        {% for n in recent_notifications %}
-                        <li>
-                            <a class="dropdown-item d-flex align-items-start gap-2 text-wrap {% if not n.read_at %}fw-semibold{% endif %}"
-                               href="{% url 'notifications-open' n.pk %}">
-                                <i class="bi {% if n.read_at %}bi-circle text-muted{% else %}bi-circle-fill text-primary{% endif %} mt-1" style="font-size:.5rem; flex-shrink:0"></i>
-                                <span class="small">{{ n.message }}</span>
-                            </a>
-                        </li>
-                        {% empty %}
-                        <li><span class="dropdown-item-text text-muted small">No notifications yet.</span></li>
-                        {% endfor %}
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-center small" href="{% url 'notifications-list' %}">View all</a></li>
-                    </ul>
+                    {% include "core/_notifications_dropdown_menu.html" %}
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-light d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
