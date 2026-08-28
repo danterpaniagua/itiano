@@ -98,6 +98,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 JIRA_WEBHOOK_SECRET = os.environ.get('JIRA_WEBHOOK_SECRET', '')
 
+JIRA_API_BASE_URL = os.environ.get('JIRA_API_BASE_URL', '')
+JIRA_API_EMAIL = os.environ.get('JIRA_API_EMAIL', '')
+JIRA_API_TOKEN = os.environ.get('JIRA_API_TOKEN', '')
+
 LOGIN_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'
 
@@ -106,6 +110,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'standard': {
+            '()': 'config.logging_formatters.ExtraFormatter',
             'format': '{asctime} {levelname} {name} {message}',
             'style': '{',
         },

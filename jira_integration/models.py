@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class JiraTicket(models.Model):
@@ -27,7 +28,7 @@ class JiraEvent(models.Model):
     event_type = models.CharField(max_length=100, blank=True)
     summary = models.CharField(max_length=500, blank=True)
     payload = models.JSONField()
-    received_at = models.DateTimeField(auto_now_add=True)
+    received_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['received_at']

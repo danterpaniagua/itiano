@@ -59,6 +59,28 @@ docker compose exec app python manage.py test itsm.tests.TestClassName.test_meth
 | `DB_HOST` | PostgreSQL host | `db` (Docker) / `localhost` (local) |
 | `DB_PORT` | PostgreSQL port | `5432` |
 | `JIRA_WEBHOOK_SECRET` | HMAC secret for Jira webhook validation | random string |
+| `JIRA_API_BASE_URL` | Jira Cloud base URL, used by `jira_reconcile` | `https://yourcompany.atlassian.net` |
+| `JIRA_API_EMAIL` | Jira account email for Basic Auth, used by `jira_reconcile` | — |
+| `JIRA_API_TOKEN` | Jira API token for Basic Auth, used by `jira_reconcile` | — |
+
+## Jira reconciliation
+
+The webhook (`jira_integration`) is the primary source of ticket status history. If the app is
+down when Jira sends a webhook, that event is lost — Jira does not retry indefinitely. The
+`jira_reconcile` management command polls the Jira REST API for tickets updated since the last
+successful run and backfills any missing status transitions from the changelog.
+
+Set `JIRA_API_BASE_URL`, `JIRA_API_EMAIL`, and `JIRA_API_TOKEN`, then run it on a schedule via
+host cron (there is no Celery/scheduler in this stack):
+
+```bash
+python manage.py jira_reconcile
+```
+
+```cron
+# /etc/cron.d/itiano-jira-reconcile — hourly
+0 * * * * root cd /path/to/itiano && docker compose exec -T app python manage.py jira_reconcile >> /path/to/itiano/logs/jira_reconcile.log 2>&1
+```
 
 ## Architecture
 

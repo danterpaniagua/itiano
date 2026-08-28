@@ -617,6 +617,7 @@ class JiraSettingsView(StaffRequiredMixin, View):
     def _ctx(self):
         return {
             'jira_base_url': get_app_setting('jira_base_url'),
+            'jira_reconcile_projects': get_app_setting('jira_reconcile_projects', 'GITIN'),
             'jira_statuses': JiraStatusConfig.objects.all(),
             'category_choices': JiraStatusConfig.CATEGORY_CHOICES,
         }
@@ -625,6 +626,14 @@ class JiraSettingsView(StaffRequiredMixin, View):
         return render(request, 'settings_hub/jira_settings.html', self._ctx())
 
     def post(self, request):
+        if 'jira_reconcile_projects' in request.POST:
+            projects = request.POST.get('jira_reconcile_projects', '').strip()
+            AppSetting.objects.update_or_create(
+                key='jira_reconcile_projects', defaults={'value': projects}
+            )
+            messages.success(request, 'Reconcile projects saved.')
+            return redirect('settings-jira')
+
         url = request.POST.get('jira_base_url', '').strip().rstrip('/')
         AppSetting.objects.update_or_create(key='jira_base_url', defaults={'value': url})
         messages.success(request, 'Base URL saved.')

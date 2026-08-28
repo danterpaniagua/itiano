@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import logging
+from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -10,6 +11,7 @@ from django.db.models import OuterRef, Subquery
 from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import JiraEvent, JiraTicket
@@ -30,6 +32,13 @@ def _verify_signature(request):
     expected = hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest()
     received = signature_header[len('sha256='):]
     return hmac.compare_digest(expected, received)
+
+
+def _parse_webhook_timestamp(payload):
+    raw_timestamp = payload.get('timestamp')
+    if isinstance(raw_timestamp, (int, float)):
+        return datetime.fromtimestamp(raw_timestamp / 1000, tz=dt_timezone.utc)
+    return timezone.now()
 
 
 @csrf_exempt
@@ -126,6 +135,7 @@ def webhook(request):
         event_type=event_type,
         summary=summary,
         payload=payload,
+        received_at=_parse_webhook_timestamp(payload),
     )
 
     logger.info(

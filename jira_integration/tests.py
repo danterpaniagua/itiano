@@ -1,11 +1,18 @@
 import hashlib
 import hmac
 import json
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
+from settings_hub.models import AppSetting
+
+from .management.commands.jira_reconcile import WATERMARK_KEY
 from .models import JiraEvent, JiraTicket
 from .views import _build_summary
 
@@ -97,6 +104,13 @@ class WebhookViewTests(TestCase):
         response = self._signed_post(b'not json')
         self.assertEqual(response.status_code, 400)
 
+    def test_received_at_uses_payload_timestamp_when_present(self):
+        payload = dict(SAMPLE_PAYLOAD, timestamp=1798758000000)  # 2026-12-31T23:00:00Z
+        body = json.dumps(payload).encode()
+        self._signed_post(body)
+        event = JiraEvent.objects.get()
+        self.assertEqual(event.received_at, parse_datetime('2026-12-31T23:00:00+00:00'))
+
 
 class BuildSummaryTests(TestCase):
     def test_changelog_items(self):
@@ -183,3 +197,153 @@ class OpenInSandboxViewTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 302)
         self.assertIn('sandbox_payload', self.client.session)
+
+
+class FakeResponse:
+    def __init__(self, json_data, status_code=200, headers=None):
+        self._json_data = json_data
+        self.status_code = status_code
+        self.headers = headers or {}
+
+    def json(self):
+        return self._json_data
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise Exception(f'HTTP {self.status_code}')
+
+
+def _changelog_history(history_id, to_status, created):
+    return {
+        'id': history_id,
+        'created': created,
+        'items': [{'field': 'status', 'fromString': 'Open', 'toString': to_status}],
+    }
+
+
+def _mock_get(search_response, changelog_response, captured_jql=None):
+    def _get(self, url, params=None, timeout=None):
+        if url.endswith('/rest/api/3/search/jql'):
+            if captured_jql is not None:
+                captured_jql.append(params.get('jql', ''))
+            return FakeResponse(search_response)
+        if url.endswith('/changelog'):
+            return FakeResponse(changelog_response)
+        raise AssertionError(f'Unexpected URL: {url}')
+    return _get
+
+
+JIRA_SETTINGS = {
+    'JIRA_API_BASE_URL': 'https://fake.atlassian.net',
+    'JIRA_API_EMAIL': 'bot@example.com',
+    'JIRA_API_TOKEN': 'faketoken',
+}
+
+
+class JiraReconcileCommandTests(TestCase):
+    def _run(self):
+        call_command('jira_reconcile')
+
+    def test_missing_credentials_aborts(self):
+        with self.settings(JIRA_API_BASE_URL='', JIRA_API_EMAIL='', JIRA_API_TOKEN=''):
+            self._run()
+        self.assertEqual(JiraEvent.objects.count(), 0)
+        self.assertFalse(AppSetting.objects.filter(key=WATERMARK_KEY).exists())
+
+    def test_backfills_missing_status_event_and_advances_watermark(self):
+        JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2026-08-27T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+
+        self.assertEqual(JiraEvent.objects.count(), 1)
+        event = JiraEvent.objects.get()
+        self.assertEqual(event.payload['changelog']['id'], '9001')
+        self.assertEqual(parse_datetime('2026-08-27T10:00:00.000+0000'), event.received_at)
+
+        ticket = JiraTicket.objects.get(issue_key='PROJ-1')
+        self.assertEqual(ticket.status, 'In Progress')
+        self.assertTrue(AppSetting.objects.filter(key=WATERMARK_KEY).exists())
+
+    def test_rerun_does_not_duplicate_events(self):
+        JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2026-08-27T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+            self._run()
+
+        self.assertEqual(JiraEvent.objects.count(), 1)
+
+    def test_unknown_ticket_skipped_without_error(self):
+        search_response = {'issues': [{'key': 'PROJ-404'}], 'total': 1}
+        changelog_response = {'values': [], 'total': 0}
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+
+        self.assertEqual(JiraEvent.objects.count(), 0)
+        self.assertEqual(JiraTicket.objects.count(), 0)
+
+    def test_does_not_roll_back_newer_status(self):
+        ticket = JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Done')
+        JiraEvent.objects.create(
+            ticket=ticket,
+            event_type='jira:issue_updated',
+            summary='status changed',
+            payload={'changelog': {'id': 'live-1', 'items': [{'field': 'status', 'toString': 'Done'}]}},
+            received_at=timezone.now(),
+        )
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2020-01-01T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+
+        # The older backfilled history is still recorded for the timeline...
+        self.assertEqual(JiraEvent.objects.filter(payload__changelog__id='9001').count(), 1)
+        # ...but it must not roll back the status the live webhook already set.
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.status, 'Done')
+
+    def test_defaults_to_gitin_project_scope_when_unconfigured(self):
+        search_response = {'issues': [], 'total': 0}
+        captured = []
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, {}, captured)):
+            self._run()
+
+        self.assertEqual(len(captured), 1)
+        self.assertIn('project in ("GITIN")', captured[0])
+
+    def test_uses_configured_project_scope(self):
+        AppSetting.objects.create(key='jira_reconcile_projects', value='PROJ, OPS')
+        search_response = {'issues': [], 'total': 0}
+        captured = []
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, {}, captured)):
+            self._run()
+
+        self.assertIn('project in ("PROJ", "OPS")', captured[0])
+
+    def test_empty_project_scope_setting_scans_all_projects(self):
+        AppSetting.objects.create(key='jira_reconcile_projects', value='')
+        search_response = {'issues': [], 'total': 0}
+        captured = []
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, {}, captured)):
+            self._run()
+
+        self.assertNotIn('project in', captured[0])
