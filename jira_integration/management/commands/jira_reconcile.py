@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 WATERMARK_KEY = 'jira_reconcile_watermark'
 PROJECTS_KEY = 'jira_reconcile_projects'
 NOTIFY_USERS_KEY = 'jira_reconcile_notify_users'
+LOOKBACK_HOURS_KEY = 'jira_reconcile_lookback_hours'
+LAST_COUNT_KEY = 'jira_reconcile_last_count'
 DEFAULT_PROJECTS = 'GITIN'
 DEFAULT_LOOKBACK_HOURS = 24
 DEFAULT_LAST_COUNT = 300
@@ -48,9 +50,10 @@ class Command(BaseCommand):
             'count',
             nargs='?',
             type=int,
-            default=DEFAULT_LAST_COUNT,
-            help=f"With 'last' mode: how many of the most recent tickets to backfill "
-                 f"(default {DEFAULT_LAST_COUNT}). Ignored in 'by_time' mode.",
+            default=None,
+            help="With 'last' mode: how many of the most recent tickets to backfill "
+                 "(default: AppSetting jira_reconcile_last_count, itself defaulting to "
+                 f"{DEFAULT_LAST_COUNT}). Ignored in 'by_time' mode.",
         )
 
     def handle(self, *args, **options):
@@ -91,6 +94,8 @@ class Command(BaseCommand):
                 return
             project = projects[0]
             count = options['count']
+            if count is None:
+                count = self._get_int_setting(LAST_COUNT_KEY, DEFAULT_LAST_COUNT)
             try:
                 highest_num = self._fetch_highest_issue_number(session, base_url, project)
             except requests.HTTPError:
@@ -148,7 +153,8 @@ class Command(BaseCommand):
         parsed = parse_datetime(raw) if raw else None
         if parsed:
             return parsed
-        return timezone.now() - timedelta(hours=DEFAULT_LOOKBACK_HOURS)
+        lookback_hours = self._get_int_setting(LOOKBACK_HOURS_KEY, DEFAULT_LOOKBACK_HOURS)
+        return timezone.now() - timedelta(hours=lookback_hours)
 
     def _set_watermark(self, when):
         AppSetting.objects.update_or_create(key=WATERMARK_KEY, defaults={'value': when.isoformat()})
@@ -156,6 +162,14 @@ class Command(BaseCommand):
     def _get_projects(self):
         raw = get_app_setting(PROJECTS_KEY, DEFAULT_PROJECTS)
         return [key.strip() for key in raw.split(',') if key.strip()]
+
+    def _get_int_setting(self, key, default):
+        raw = get_app_setting(key, '')
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return value if value > 0 else default
 
     def _notify_completion(self, range_mode, stats):
         usernames = [u.strip() for u in get_app_setting(NOTIFY_USERS_KEY, '').split(',') if u.strip()]

@@ -3,8 +3,9 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from core.models import Team
+from settings_hub.models import AppSetting
 
-from .models import Notification, notify
+from .models import ENABLED_KEY, Notification, notify
 
 
 class NotifyHelperTests(TestCase):
@@ -13,6 +14,23 @@ class NotifyHelperTests(TestCase):
             notify('hi')
         with self.assertRaises(ValueError):
             notify('hi', users=[], team=Team.objects.create(name='T'))
+
+    def test_validates_arguments_even_when_disabled(self):
+        AppSetting.objects.create(key=ENABLED_KEY, value='False')
+        with self.assertRaises(ValueError):
+            notify('hi')
+
+    def test_disabled_system_wide_is_a_noop(self):
+        AppSetting.objects.create(key=ENABLED_KEY, value='False')
+        user = User.objects.create(username='ghost')
+        created = notify('hello', users=user)
+        self.assertEqual(created, [])
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_enabled_by_default_when_unset(self):
+        user = User.objects.create(username='present')
+        created = notify('hello', users=user)
+        self.assertEqual(len(created), 1)
 
     def test_single_user(self):
         user = User.objects.create(username='alice')

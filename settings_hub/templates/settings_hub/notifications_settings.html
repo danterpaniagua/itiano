@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Notifications Settings – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+    <a href="{% url 'settings-app' %}" class="text-muted text-decoration-none small me-1">
+        <i class="bi bi-arrow-left"></i> App Settings
+    </a>
+    <h5 class="mb-0 me-auto"><i class="bi bi-bell me-1"></i> Notifications</h5>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-8 col-lg-6">
+        <form method="post" class="mb-0">
+            {% csrf_token %}
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       name="notifications_enabled" id="notifications_enabled"
+                       {% if notifications_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="notifications_enabled">
+                    Notifications enabled
+                </label>
+            </div>
+            <div class="form-text mb-3">
+                System-wide switch. When off, no notification is created by any trigger
+                (vault team-sharing, <code>jira_reconcile</code> completion, or anything added
+                later) — regardless of team membership or configured recipients.
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

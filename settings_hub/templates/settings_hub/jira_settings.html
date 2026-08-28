@@ -47,6 +47,36 @@
 
         <hr class="my-4">
 
+        {# --- Reconcile Defaults --- #}
+        <h6 class="fw-semibold mb-3" id="jira-reconcile-defaults">Reconcile Defaults</h6>
+
+        <form method="post" class="mb-0">
+            {% csrf_token %}
+            <input type="hidden" name="reconcile_defaults_form" value="1">
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <label class="form-label form-label-sm mb-1">Watermark lookback (hours)</label>
+                    <input type="number" min="1" name="jira_reconcile_lookback_hours" class="form-control"
+                           value="{{ jira_reconcile_lookback_hours }}">
+                    <div class="form-text">
+                        <code>by_time</code>'s window on its very first run (no watermark saved yet).
+                    </div>
+                </div>
+                <div class="col-6">
+                    <label class="form-label form-label-sm mb-1">Default "last" count</label>
+                    <input type="number" min="1" name="jira_reconcile_last_count" class="form-control"
+                           value="{{ jira_reconcile_last_count }}">
+                    <div class="form-text">
+                        How many recent tickets <code>jira_reconcile last</code> backfills when run
+                        without an explicit count.
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+
+        <hr class="my-4">
+
         {# --- Reconcile Notifications --- #}
         <h6 class="fw-semibold mb-3" id="jira-reconcile-notify">Reconcile Notifications</h6>
 

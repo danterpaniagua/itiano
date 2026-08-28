@@ -622,6 +622,8 @@ class JiraSettingsView(StaffRequiredMixin, View):
             'jira_base_url': get_app_setting('jira_base_url'),
             'jira_reconcile_projects': get_app_setting('jira_reconcile_projects', 'GITIN'),
             'jira_reconcile_notify_users': notify_usernames,
+            'jira_reconcile_lookback_hours': get_app_setting('jira_reconcile_lookback_hours', '24'),
+            'jira_reconcile_last_count': get_app_setting('jira_reconcile_last_count', '300'),
             'all_users': User.objects.order_by('username'),
             'jira_statuses': JiraStatusConfig.objects.all(),
             'category_choices': JiraStatusConfig.CATEGORY_CHOICES,
@@ -647,10 +649,41 @@ class JiraSettingsView(StaffRequiredMixin, View):
             messages.success(request, 'Reconcile notification recipients saved.')
             return redirect('settings-jira')
 
+        if 'reconcile_defaults_form' in request.POST:
+            lookback_raw = request.POST.get('jira_reconcile_lookback_hours', '').strip()
+            count_raw = request.POST.get('jira_reconcile_last_count', '').strip()
+            if not (lookback_raw.isdigit() and int(lookback_raw) > 0
+                     and count_raw.isdigit() and int(count_raw) > 0):
+                messages.error(request, 'Lookback hours and last count must both be positive whole numbers.')
+                return redirect('settings-jira')
+            AppSetting.objects.update_or_create(
+                key='jira_reconcile_lookback_hours', defaults={'value': lookback_raw}
+            )
+            AppSetting.objects.update_or_create(
+                key='jira_reconcile_last_count', defaults={'value': count_raw}
+            )
+            messages.success(request, 'Reconcile defaults saved.')
+            return redirect('settings-jira')
+
         url = request.POST.get('jira_base_url', '').strip().rstrip('/')
         AppSetting.objects.update_or_create(key='jira_base_url', defaults={'value': url})
         messages.success(request, 'Base URL saved.')
         return redirect('settings-jira')
+
+
+class NotificationsSettingsView(StaffRequiredMixin, View):
+    def get(self, request):
+        return render(request, 'settings_hub/notifications_settings.html', {
+            'notifications_enabled': get_app_setting('notifications_enabled', 'True') == 'True',
+        })
+
+    def post(self, request):
+        enabled = 'notifications_enabled' in request.POST
+        AppSetting.objects.update_or_create(
+            key='notifications_enabled', defaults={'value': 'True' if enabled else 'False'}
+        )
+        messages.success(request, 'Notifications setting saved.')
+        return redirect('settings-notifications')
 
 
 class TicketsSettingsView(StaffRequiredMixin, View):
