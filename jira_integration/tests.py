@@ -11,6 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from core.models import Team
 from notifications.models import Notification
 from settings_hub.models import AppSetting
 
@@ -449,6 +450,42 @@ class JiraReconcileCommandTests(TestCase):
             self._run()
 
         self.assertEqual(Notification.objects.count(), 0)
+
+    def test_notifies_configured_team_members(self):
+        team = Team.objects.create(name='Ops')
+        u1 = User.objects.create(username='teamuser1')
+        u2 = User.objects.create(username='teamuser2')
+        team.members.set([u1, u2])
+        AppSetting.objects.create(key='jira_reconcile_notify_team', value=str(team.pk))
+        JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2026-08-27T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+
+        self.assertEqual(Notification.objects.filter(user__in=[u1, u2]).count(), 2)
+
+    def test_deduplicates_user_configured_both_individually_and_via_team(self):
+        team = Team.objects.create(name='Ops')
+        u1 = User.objects.create(username='bothuser')
+        team.members.set([u1])
+        AppSetting.objects.create(key='jira_reconcile_notify_team', value=str(team.pk))
+        AppSetting.objects.create(key='jira_reconcile_notify_users', value='bothuser')
+        JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {
+            'values': [_changelog_history('9001', 'In Progress', '2026-08-27T10:00:00.000+0000')],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(search_response, changelog_response)):
+            self._run()
+
+        self.assertEqual(Notification.objects.filter(user=u1).count(), 1)
 
 
 class JiraReconcileLastModeTests(TestCase):

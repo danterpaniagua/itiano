@@ -83,18 +83,35 @@
         <form method="post" class="mb-0">
             {% csrf_token %}
             <input type="hidden" name="notify_users_form" value="1">
+
+            <label class="form-label form-label-sm mb-1">Users</label>
+            <div class="mb-3 border rounded p-2" style="max-height:220px; overflow-y:auto">
+                {% for u in all_users %}
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="jira_reconcile_notify_users"
+                           value="{{ u.username }}" id="notify-user-{{ u.pk }}"
+                           {% if u.username in jira_reconcile_notify_users %}checked{% endif %}>
+                    <label class="form-check-label" for="notify-user-{{ u.pk }}">{{ u.username }}</label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <label class="form-label form-label-sm mb-1">Team</label>
             <div class="mb-3">
-                <select name="jira_reconcile_notify_users" class="form-select" multiple size="6">
-                    {% for u in all_users %}
-                    <option value="{{ u.username }}" {% if u.username in jira_reconcile_notify_users %}selected{% endif %}>
-                        {{ u.username }}
+                <select name="jira_reconcile_notify_team" class="form-select">
+                    <option value="">— none —</option>
+                    {% for t in all_teams %}
+                    <option value="{{ t.pk }}" {% if t.pk == jira_reconcile_notify_team %}selected{% endif %}>
+                        {{ t.name }}
                     </option>
                     {% endfor %}
                 </select>
-                <div class="form-text">
-                    Users notified when <code>jira_reconcile</code> (either <code>by_time</code> or
-                    <code>last</code>) finishes a run. Empty = no notification sent.
-                </div>
+            </div>
+
+            <div class="form-text mb-3">
+                Notified when <code>jira_reconcile</code> (either <code>by_time</code> or
+                <code>last</code>) finishes a run — the checked users individually, and/or every
+                current member of the selected team. Both empty = no notification sent.
             </div>
             <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </form>
