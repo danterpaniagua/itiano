@@ -221,7 +221,11 @@ def _changelog_history(history_id, to_status, created):
     }
 
 
-def _mock_get(search_response, changelog_response, captured_jql=None):
+def _mock_get(search_response, changelog_response, captured_jql=None,
+               issue_response=None, comments_response=None):
+    issue_response = issue_response if issue_response is not None else {'fields': {'summary': 'Bug'}}
+    comments_response = comments_response if comments_response is not None else {'comments': [], 'total': 0}
+
     def _get(self, url, params=None, timeout=None):
         if url.endswith('/rest/api/3/search/jql'):
             if captured_jql is not None:
@@ -229,7 +233,9 @@ def _mock_get(search_response, changelog_response, captured_jql=None):
             return FakeResponse(search_response)
         if url.endswith('/changelog'):
             return FakeResponse(changelog_response)
-        raise AssertionError(f'Unexpected URL: {url}')
+        if url.endswith('/comment'):
+            return FakeResponse(comments_response)
+        return FakeResponse(issue_response)
     return _get
 
 
@@ -347,3 +353,52 @@ class JiraReconcileCommandTests(TestCase):
             self._run()
 
         self.assertNotIn('project in', captured[0])
+
+    def test_refreshes_body_fields_without_touching_status(self):
+        ticket = JiraTicket.objects.create(issue_key='PROJ-1', title='Old title', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {'values': [], 'total': 0}
+        issue_response = {
+            'fields': {
+                'summary': 'New title',
+                'project': {'key': 'PROJ'},
+                'issuetype': {'name': 'Bug'},
+                'assignee': {'displayName': 'Alice', 'accountId': 'acc-1'},
+                'labels': ['urgent'],
+            }
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(
+                    search_response, changelog_response, issue_response=issue_response,
+                )):
+            self._run()
+
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.title, 'New title')
+        self.assertEqual(ticket.assignee, 'Alice')
+        self.assertEqual(ticket.labels, ['urgent'])
+        self.assertEqual(ticket.status, 'Open')
+
+    def test_backfills_comments_and_dedupes_on_rerun(self):
+        JiraTicket.objects.create(issue_key='PROJ-1', title='Bug', status='Open')
+        search_response = {'issues': [{'key': 'PROJ-1'}], 'total': 1}
+        changelog_response = {'values': [], 'total': 0}
+        comments_response = {
+            'comments': [{
+                'id': 'c1',
+                'created': '2026-08-27T10:00:00.000+0000',
+                'author': {'displayName': 'Bob'},
+                'body': {'type': 'doc'},
+            }],
+            'total': 1,
+        }
+        with self.settings(**JIRA_SETTINGS), \
+                patch('requests.Session.get', _mock_get(
+                    search_response, changelog_response, comments_response=comments_response,
+                )):
+            self._run()
+            self._run()
+
+        events = JiraEvent.objects.filter(event_type='jira:issue_commented')
+        self.assertEqual(events.count(), 1)
+        self.assertEqual(events.get().payload['comment']['id'], 'c1')

@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from jira_integration.models import JiraEvent, JiraTicket
-from jira_integration.views import _build_summary
+from jira_integration.views import _build_summary, _ticket_defaults_from_fields
 from settings_hub.models import AppSetting, get_app_setting
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class Command(BaseCommand):
         session.auth = (email, token)
         session.headers['Accept'] = 'application/json'
 
-        stats = {'issues_scanned': 0, 'events_created': 0, 'errors': 0}
+        stats = {'issues_scanned': 0, 'events_created': 0, 'comments_created': 0, 'errors': 0}
 
         try:
             for issue_key in self._iter_updated_issue_keys(session, base_url, watermark, projects):
@@ -70,8 +70,8 @@ class Command(BaseCommand):
 
         logger.info('jira_reconcile_run_complete', extra={**stats, 'watermark_advanced': stats['errors'] == 0})
         self.stdout.write(
-            f"Scanned {stats['issues_scanned']} issues, created {stats['events_created']} events, "
-            f"{stats['errors']} errors."
+            f"Scanned {stats['issues_scanned']} issues, created {stats['events_created']} status events, "
+            f"{stats['comments_created']} comments, {stats['errors']} errors."
         )
 
     # -- watermark -----------------------------------------------------
@@ -131,6 +131,30 @@ class Command(BaseCommand):
             if not next_page_token or not issues:
                 break
 
+    def _fetch_issue_fields(self, session, base_url, issue_key):
+        response = self._get(
+            session,
+            f'{base_url}/rest/api/3/issue/{issue_key}',
+            params={'fields': 'summary,project,issuetype,assignee,labels,parent'},
+        )
+        return response.json().get('fields', {})
+
+    def _iter_comments(self, session, base_url, issue_key):
+        start_at = 0
+        while True:
+            response = self._get(
+                session,
+                f'{base_url}/rest/api/3/issue/{issue_key}/comment',
+                params={'startAt': start_at, 'maxResults': PAGE_SIZE},
+            )
+            data = response.json()
+            comments = data.get('comments', [])
+            for comment in comments:
+                yield comment
+            start_at += len(comments)
+            if not comments or start_at >= data.get('total', 0):
+                break
+
     def _iter_changelog(self, session, base_url, issue_key):
         start_at = 0
         while True:
@@ -155,6 +179,12 @@ class Command(BaseCommand):
         except JiraTicket.DoesNotExist:
             logger.info('jira_reconcile_unknown_ticket_skipped', extra={'issue_key': issue_key})
             return
+
+        fields = self._fetch_issue_fields(session, base_url, issue_key)
+        body_defaults = _ticket_defaults_from_fields(fields)
+        body_refreshed = any(getattr(ticket, key) != value for key, value in body_defaults.items())
+        if body_refreshed:
+            JiraTicket.objects.filter(pk=ticket.pk).update(**body_defaults)
 
         status_histories = []
         for history in self._iter_changelog(session, base_url, issue_key):
@@ -200,11 +230,40 @@ class Command(BaseCommand):
                     JiraTicket.objects.filter(pk=ticket.pk).update(status=new_status[:100])
                 last_event_at = created_at
 
+        comments_created = 0
+        for comment in self._iter_comments(session, base_url, issue_key):
+            comment_id = comment.get('id')
+            if JiraEvent.objects.filter(ticket=ticket, payload__comment__id=comment_id).exists():
+                continue
+
+            comment_created_at = parse_datetime(comment.get('created', '')) or timezone.now()
+
+            payload = {
+                'webhookEvent': 'jira:issue_commented',
+                'issue': {'key': issue_key},
+                'comment': comment,
+                'source': 'jira_reconcile',
+            }
+            summary = _build_summary('jira:issue_commented', payload)
+
+            JiraEvent.objects.create(
+                ticket=ticket,
+                event_type='jira:issue_commented',
+                summary=summary,
+                payload=payload,
+                received_at=comment_created_at,
+            )
+            stats['comments_created'] += 1
+            comments_created += 1
+
+        changed = created_count or comments_created or body_refreshed
         logger.info(
             'jira_reconcile_issue_done',
             extra={
                 'issue_key': issue_key,
-                'outcome': 'updated' if created_count else 'unchanged',
-                'events_created': created_count,
+                'outcome': 'updated' if changed else 'unchanged',
+                'status_events': created_count,
+                'comments_created': comments_created,
+                'body_refreshed': body_refreshed,
             },
         )
