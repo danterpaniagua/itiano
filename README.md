@@ -32,6 +32,18 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
+### Local HTTPS
+
+Some integrations (e.g. Jira webhooks) require a valid HTTPS endpoint even in local dev. With `DEBUG=True`, `django-extensions` is enabled and `runserver_plus` can serve over HTTPS with a self-signed certificate:
+
+```bash
+python manage.py runserver_plus --cert-file certs/dev-cert
+```
+
+This generates `certs/dev-cert.crt` / `certs/dev-cert.key` on first run (the `certs/` dir is gitignored) and serves at `https://localhost:8000`. Your browser will warn about the self-signed cert — accept it to proceed.
+
+The Docker Compose `app` service serves HTTPS the same way: when `DEBUG=True` it generates (or reuses) `certs/dev-cert.crt` / `certs/dev-cert.key` on startup and binds gunicorn to them. No extra steps needed — just set `DEBUG=True` in `.env` and `docker compose up`.
+
 ## Running tests
 
 Tests require PostgreSQL. Run inside the container:

@@ -30,6 +30,9 @@ INSTALLED_APPS = [
     'timetracking',
 ]
 
+if DEBUG:
+    INSTALLED_APPS.append('django_extensions')
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
