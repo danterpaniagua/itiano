@@ -127,3 +127,4 @@
 | v5.13.2 | Jira Reconcile Notifications: Checkbox UI Fix + Team Recipients | Delivered | [v5/v5.13.2.md](v5/v5.13.2.md) |
 | v5.13.3 | Jira Reconcile Notifications: Multiple Teams as Recipients | Delivered | [v5/v5.13.3.md](v5/v5.13.3.md) |
 | v5.13.4 | Notification Bell Visible on Mobile Without Opening Hamburger Menu | Delivered | [v5/v5.13.4.md](v5/v5.13.4.md) |
+| v5.13.5 | Notifications List: Back Button | Delivered | [v5/v5.13.5.md](v5/v5.13.5.md) |
