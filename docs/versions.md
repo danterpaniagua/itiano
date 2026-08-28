@@ -120,3 +120,5 @@
 | v5.10.5 | Credential Vault: Team & Container Settings UI | Delivered | [v5/v5.10.5.md](v5/v5.10.5.md) |
 | v5.10.6 | Credential Vault: Container Tree Sidebar + Search + Inline Container Creation | Delivered | [v5/v5.10.6.md](v5/v5.10.6.md) |
 | v5.10.7 | Credential Vault: Sidebar Personal/Shared Regrouping + Share Shortcut | Delivered | [v5/v5.10.7.md](v5/v5.10.7.md) |
+| v5.12.0 | Jira Reconciliation Crawler | Delivered | [v5/v5.12.0.md](v5/v5.12.0.md) |
+| v5.12.1 | Jira Reconciliation: Body Refresh + Comment Backfill | Delivered | [v5/v5.12.1.md](v5/v5.12.1.md) |
