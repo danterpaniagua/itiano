@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mockup — Time by Environment: All/Labor toggle + pie</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+body { padding: 24px; background: #f8f9fa; }
+.mockup-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #6c757d; margin-bottom: .5rem; }
+
+/* ── existing styles, copied from report.html, unchanged ── */
+.tbg-pill-row { display:flex; flex-wrap:wrap; gap:5px; align-items:center; min-height:28px; }
+.tbg-pill {
+    display:inline-flex; align-items:center; gap:4px;
+    background:#e7f1ff; color:#0d6efd; border:1px solid #b6d4fe;
+    border-radius:14px; padding:3px 10px; font-size:.82rem;
+}
+.tbg-pill.env { background:#e8f5e9; color:#198754; border-color:#a3d9a5; }
+.tbg-pill .tbg-rm { cursor:pointer; opacity:.6; font-size:.85rem; line-height:1; }
+.tbg-bar-track { height:10px; background:#e9ecef; border-radius:4px; overflow:hidden; }
+.tbg-bar-fill  { height:100%; border-radius:4px; }
+.tbg-empty { color:#adb5bd; font-size:.85rem; padding:1.25rem 0; text-align:center; }
+
+/* ── new: categorical palette (validated: node scripts/validate_palette.js
+   "#2a78d6,#eb6834,#1baf7a" --mode light --pairs all → ALL CHECKS PASS) ── */
+.env-viz { --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; }
+
+.env-donut-wrap { display:flex; align-items:center; gap:18px; }
+.env-donut-ring { transition: filter .12s ease; cursor: default; }
+.env-donut-hole { position:absolute; border-radius:50%; background:#fff; }
+.env-donut-center { font-size:.78rem; text-align:center; }
+.env-donut-center .n { font-size:1.05rem; font-weight:600; color:#0b0b0b; display:block; }
+.env-donut-center .lbl { color:#6c757d; }
+
+.env-legend { display:flex; flex-direction:column; gap:6px; font-size:.82rem; }
+.env-legend-row { display:flex; align-items:center; gap:8px; }
+.env-legend-sw { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+.env-legend-name { color:#0b0b0b; }
+.env-legend-val { color:#6c757d; margin-left:auto; padding-left:10px; white-space:nowrap; }
+.env-legend-pct { color:#6c757d; font-variant-numeric: tabular-nums; width:34px; text-align:right; }
+
+/* toggle in card header */
+.env-mode-toggle .btn { font-size:.78rem; padding:.15rem .55rem; }
+</style>
+</head>
+<body>
+<div class="container" style="max-width:920px">
+
+  <h5 class="mb-1"><i class="bi bi-bar-chart"></i> Time Report — /time/report/ mockup</h5>
+  <p class="text-muted small mb-4">v5.15.0 — Time by Environment: All / Labor toggle + per-tag donut. Time by Project (left) is unchanged.</p>
+
+  <div class="row g-3">
+
+    <!-- Time by Project — UNCHANGED, shown for side-by-side reference -->
+    <div class="col-12 col-md-5">
+      <div class="mockup-label">Current — unchanged</div>
+      <div class="card">
+        <div class="card-header py-2 d-flex align-items-center gap-2">
+          <span class="fw-semibold"><i class="bi bi-briefcase me-1"></i>Time by Project</span>
+          <span class="badge bg-primary ms-auto">2 tags</span>
+        </div>
+        <div class="card-body pb-2">
+          <div class="tbg-pill-row mb-3">
+            <span class="tbg-pill">Backend <span class="tbg-rm">&times;</span></span>
+            <span class="tbg-pill">Frontend <span class="tbg-rm">&times;</span></span>
+            <div class="position-relative d-inline-block">
+              <span class="tbg-add" style="border:1px dashed #ced4da;border-radius:14px;padding:3px 10px;font-size:.82rem;color:#6c757d"><i class="bi bi-plus"></i> add</span>
+            </div>
+          </div>
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="text-truncate small" style="width:130px;min-width:80px">Backend</div>
+              <div class="flex-grow-1"><div class="tbg-bar-track"><div class="tbg-bar-fill" style="width:100%;background:#0d6efd"></div></div></div>
+              <div class="small text-muted text-end" style="width:52px;flex-shrink:0">163h11m</div>
+            </div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="text-truncate small" style="width:130px;min-width:80px">Frontend</div>
+              <div class="flex-grow-1"><div class="tbg-bar-track"><div class="tbg-bar-fill" style="width:64%;background:#0d6efd"></div></div></div>
+              <div class="small text-muted text-end" style="width:52px;flex-shrink:0">104h20m</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time by Environment — NEW: All/Labor toggle + donut -->
+    <div class="col-12 col-md-7">
+      <div class="mockup-label">Proposed — new</div>
+      <div class="card env-viz">
+        <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
+          <span class="fw-semibold"><i class="bi bi-server me-1"></i>Time by Environment</span>
+          <div class="btn-group btn-group-sm env-mode-toggle" role="group" id="env-mode-toggle">
+            <button type="button" class="btn btn-outline-secondary active" data-mode="all">All</button>
+            <button type="button" class="btn btn-outline-secondary" data-mode="labor">Labor</button>
+          </div>
+          <span class="badge bg-primary ms-auto">3 tags</span>
+        </div>
+        <div class="card-body pb-2">
+          <div class="tbg-pill-row mb-3">
+            <span class="tbg-pill env">Operaciones <span class="tbg-rm">&times;</span></span>
+            <span class="tbg-pill env">Producción <span class="tbg-rm">&times;</span></span>
+            <span class="tbg-pill env">Staging <span class="tbg-rm">&times;</span></span>
+            <div class="position-relative d-inline-block">
+              <span class="tbg-add" style="border:1px dashed #ced4da;border-radius:14px;padding:3px 10px;font-size:.82rem;color:#6c757d"><i class="bi bi-plus"></i> add</span>
+            </div>
+          </div>
+
+          <div class="env-donut-wrap mb-3">
+            <div style="position:relative;width:110px;height:110px;flex-shrink:0">
+              <div class="env-donut-ring" id="env-donut" style="width:110px;height:110px;border-radius:50%" title=""></div>
+              <div class="env-donut-hole" id="env-donut-hole" style="top:16px;left:16px;width:78px;height:78px"></div>
+              <div class="env-donut-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                <span class="n" id="env-donut-total">324h21m</span>
+                <span class="lbl" id="env-donut-mode-label">total</span>
+              </div>
+            </div>
+            <div class="env-legend flex-grow-1" id="env-legend"></div>
+          </div>
+
+          <div id="env-bars"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="mt-4 p-3 bg-white border rounded">
+    <div class="mockup-label mb-2">Mobile width (375px) preview</div>
+    <div style="width:375px;border:1px solid #dee2e6;border-radius:8px;overflow:hidden">
+      <div class="card border-0 env-viz">
+        <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
+          <span class="fw-semibold small"><i class="bi bi-server me-1"></i>Time by Environment</span>
+          <div class="btn-group btn-group-sm env-mode-toggle" role="group">
+            <button type="button" class="btn btn-outline-secondary active" style="font-size:.72rem;padding:.1rem .45rem">All</button>
+            <button type="button" class="btn btn-outline-secondary" style="font-size:.72rem;padding:.1rem .45rem">Labor</button>
+          </div>
+          <span class="badge bg-primary ms-auto">3 tags</span>
+        </div>
+        <div class="card-body pb-2">
+          <div class="env-donut-wrap mb-2" style="gap:12px">
+            <div style="position:relative;width:84px;height:84px;flex-shrink:0">
+              <div class="env-donut-ring" id="env-donut-m" style="width:84px;height:84px;border-radius:50%"></div>
+              <div class="env-donut-hole" style="top:12px;left:12px;width:60px;height:60px"></div>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;font-size:.68rem">
+                <span style="font-weight:600;font-size:.8rem" id="env-donut-total-m">324h21m</span>
+                <span style="color:#6c757d">total</span>
+              </div>
+            </div>
+            <div class="env-legend" id="env-legend-m" style="font-size:.76rem"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="small text-muted mt-2 mb-0">Toggle wraps under the title (<code>d-flex flex-wrap</code>); donut shrinks, legend stays beside it, bar list scrolls with the card.</p>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  // Same 3 tags as Time by Environment's pill row. Color assigned by stable
+  // tag order (insertion order), not by sorted value — so identity never
+  // remaps when the bar list re-sorts by magnitude.
+  var TAGS = [
+    { tag: 'Operaciones', color: 'var(--s1)', hex: '#2a78d6', all_secs: 163*3600+11*60, labor_secs: 85*3600+13*60 },
+    { tag: 'Producción',  color: 'var(--s2)', hex: '#eb6834', all_secs: 118*3600+40*60, labor_secs: 91*3600+5*60  },
+    { tag: 'Staging',     color: 'var(--s3)', hex: '#1baf7a', all_secs: 42*3600+30*60,  labor_secs: 20*3600+5*60  }
+  ];
+
+  function fmt(secs) {
+    var h = Math.floor(secs / 3600), m = Math.round((secs % 3600) / 60);
+    return h + 'h' + (m < 10 ? '0' : '') + m + 'm';
+  }
+
+  function renderDonut(ringEl, mode) {
+    var key = mode === 'labor' ? 'labor_secs' : 'all_secs';
+    var total = TAGS.reduce(function(s, t) { return s + t[key]; }, 0);
+    var gapDeg = 3; // surface-gap between donut segments (marks-and-anatomy.md)
+    var cum = 0, stops = [], tips = [];
+    TAGS.forEach(function(t, i) {
+      var frac = t[key] / total;
+      var segLen = frac * 360;
+      var segEnd = cum + segLen - (i < TAGS.length - 1 ? gapDeg : 0);
+      stops.push(t.hex + ' ' + cum + 'deg ' + segEnd + 'deg');
+      if (i < TAGS.length - 1) stops.push('#ffffff ' + segEnd + 'deg ' + (cum + segLen) + 'deg');
+      tips.push(t.tag + ' ' + Math.round(frac * 100) + '% (' + fmt(t[key]) + ')');
+      cum += segLen;
+    });
+    ringEl.style.background = 'conic-gradient(from -90deg, ' + stops.join(', ') + ')';
+    ringEl.title = tips.join(' · ');
+    return total;
+  }
+
+  function renderLegend(el, mode) {
+    var key = mode === 'labor' ? 'labor_secs' : 'all_secs';
+    var total = TAGS.reduce(function(s, t) { return s + t[key]; }, 0);
+    var rows = TAGS.slice().sort(function(a, b) { return b[key] - a[key]; });
+    el.innerHTML = rows.map(function(t) {
+      var pct = Math.round(t[key] / total * 100);
+      return '<div class="env-legend-row">'
+           + '<span class="env-legend-sw" style="background:' + t.hex + '"></span>'
+           + '<span class="env-legend-name">' + t.tag + '</span>'
+           + '<span class="env-legend-pct">' + pct + '%</span>'
+           + '<span class="env-legend-val">' + fmt(t[key]) + '</span>'
+           + '</div>';
+    }).join('');
+  }
+
+  function renderBars(el, mode) {
+    var key = mode === 'labor' ? 'labor_secs' : 'all_secs';
+    var rows = TAGS.slice().sort(function(a, b) { return b[key] - a[key]; });
+    var max = rows.length ? rows[0][key] : 1;
+    el.innerHTML = rows.map(function(t) {
+      var pct = Math.round(t[key] / max * 100);
+      return '<div class="d-flex align-items-center gap-2 mb-2">'
+           + '<div class="text-truncate small" style="width:100px;min-width:80px" title="' + t.tag + '">' + t.tag + '</div>'
+           + '<div class="flex-grow-1"><div class="tbg-bar-track"><div class="tbg-bar-fill" style="width:' + pct + '%;background:' + t.hex + '"></div></div></div>'
+           + '<div class="small text-muted text-end" style="width:56px;flex-shrink:0">' + fmt(t[key]) + '</div>'
+           + '</div>';
+    }).join('');
+  }
+
+  function setMode(mode) {
+    var total = renderDonut(document.getElementById('env-donut'), mode);
+    renderDonut(document.getElementById('env-donut-m'), mode);
+    document.getElementById('env-donut-total').textContent = fmt(total);
+    document.getElementById('env-donut-total-m').textContent = fmt(total);
+    document.getElementById('env-donut-mode-label').textContent = mode === 'labor' ? 'labor' : 'total';
+    renderLegend(document.getElementById('env-legend'), mode);
+    renderLegend(document.getElementById('env-legend-m'), mode);
+    renderBars(document.getElementById('env-bars'), mode);
+  }
+
+  document.getElementById('env-mode-toggle').addEventListener('click', function(e) {
+    var btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    this.querySelectorAll('button').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    setMode(btn.dataset.mode);
+  });
+
+  setMode('all');
+})();
+</script>
+</body>
+</html>
