@@ -362,13 +362,28 @@
 
     {# Time by Environment #}
     <div class="col-12 col-md-6">
-        <div class="card">
-            <div class="card-header py-2 d-flex align-items-center gap-2">
+        <div class="card env-viz">
+            <div class="card-header py-2 d-flex flex-wrap align-items-center gap-2">
                 <span class="fw-semibold"><i class="bi bi-server me-1"></i>Time by Environment</span>
+                <div class="btn-group btn-group-sm env-mode-toggle" role="group" id="tbe-mode-toggle">
+                    <button type="button" class="btn btn-outline-secondary active" data-mode="all">All</button>
+                    <button type="button" class="btn btn-outline-secondary" data-mode="labor">Labor</button>
+                </div>
                 <span class="badge bg-secondary ms-auto" id="tbe-count"></span>
             </div>
             <div class="card-body pb-2">
                 <div class="tbg-pill-row mb-3" id="tbe-pills"></div>
+                <div class="env-donut-wrap mb-3" id="tbe-donut-wrap" style="display:none">
+                    <div style="position:relative;width:96px;height:96px;flex-shrink:0">
+                        <div class="env-donut-ring" id="tbe-donut" style="width:96px;height:96px;border-radius:50%"></div>
+                        <div class="env-donut-hole" style="top:14px;left:14px;width:68px;height:68px"></div>
+                        <div class="env-donut-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                            <span class="n" id="tbe-donut-total"></span>
+                            <span class="lbl" id="tbe-donut-mode-label"></span>
+                        </div>
+                    </div>
+                    <div class="env-legend flex-grow-1" id="tbe-legend"></div>
+                </div>
                 <div id="tbe-bars"></div>
             </div>
         </div>
@@ -894,13 +909,51 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
 .tbh-svc-row  { margin-left:16px; border-left:2px solid #dee2e6; padding-left:8px; margin-bottom:4px; }
 .tbh-svc-label { display:flex; align-items:baseline; font-size:.8rem; color:#495057; margin-bottom:2px; }
 .tbh-time { margin-left:auto; font-size:.75rem; color:#6c757d; white-space:nowrap; }
+
+/* Time by Environment: All/Labor toggle + donut (v5.15.0) */
+.env-mode-toggle .btn { font-size:.78rem; padding:.15rem .55rem; }
+.env-donut-wrap { display:flex; align-items:center; gap:18px; }
+.env-donut-ring { cursor:default; }
+.env-donut-hole { position:absolute; border-radius:50%; background:#fff; }
+.env-donut-center { font-size:.78rem; text-align:center; }
+.env-donut-center .n { font-size:1.05rem; font-weight:600; color:#0b0b0b; display:block; }
+.env-donut-center .lbl { color:#6c757d; }
+.env-legend { display:flex; flex-direction:column; gap:6px; font-size:.82rem; }
+.env-legend-row { display:flex; align-items:center; gap:8px; }
+.env-legend-sw { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+.env-legend-name { color:#0b0b0b; }
+.env-legend-val { color:#6c757d; margin-left:auto; padding-left:10px; white-space:nowrap; }
+.env-legend-pct { color:#6c757d; font-variant-numeric: tabular-nums; width:34px; text-align:right; }
 </style>
 <script>
 (function() {
     var TAG_DATA = JSON.parse(document.getElementById('tag-totals-data').textContent);
     var _hierarchyEl = document.getElementById('report-hierarchy-data');
     var HIERARCHY    = _hierarchyEl ? JSON.parse(_hierarchyEl.textContent) : null;
-    // {tag: name, secs: N, display: '2h 15m'}
+    // {tag: name, secs: N, display: '2h 15m', labor_secs: N, labor_display: '2h 15m'}
+
+    function fmtSecs(secs) {
+        secs = Math.max(0, Math.round(secs));
+        var h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
+        return h ? (h + 'h ' + m + 'm') : (m + 'm');
+    }
+
+    // Categorical palette (validated: dataviz skill, all-pairs CVD/contrast pass
+    // for the first 3 slots; slots 4-8 pass adjacent-only, so a 4th+ selected
+    // env tag relies on the legend/direct labels rather than color alone).
+    // Assigned by each tag's alphabetical position — stable across re-selection
+    // and mode switches, never by sorted rank/value.
+    var CAT_PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+    var ENV_COLOR = {};
+    TAG_DATA.map(function(t) { return t.tag; }).sort().forEach(function(name, i) {
+        ENV_COLOR[name] = CAT_PALETTE[i] || '#adb5bd';
+    });
+
+    var envMode = 'all';
+    try {
+        var savedMode = localStorage.getItem('itiano_tbe_mode');
+        if (savedMode === 'labor' || savedMode === 'all') envMode = savedMode;
+    } catch(e) {}
 
     var state = { project: [], env: [] };
 
@@ -912,7 +965,7 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
         if (se) state.env     = JSON.parse(se).filter(function(n){ return TAG_DATA.some(function(t){ return t.tag === n; }); });
     } catch(e) {}
 
-    var BAR_COLOR = { project: '#0d6efd', env: '#198754' };
+    var BAR_COLOR = { project: '#0d6efd' };
     var PILL_CLS  = { project: 'tbg-pill', env: 'tbg-pill env' };
     var LS_KEY    = { project: 'itiano_tbp_tags', env: 'itiano_tbe_tags' };
     var PILL_EL   = { project: 'tbp-pills', env: 'tbe-pills' };
@@ -951,8 +1004,33 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
         // Bars
         if (n === 0) {
             barsEl.innerHTML = '<div class="tbg-empty"><i class="bi bi-tag"></i><br>Add tags to see time breakdown.</div>';
+            if (key === 'env') { var dw = document.getElementById('tbe-donut-wrap'); if (dw) dw.style.display = 'none'; }
             return;
         }
+
+        if (key === 'env') {
+            var envRows = TAG_DATA.filter(function(t){ return sel.includes(t.tag); })
+                .map(function(t) {
+                    return {
+                        tag: t.tag,
+                        val: envMode === 'labor' ? t.labor_secs : t.secs,
+                        hex: ENV_COLOR[t.tag] || '#adb5bd'
+                    };
+                })
+                .sort(function(a, b) { return b.val - a.val; });
+            renderEnvDonut(envRows);
+            var maxVal = envRows.length ? envRows[0].val : 0;
+            barsEl.innerHTML = envRows.map(function(r) {
+                var pct = maxVal > 0 ? Math.round((r.val / maxVal) * 100) : 0;
+                return '<div class="d-flex align-items-center gap-2 mb-2">'
+                     + '<div class="text-truncate small" style="width:130px;min-width:80px" title="' + r.tag + '">' + r.tag + '</div>'
+                     + '<div class="flex-grow-1"><div class="tbg-bar-track"><div class="tbg-bar-fill" style="width:' + pct + '%;background:' + r.hex + '"></div></div></div>'
+                     + '<div class="small text-muted text-end" style="width:52px;flex-shrink:0">' + fmtSecs(r.val) + '</div>'
+                     + '</div>';
+            }).join('');
+            return;
+        }
+
         var rows = TAG_DATA.filter(function(t){ return sel.includes(t.tag); })
                            .slice().sort(function(a,b){ return b.secs - a.secs; });
         var maxSecs = rows.length ? rows[0].secs : 1;
@@ -965,6 +1043,50 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
                  + '</div>';
         }).join('');
         barsEl.innerHTML = barsHtml;
+    }
+
+    // Donut + legend for Time by Environment (part-to-whole "at a glance";
+    // the bar list below still carries the precise comparison).
+    function renderEnvDonut(rows) {
+        var wrap = document.getElementById('tbe-donut-wrap');
+        var ring = document.getElementById('tbe-donut');
+        var legend = document.getElementById('tbe-legend');
+        var totalEl = document.getElementById('tbe-donut-total');
+        var modeLabelEl = document.getElementById('tbe-donut-mode-label');
+        if (!wrap || !ring || !legend) return;
+
+        if (!rows.length) { wrap.style.display = 'none'; return; }
+        wrap.style.display = 'flex';
+
+        var total = rows.reduce(function(s, r) { return s + r.val; }, 0);
+        var gapDeg = rows.length > 1 ? 3 : 0;
+        var cum = 0, stops = [], tips = [];
+        rows.forEach(function(r, i) {
+            var frac = total > 0 ? r.val / total : 0;
+            var segLen = frac * 360;
+            var segEnd = cum + segLen - (i < rows.length - 1 ? gapDeg : 0);
+            stops.push(r.hex + ' ' + cum + 'deg ' + segEnd + 'deg');
+            if (i < rows.length - 1) stops.push('#ffffff ' + segEnd + 'deg ' + (cum + segLen) + 'deg');
+            tips.push(r.tag + ' ' + Math.round(frac * 100) + '% (' + fmtSecs(r.val) + ')');
+            cum += segLen;
+        });
+        ring.style.background = total > 0
+            ? 'conic-gradient(from -90deg, ' + stops.join(', ') + ')'
+            : '#e9ecef';
+        ring.title = tips.join(' · ');
+
+        totalEl.textContent = fmtSecs(total);
+        modeLabelEl.textContent = envMode === 'labor' ? 'labor' : 'total';
+
+        legend.innerHTML = rows.map(function(r) {
+            var pct = total > 0 ? Math.round(r.val / total * 100) : 0;
+            return '<div class="env-legend-row">'
+                 + '<span class="env-legend-sw" style="background:' + r.hex + '"></span>'
+                 + '<span class="env-legend-name">' + r.tag + '</span>'
+                 + '<span class="env-legend-pct">' + pct + '%</span>'
+                 + '<span class="env-legend-val">' + fmtSecs(r.val) + '</span>'
+                 + '</div>';
+        }).join('');
     }
 
     function openDropdown(key, anchorEl) {
@@ -1042,6 +1164,22 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
         });
         barsEl.innerHTML = html;
         if (countEl) countEl.textContent = active.length + (active.length === 1 ? ' project' : ' projects');
+    }
+
+    // All/Labor toggle (Time by Environment only)
+    var modeToggle = document.getElementById('tbe-mode-toggle');
+    if (modeToggle) {
+        modeToggle.querySelectorAll('button').forEach(function(b) {
+            b.classList.toggle('active', b.dataset.mode === envMode);
+        });
+        modeToggle.addEventListener('click', function(e) {
+            var btn = e.target.closest('button[data-mode]');
+            if (!btn) return;
+            envMode = btn.dataset.mode;
+            try { localStorage.setItem('itiano_tbe_mode', envMode); } catch(e2) {}
+            modeToggle.querySelectorAll('button').forEach(function(b) { b.classList.toggle('active', b === btn); });
+            render('env');
+        });
     }
 
     if (HIERARCHY && HIERARCHY.length > 0) {

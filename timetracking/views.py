@@ -658,28 +658,43 @@ class DailyReportView(LoginRequiredMixin, View):
         # each contribute the full range duration. Only IP segments with entered_at >= start_dt
         # are counted — ongoing IP from before the range contributes 0 here.
         ticket_ip_range_secs = {}
+        ticket_ip_range_labor_secs = {}
         for ticket in my_tickets:
             segs = ticket_segments[ticket.issue_key]
-            secs = sum(
-                max(0, int((min(seg['exited_at'] or now, now) - seg['entered_at']).total_seconds()))
-                for seg in segs
+            qualifying = [
+                seg for seg in segs
                 if seg['status']
                 and seg['status'].lower() in _ip_statuses
                 and seg['entered_at']
                 and seg['entered_at'] >= start_dt
+            ]
+            ticket_ip_range_secs[ticket.issue_key] = sum(
+                max(0, int((min(seg['exited_at'] or now, now) - seg['entered_at']).total_seconds()))
+                for seg in qualifying
             )
-            ticket_ip_range_secs[ticket.issue_key] = secs
+            ticket_ip_range_labor_secs[ticket.issue_key] = sum(
+                working_seconds_bounds(seg['entered_at'], min(seg['exited_at'] or now, now))
+                for seg in qualifying
+            )
 
         filtered_keys = [t.issue_key for t in filtered_tickets]
         tag_seconds = defaultdict(int)
+        tag_labor_seconds = defaultdict(int)
         for tt in TicketTag.objects.filter(
             ticket__external_id__in=filtered_keys
         ).select_related('tag', 'ticket'):
             secs = ticket_ip_range_secs.get(tt.ticket.external_id, 0)
             if secs > 0:
                 tag_seconds[tt.tag.name] += secs
+                tag_labor_seconds[tt.tag.name] += ticket_ip_range_labor_secs.get(tt.ticket.external_id, 0)
         tag_totals = [
-            {'tag': name, 'secs': secs, 'display': fmt(secs)}
+            {
+                'tag': name,
+                'secs': secs,
+                'display': fmt(secs),
+                'labor_secs': tag_labor_seconds.get(name, 0),
+                'labor_display': fmt(tag_labor_seconds.get(name, 0)),
+            }
             for name, secs in sorted(tag_seconds.items(), key=lambda x: -x[1])
             if secs > 0
         ]
