@@ -941,13 +941,22 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
     // Categorical palette (validated: dataviz skill, all-pairs CVD/contrast pass
     // for the first 3 slots; slots 4-8 pass adjacent-only, so a 4th+ selected
     // env tag relies on the legend/direct labels rather than color alone).
-    // Assigned by each tag's alphabetical position — stable across re-selection
-    // and mode switches, never by sorted rank/value.
+    // TAG_DATA is shared across the whole report (Project + Environment + plain
+    // status-name tags) and can easily hold 50+ entries — indexing by alphabetical
+    // position across all of them pushed real env tags past the 8-slot palette,
+    // so every one of them silently fell back to the same gray. A tag's color
+    // must depend only on its own name (stable hash -> slot), never on the size
+    // or contents of the surrounding tag universe or the current selection.
     var CAT_PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
     var ENV_COLOR = {};
-    TAG_DATA.map(function(t) { return t.tag; }).sort().forEach(function(name, i) {
-        ENV_COLOR[name] = CAT_PALETTE[i] || '#adb5bd';
-    });
+    function envColorFor(name) {
+        if (!ENV_COLOR[name]) {
+            var h = 0;
+            for (var i = 0; i < name.length; i++) { h = (h * 31 + name.charCodeAt(i)) | 0; }
+            ENV_COLOR[name] = CAT_PALETTE[Math.abs(h) % CAT_PALETTE.length];
+        }
+        return ENV_COLOR[name];
+    }
 
     var envMode = 'all';
     try {
@@ -1014,7 +1023,7 @@ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
                     return {
                         tag: t.tag,
                         val: envMode === 'labor' ? t.labor_secs : t.secs,
-                        hex: ENV_COLOR[t.tag] || '#adb5bd'
+                        hex: envColorFor(t.tag)
                     };
                 })
                 .sort(function(a, b) { return b.val - a.val; });

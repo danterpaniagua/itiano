@@ -730,7 +730,7 @@ class DailyReportView(LoginRequiredMixin, View):
                     if body:
                         ip_last_comment[event.ticket_id] = {'author': author, 'body': body}
 
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(dt_module.timezone.utc)
         today_rows = []
         for ticket in my_tickets:
             segs = ticket_segments[ticket.issue_key]
@@ -783,15 +783,80 @@ class DailyReportView(LoginRequiredMixin, View):
         # A parent that is itself In Progress gets its own row here too (before suppression
         # below removes it) — capture its own ongoing/today time so it can be combined with
         # its child's time in the envelope header, instead of being silently dropped.
+        def _union_secs(intervals):
+            # Total seconds covered by (start, end) intervals, merging overlaps — moving a
+            # subtask to In Progress commonly auto-transitions its parent too, so parent and
+            # child windows overlap almost entirely; a plain sum would roughly double that time.
+            ivs = sorted((s, e) for s, e in intervals if e > s)
+            total = datetime.timedelta()
+            cur_start = cur_end = None
+            for s, e in ivs:
+                if cur_end is None or s > cur_end:
+                    if cur_end is not None:
+                        total += cur_end - cur_start
+                    cur_start, cur_end = s, e
+                else:
+                    cur_end = max(cur_end, e)
+            if cur_end is not None:
+                total += cur_end - cur_start
+            return int(total.total_seconds())
+
+        def _ongoing_interval(issue_key):
+            seg = next(
+                (s for s in ticket_segments[issue_key] if s['entered_at'] and s['exited_at'] is None),
+                None,
+            )
+            return (seg['entered_at'], now) if seg else None
+
+        def _today_ivs(issue_key):
+            return [
+                (max(seg['entered_at'], today_start), min(seg['exited_at'] or now, now))
+                for seg in ticket_segments[issue_key]
+                if seg['status'] and seg['status'].lower() in _ip_statuses and seg['entered_at']
+                and min(seg['exited_at'] or now, now) > max(seg['entered_at'], today_start)
+            ]
+
         _parent_row_by_key = {r['ticket'].issue_key: r for r in today_rows if r['ticket'].issue_key in _parent_keys}
+
+        # Time always belongs to the child when a child is active: each child keeps full
+        # credit for its own time (summed, uncapped — siblings don't reduce each other), and
+        # the parent only contributes time where NONE of its children were active. A parent
+        # with several concurrently In Progress children is grouped here so the total is
+        # computed once (parent time isn't double-subtracted per child).
+        _children_by_parent = defaultdict(list)
         for row in today_rows:
-            _parent_row = _parent_row_by_key.get(row['ticket'].parent_key) if row['parent'] else None
+            if row['parent']:
+                _children_by_parent[row['ticket'].parent_key].append(row)
+
+        for _parent_key, _child_rows in _children_by_parent.items():
+            _parent_row = _parent_row_by_key.get(_parent_key)
+
+            _children_today_ivs = [iv for r in _child_rows for iv in _today_ivs(r['ticket'].issue_key)]
+            _children_ongoing_ivs = [
+                iv for r in _child_rows
+                for iv in [_ongoing_interval(r['ticket'].issue_key)] if iv
+            ]
+
             if _parent_row:
-                row['parent_row'] = {
-                    'jira_ongoing': fmt(_parent_row['_ongoing_secs'] + row['_ongoing_secs'])
-                        if (_parent_row['_has_ongoing'] or row['_has_ongoing']) else '—',
-                    'jira_today': fmt(_parent_row['_today_secs'] + row['_today_secs']),
-                }
+                _parent_today_ivs = _today_ivs(_parent_row['ticket'].issue_key)
+                _parent_ongoing_iv = _ongoing_interval(_parent_row['ticket'].issue_key)
+                _parent_ongoing_ivs = [_parent_ongoing_iv] if _parent_ongoing_iv else []
+                _parent_excl_today = _union_secs(_parent_today_ivs + _children_today_ivs) - _union_secs(_children_today_ivs)
+                _parent_excl_ongoing = _union_secs(_parent_ongoing_ivs + _children_ongoing_ivs) - _union_secs(_children_ongoing_ivs)
+            else:
+                _parent_excl_today = 0
+                _parent_excl_ongoing = 0
+
+            _total_today = sum(r['_today_secs'] for r in _child_rows) + _parent_excl_today
+            _total_ongoing = sum(r['_ongoing_secs'] for r in _child_rows) + _parent_excl_ongoing
+            _has_any_ongoing = (_parent_row and _parent_row['_has_ongoing']) or any(r['_has_ongoing'] for r in _child_rows)
+
+            _combined = {
+                'jira_ongoing': fmt(_total_ongoing) if _has_any_ongoing else '—',
+                'jira_today': fmt(_total_today),
+            }
+            for r in _child_rows:
+                r['parent_row'] = _combined
 
         # Suppress parent tickets that are already shown as envelope headers
         today_rows = [r for r in today_rows if r['ticket'].issue_key not in _parent_keys]
