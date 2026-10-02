@@ -215,6 +215,7 @@ class DailyReportView(LoginRequiredMixin, View):
         range_param = request.GET.get('range', 'today')
         if range_param not in ('today', 'week', 'month', 'custom'):
             range_param = 'today'
+        time_mode = 'exclusive' if request.GET.get('time') == 'exclusive' else 'overlap'
         now = timezone.now()
         import zoneinfo as _zi
         try:
@@ -375,6 +376,79 @@ class DailyReportView(LoginRequiredMixin, View):
                 segs.append({'status': t['to_status'], 'entered_at': t['at'], 'exited_at': exited_at})
             ticket_segments[ticket.issue_key] = segs
 
+        # Exclusive mode (?time=exclusive): only one ticket owns In Progress time at any instant.
+        # Among the active IP tickets, a parent with an active IP child yields, then the latest
+        # entered_at wins; the others are paused and resume when the owner leaves IP. Computed on
+        # the full history (only segments still open after start_dt can matter), BEFORE any range
+        # or Labor clipping, so a preempting segment from before the range still preempts.
+        def _exclusive_ip_slices():
+            parent_of = {t.issue_key: t.parent_key for t in my_tickets}
+            # Ongoing IP segments are reported from their own entered_at ("Ongoing"), so the
+            # sweep must reach back that far, not just to the range start.
+            sweep_from = min(
+                [start_dt] + [
+                    seg['entered_at']
+                    for segs in ticket_segments.values() for seg in segs
+                    if seg['entered_at'] and seg['exited_at'] is None
+                    and seg['status'] and seg['status'].lower() in _ip_statuses
+                ]
+            )
+            ip_segs = []
+            for ticket in my_tickets:
+                for idx, seg in enumerate(ticket_segments[ticket.issue_key]):
+                    if not seg['status'] or seg['status'].lower() not in _ip_statuses or not seg['entered_at']:
+                        continue
+                    seg_end = min(seg['exited_at'] or now, now)
+                    if seg_end <= sweep_from or seg_end <= seg['entered_at']:
+                        continue
+                    ip_segs.append((seg['entered_at'], seg_end, ticket.issue_key, idx))
+            ip_segs.sort()
+            points = sorted({p for s, e, _, _ in ip_segs for p in (s, e)})
+            slices = defaultdict(list)
+            active = []
+            next_seg = 0
+            for a, b in zip(points, points[1:]):
+                while next_seg < len(ip_segs) and ip_segs[next_seg][0] <= a:
+                    active.append(ip_segs[next_seg])
+                    next_seg += 1
+                active = [x for x in active if x[1] > a]
+                if not active:
+                    continue
+                active_keys = {x[2] for x in active}
+                candidates = [
+                    x for x in active
+                    if not any(parent_of.get(k) == x[2] for k in active_keys if k != x[2])
+                ] or active
+                owner = max(candidates, key=lambda x: (x[0], x[2]))
+                owned = slices[(owner[2], owner[3])]
+                if owned and owned[-1][1] == a:
+                    owned[-1] = (owned[-1][0], b)
+                else:
+                    owned.append((a, b))
+            return slices
+
+        excl_slices = _exclusive_ip_slices() if time_mode == 'exclusive' else {}
+
+        def excl_ivs(issue_key, idx, lo, hi):
+            return [
+                (max(s, lo), min(e, hi))
+                for s, e in excl_slices.get((issue_key, idx), ())
+                if min(e, hi) > max(s, lo)
+            ]
+
+        def excl_secs(issue_key, idx, lo, hi, labor=False):
+            ivs = excl_ivs(issue_key, idx, lo, hi)
+            if labor:
+                return sum(working_seconds_bounds(s, e) for s, e in ivs)
+            return int(sum((e - s).total_seconds() for s, e in ivs))
+
+        def ip_range_seconds(issue_key, idx, seg, ongoing_ip):
+            """range_seconds() for an IP segment, restricted to the time it owns in exclusive mode."""
+            if time_mode != 'exclusive':
+                return range_seconds(seg['entered_at'], seg['exited_at'], ongoing_ip)
+            bounds = range_bounds(seg['entered_at'], seg['exited_at'], ongoing_ip)
+            return excl_secs(issue_key, idx, *bounds) if bounds else 0
+
         # Compute range seconds per segment, respecting the new semantics:
         # - segments entered within the range count normally
         # - ongoing In Progress segments entered before the range count from start_dt
@@ -382,12 +456,15 @@ class DailyReportView(LoginRequiredMixin, View):
         def ticket_seg_secs(ticket):
             is_ip = ticket.status.lower() in _ip_statuses
             result = []
-            for seg in ticket_segments[ticket.issue_key]:
+            for idx, seg in enumerate(ticket_segments[ticket.issue_key]):
                 if not seg['status'] or not seg['entered_at']:
                     result.append(0)
                     continue
                 ongoing_ip = is_ip and seg['exited_at'] is None
-                result.append(range_seconds(seg['entered_at'], seg['exited_at'], ongoing_ip))
+                if seg['status'].lower() in _ip_statuses:
+                    result.append(ip_range_seconds(ticket.issue_key, idx, seg, ongoing_ip))
+                else:
+                    result.append(range_seconds(seg['entered_at'], seg['exited_at'], ongoing_ip))
             return result
 
         # Per-ticket total range seconds (used for filtering and tag attribution)
@@ -505,7 +582,7 @@ class DailyReportView(LoginRequiredMixin, View):
         for ticket in filtered_tickets:
             segs = ticket_segments[ticket.issue_key]
             is_ip_ticket = ticket.status.lower() in _ip_statuses
-            for seg in segs:
+            for seg_idx, seg in enumerate(segs):
                 if not seg['status'] or not seg['entered_at']:
                     continue
                 category = _status_category_of(seg['status'])
@@ -513,7 +590,7 @@ class DailyReportView(LoginRequiredMixin, View):
                     continue
                 ongoing_ip = is_ip_ticket and seg['exited_at'] is None
                 if category == 'in_progress':
-                    secs = range_seconds(seg['entered_at'], seg['exited_at'], ongoing_ip)
+                    secs = ip_range_seconds(ticket.issue_key, seg_idx, seg, ongoing_ip)
                     if secs > 0:
                         status_seconds[seg['status']] += secs
                         status_ticket_secs[seg['status']][ticket.issue_key] += secs
@@ -662,19 +739,27 @@ class DailyReportView(LoginRequiredMixin, View):
         for ticket in my_tickets:
             segs = ticket_segments[ticket.issue_key]
             qualifying = [
-                seg for seg in segs
+                (idx, seg) for idx, seg in enumerate(segs)
                 if seg['status']
                 and seg['status'].lower() in _ip_statuses
                 and seg['entered_at']
                 and seg['entered_at'] >= start_dt
             ]
+            if time_mode == 'exclusive':
+                ticket_ip_range_secs[ticket.issue_key] = sum(
+                    excl_secs(ticket.issue_key, idx, seg['entered_at'], now) for idx, seg in qualifying
+                )
+                ticket_ip_range_labor_secs[ticket.issue_key] = sum(
+                    excl_secs(ticket.issue_key, idx, seg['entered_at'], now, labor=True) for idx, seg in qualifying
+                )
+                continue
             ticket_ip_range_secs[ticket.issue_key] = sum(
                 max(0, int((min(seg['exited_at'] or now, now) - seg['entered_at']).total_seconds()))
-                for seg in qualifying
+                for _, seg in qualifying
             )
             ticket_ip_range_labor_secs[ticket.issue_key] = sum(
                 working_seconds_bounds(seg['entered_at'], min(seg['exited_at'] or now, now))
-                for seg in qualifying
+                for _, seg in qualifying
             )
 
         filtered_keys = [t.issue_key for t in filtered_tickets]
@@ -743,29 +828,45 @@ class DailyReportView(LoginRequiredMixin, View):
             )
             if not is_ip:
                 continue
-            ongoing_seg = next(
-                (seg for seg in segs if seg['entered_at'] and seg['exited_at'] is None),
+            ongoing_idx = next(
+                (i for i, seg in enumerate(segs) if seg['entered_at'] and seg['exited_at'] is None),
                 None,
             )
-            if ongoing_seg:
-                total_secs = int((now - ongoing_seg['entered_at']).total_seconds())
+            ongoing_seg = segs[ongoing_idx] if ongoing_idx is not None else None
+            if time_mode == 'exclusive':
+                # Only the time this ticket owns counts; a ticket that is IP but not the current
+                # owner is "paused" until the preempting ticket leaves IP.
+                total_secs = excl_secs(ticket.issue_key, ongoing_idx, ongoing_seg['entered_at'], now) if ongoing_seg else 0
+                today_ip_secs = sum(
+                    excl_secs(ticket.issue_key, i, today_start, now)
+                    for i, seg in enumerate(segs)
+                    if seg['status'] and seg['status'].lower() in _ip_statuses and seg['entered_at']
+                )
+                running = bool(ongoing_seg) and any(
+                    e >= now for _, e in excl_slices.get((ticket.issue_key, ongoing_idx), ())
+                )
             else:
-                total_secs = 0
-            today_ip_secs = sum(
-                max(0, int((min(seg['exited_at'] or now, now) - max(seg['entered_at'], today_start)).total_seconds()))
-                for seg in segs
-                if seg['status'] and seg['status'].lower() in _ip_statuses
-                and seg['entered_at'] and min(seg['exited_at'] or now, now) > max(seg['entered_at'], today_start)
-            )
+                if ongoing_seg:
+                    total_secs = int((now - ongoing_seg['entered_at']).total_seconds())
+                else:
+                    total_secs = 0
+                today_ip_secs = sum(
+                    max(0, int((min(seg['exited_at'] or now, now) - max(seg['entered_at'], today_start)).total_seconds()))
+                    for seg in segs
+                    if seg['status'] and seg['status'].lower() in _ip_statuses
+                    and seg['entered_at'] and min(seg['exited_at'] or now, now) > max(seg['entered_at'], today_start)
+                )
+                running = bool(ongoing_seg)
             today_rows.append({
                 'ticket': ticket,
-                'jira_ongoing': fmt(total_secs) if ongoing_seg else '—',
+                'jira_ongoing': fmt(total_secs) if running else ('paused' if ongoing_seg else '—'),
                 'jira_today': fmt(today_ip_secs),
                 'last_message': ip_last_comment.get(ticket.pk),
                 'parent': None,
                 'parent_row': None,
                 '_ongoing_secs': total_secs if ongoing_seg else 0,
                 '_has_ongoing': bool(ongoing_seg),
+                '_running': running,
                 '_today_secs': today_ip_secs,
             })
 
@@ -836,6 +937,21 @@ class DailyReportView(LoginRequiredMixin, View):
                 iv for r in _child_rows
                 for iv in [_ongoing_interval(r['ticket'].issue_key)] if iv
             ]
+
+            if time_mode == 'exclusive':
+                # Owned time never overlaps between tickets, so no union math: siblings and the
+                # parent's exclusive time just add up.
+                _total_today = sum(r['_today_secs'] for r in _child_rows) + (_parent_row['_today_secs'] if _parent_row else 0)
+                _total_ongoing = sum(r['_ongoing_secs'] for r in _child_rows) + (_parent_row['_ongoing_secs'] if _parent_row else 0)
+                _any_running = any(r['_running'] for r in _child_rows) or bool(_parent_row and _parent_row['_running'])
+                _any_ongoing = any(r['_has_ongoing'] for r in _child_rows) or bool(_parent_row and _parent_row['_has_ongoing'])
+                _combined = {
+                    'jira_ongoing': fmt(_total_ongoing) if _any_running else ('paused' if _any_ongoing else '—'),
+                    'jira_today': fmt(_total_today),
+                }
+                for r in _child_rows:
+                    r['parent_row'] = _combined
+                continue
 
             if _parent_row:
                 _parent_today_ivs = _today_ivs(_parent_row['ticket'].issue_key)
@@ -1470,6 +1586,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'jira_username': jira_username,
             'jira_account_id': jira_account_id,
             'range_param': range_param,
+            'time_mode': time_mode,
             'tag_totals': tag_totals,
             'selected_tags': selected_tags,
             'all_tags': all_tags,

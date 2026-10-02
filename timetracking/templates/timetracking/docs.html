@@ -11,6 +11,7 @@
 <p>The Time Tracking home page shows all your Jira tickets currently in <strong>In Progress</strong> status. This panel updates automatically as Jira webhooks arrive.</p>
 
 <h6 class="mt-4">Time Report</h6>
+<p><strong>Time mode:</strong> the <em>Overlap | Exclusive</em> toggle in the header changes how In Progress time is counted. <em>Overlap</em> (default) counts every In Progress ticket on its own. <em>Exclusive</em> lets only one ticket count at a time: the one that entered In Progress last. When it leaves In Progress, the previous one resumes. A parent never counts while one of its own subtasks is In Progress. Paused tickets show <em>paused</em> in the In Progress panel. Only In Progress time is affected.</p>
 <p>The <a href="{% url 'timetracking-report' %}">Report</a> covers a date range (Today / Week / Month, or a custom range) and can be filtered by tag and Jira status. It can auto-refresh (Off / 1m / 5m / 10m / 15m) and includes:</p>
 <ul>
     <li><strong>In Progress</strong> — tickets currently in progress, with a live duration and zoomable time bars (WH-now / WH / 10h / Day-Week-Month depending on the selected range).</li>
