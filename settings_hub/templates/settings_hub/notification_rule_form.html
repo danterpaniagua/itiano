@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}{% if rule %}Edit{% else %}New{% endif %} alert rule – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+    <a href="{% url 'settings-notifications' %}" class="text-muted text-decoration-none small me-1">
+        <i class="bi bi-arrow-left"></i> Notifications
+    </a>
+    <h5 class="mb-0 me-auto"><i class="bi bi-bell me-1"></i> {% if rule %}Edit{% else %}New{% endif %} alert rule</h5>
+</div>
+
+<div class="row">
+    <div class="col-12 col-md-8 col-lg-6">
+        <form method="post" class="mb-4">
+            {% csrf_token %}
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label form-label-sm mb-1" for="rule-name">Name</label>
+                    <input type="text" class="form-control form-control-sm" id="rule-name" name="name"
+                           maxlength="100" value="{{ data.name }}" required>
+                </div>
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" name="is_active"
+                               id="rule-active" {% if data.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="rule-active">Rule active</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label form-label-sm mb-1" for="rule-filter">Rule (JSON)</label>
+                    <textarea class="form-control form-control-sm font-monospace" id="rule-filter"
+                              name="filter" rows="9" spellcheck="false" required>{{ data.filter_text }}</textarea>
+                    <div class="form-text">
+                        Tickets matching this query trigger the alert. Nodes are
+                        <code>{"and": [...]}</code>, <code>{"or": [...]}</code> or
+                        <code>{"path": "$.issue.fields.labels", "op": "not_in_ci", "value": ["TAG"]}</code>.
+                        Paths: <code>$.issue.key</code>, <code>$.issue.fields.project.key</code>,
+                        <code>.labels</code>, <code>.status.name</code>, <code>.summary</code>,
+                        <code>.assignee.accountId</code>. Ops: eq, neq, eq_ci, in, not_in, in_ci,
+                        not_in_ci, contains, exists, regex. Several projects:
+                        <code>"op": "in", "value": ["GITIN", "OPS"]</code>.
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="form-label form-label-sm mb-1" for="rule-grace">Grace period (minutes)</label>
+                    <input type="number" min="0" class="form-control form-control-sm" id="rule-grace"
+                           name="grace_minutes" value="{{ data.grace_minutes }}" required>
+                    <div class="form-text">Wait after ticket creation so tags set right afterwards don't alert.</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label form-label-sm mb-1" for="rule-message">Message</label>
+                    <input type="text" class="form-control form-control-sm" id="rule-message" name="message"
+                           maxlength="500" value="{{ data.message }}" required>
+                    <div class="form-text">Placeholders: <code>{key}</code> <code>{title}</code> <code>{project}</code> <code>{status}</code>.</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label form-label-sm mb-1">Users</label>
+                    <div class="border rounded p-2" style="max-height:220px; overflow-y:auto">
+                        {% for u in all_users %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="users" value="{{ u.pk }}"
+                                   id="rule-user-{{ u.pk }}" {% if u.pk in selected_users %}checked{% endif %}>
+                            <label class="form-check-label" for="rule-user-{{ u.pk }}">{{ u.username }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label form-label-sm mb-1">Teams</label>
+                    <div class="border rounded p-2" style="max-height:220px; overflow-y:auto">
+                        {% for t in all_teams %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="teams" value="{{ t.pk }}"
+                                   id="rule-team-{{ t.pk }}" {% if t.pk in selected_teams %}checked{% endif %}>
+                            <label class="form-check-label" for="rule-team-{{ t.pk }}">{{ t.name }}</label>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted small mb-0">No teams configured yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="notify_assignee"
+                               id="rule-assignee" {% if data.notify_assignee %}checked{% endif %}>
+                        <label class="form-check-label" for="rule-assignee">Also notify the ticket's assignee</label>
+                    </div>
+                    <div class="form-text">
+                        Resolved through the user's Jira account id in their profile. No recipients at
+                        all = nothing sent and the ticket is re-checked on the next run.
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <a href="{% url 'settings-notifications' %}" class="btn btn-outline-secondary btn-sm">Cancel</a>
+            </div>
+        </form>
+
+        {% if rule %}
+        <hr class="my-4">
+        <h6 class="fw-semibold mb-2" id="test">Test rule</h6>
+        <form method="get" class="d-flex flex-wrap gap-2 mb-2" action="#test">
+            <input type="text" class="form-control form-control-sm w-auto flex-grow-1" name="test_key"
+                   placeholder="GITIN-2278" value="{{ test_result.key|default:'' }}">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Test</button>
+        </form>
+        <div class="form-text mb-2">Tests the saved rule against the ticket's current labels. Nothing is sent.</div>
+        {% if test_result %}
+            {% if not test_result.found %}
+            <div class="alert alert-secondary py-2 small">Ticket {{ test_result.key }} not found.</div>
+            {% elif test_result.match %}
+            <div class="alert alert-warning py-2 small">
+                <i class="bi bi-check-circle"></i> Matches — would alert{% if not test_result.eligible %}, but the ticket was created before this rule, so it is never considered{% endif %}.
+                <div class="text-muted">labels: {{ test_result.labels|join:", "|default:"none" }} · created {{ test_result.created_at|timesince }} ago</div>
+            </div>
+            {% else %}
+            <div class="alert alert-success py-2 small">
+                <i class="bi bi-x-circle"></i> No match.
+                <div class="text-muted">labels: {{ test_result.labels|join:", "|default:"none" }} · created {{ test_result.created_at|timesince }} ago</div>
+            </div>
+            {% endif %}
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

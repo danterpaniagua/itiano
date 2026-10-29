@@ -105,6 +105,21 @@ python manage.py jira_reconcile last 500      # last 500
 Unlike `by_time`, `last` creates the local ticket if it doesn't exist yet, and never touches the
 `by_time` watermark.
 
+## Notification rules
+
+Alert rules (Settings → Notifications) are evaluated by the `jira_rules_check` management command,
+which notifies once per (rule, ticket) and is safe to run every few minutes from host cron. It does
+not need Jira API credentials — it reads the tickets the webhook already stored:
+
+```bash
+python manage.py jira_rules_check
+```
+
+```cron
+# /etc/cron.d/itiano-jira-rules-check — every 5 minutes
+*/5 * * * * root cd /path/to/itiano && docker compose exec -T app python manage.py jira_rules_check >> /path/to/itiano/logs/jira_rules_check.log 2>&1
+```
+
 ## Architecture
 
 | App | Responsibility |

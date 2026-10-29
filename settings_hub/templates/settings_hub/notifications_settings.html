@@ -30,4 +30,94 @@
         </form>
     </div>
 </div>
+
+<hr class="my-4">
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h6 class="fw-semibold mb-0 me-auto" id="alert-rules">Alert rules</h6>
+    <a href="{% url 'settings-notification-rule-create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> New rule
+    </a>
+</div>
+{% if not notifications_enabled %}
+<div class="alert alert-secondary py-2 small">
+    Notifications are disabled system-wide: rules are not evaluated until the switch above is on.
+</div>
+{% endif %}
+
+{% if rules %}
+<div class="table-responsive d-none d-md-block mb-3">
+    <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Name</th>
+                <th>Grace</th>
+                <th>Recipients</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rule in rules %}
+            <tr>
+                <td><a href="{% url 'settings-notification-rule-edit' rule.pk %}" class="text-decoration-none">{{ rule.name }}</a></td>
+                <td>{{ rule.grace_minutes }} min</td>
+                <td>
+                    {{ rule.users.all|length }} user{{ rule.users.all|length|pluralize }},
+                    {{ rule.teams.all|length }} team{{ rule.teams.all|length|pluralize }}{% if rule.notify_assignee %}, assignee{% endif %}
+                </td>
+                <td>{% if rule.is_active %}<span class="badge text-bg-success">on</span>{% else %}<span class="badge text-bg-secondary">off</span>{% endif %}</td>
+                <td class="text-end">
+                    <div class="d-flex flex-wrap gap-2 justify-content-end">
+                        <a href="{% url 'settings-notification-rule-edit' rule.pk %}#test" class="btn btn-outline-secondary btn-sm" title="Test"><i class="bi bi-play"></i></a>
+                        <form method="post" action="{% url 'settings-notification-rule-toggle' rule.pk %}" class="mb-0">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-secondary btn-sm" title="{% if rule.is_active %}Deactivate{% else %}Activate{% endif %}">
+                                <i class="bi bi-{% if rule.is_active %}toggle-on{% else %}toggle-off{% endif %}"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="d-md-none mb-3">
+    {% for rule in rules %}
+    <div class="d-flex gap-2 align-items-stretch mb-2">
+        <a href="{% url 'settings-notification-rule-edit' rule.pk %}" class="card flex-grow-1 text-decoration-none text-body">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between gap-2">
+                    <span class="fw-semibold">{{ rule.name }}</span>
+                    {% if rule.is_active %}<span class="badge text-bg-success">on</span>{% else %}<span class="badge text-bg-secondary">off</span>{% endif %}
+                </div>
+                <div class="small text-muted">
+                    {{ rule.grace_minutes }} min ·
+                    {{ rule.users.all|length }} user{{ rule.users.all|length|pluralize }},
+                    {{ rule.teams.all|length }} team{{ rule.teams.all|length|pluralize }}{% if rule.notify_assignee %}, assignee{% endif %}
+                </div>
+            </div>
+        </a>
+        <div class="d-flex flex-column gap-2">
+            <a href="{% url 'settings-notification-rule-edit' rule.pk %}#test" class="btn btn-outline-secondary btn-sm" title="Test"><i class="bi bi-play"></i></a>
+            <form method="post" action="{% url 'settings-notification-rule-toggle' rule.pk %}" class="mb-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-secondary btn-sm" title="{% if rule.is_active %}Deactivate{% else %}Activate{% endif %}">
+                    <i class="bi bi-{% if rule.is_active %}toggle-on{% else %}toggle-off{% endif %}"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted small">No alert rules yet.</p>
+{% endif %}
+<div class="form-text mb-3">
+    A rule alerts its recipients once per matching Jira ticket, a grace period after the ticket was
+    created. Rules only apply to tickets created after the rule. Evaluated by
+    <code>jira_rules_check</code> (host cron).
+</div>
 {% endblock %}

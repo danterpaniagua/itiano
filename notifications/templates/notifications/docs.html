@@ -12,6 +12,7 @@
 <ul>
     <li><strong>Vault:</strong> sharing a credential with a team, or granting a container to a team, notifies every current member of that team.</li>
     <li><strong>Jira reconcile:</strong> when <code>jira_reconcile</code> finishes, it notifies whichever users are configured in Settings → Jira (staff only).</li>
+    <li><strong>Alert rules:</strong> staff-defined JSON queries over Jira tickets (Settings → Notifications). When a ticket matches a rule — for example a new GITIN ticket still without the <code>INFRADEVOPS</code> label after the rule's grace period — the rule's users, teams and optionally the ticket's assignee are notified once. A rule only looks at tickets created after the rule was created. Evaluated periodically by <code>jira_rules_check</code>.</li>
 </ul>
 
 <h6 class="text-muted mt-3">Read state</h6>

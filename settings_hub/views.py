@@ -686,8 +686,10 @@ class JiraSettingsView(StaffRequiredMixin, View):
 
 class NotificationsSettingsView(StaffRequiredMixin, View):
     def get(self, request):
+        from notifications.models import NotificationRule
         return render(request, 'settings_hub/notifications_settings.html', {
             'notifications_enabled': get_app_setting('notifications_enabled', 'True') == 'True',
+            'rules': NotificationRule.objects.prefetch_related('users', 'teams'),
         })
 
     def post(self, request):
@@ -696,6 +698,162 @@ class NotificationsSettingsView(StaffRequiredMixin, View):
             key='notifications_enabled', defaults={'value': 'True' if enabled else 'False'}
         )
         messages.success(request, 'Notifications setting saved.')
+        return redirect('settings-notifications')
+
+
+class NotificationRuleFormMixin(StaffRequiredMixin):
+    template_name = 'settings_hub/notification_rule_form.html'
+
+    def _ctx(self, rule, data, test_result=None):
+        return {
+            'rule': rule,
+            'data': data,
+            'all_users': User.objects.order_by('username'),
+            'all_teams': Team.objects.order_by('name'),
+            'selected_users': {int(v) for v in data.get('users', []) if str(v).isdigit()},
+            'selected_teams': {int(v) for v in data.get('teams', []) if str(v).isdigit()},
+            'test_result': test_result,
+        }
+
+    def _parse(self, request):
+        import json
+        from notifications import rules as rule_helpers
+
+        post = request.POST
+        data = {
+            'name': post.get('name', '').strip(),
+            'is_active': 'is_active' in post,
+            'filter_text': post.get('filter', '').strip(),
+            'grace_minutes': post.get('grace_minutes', '').strip(),
+            'message': post.get('message', '').strip(),
+            'notify_assignee': 'notify_assignee' in post,
+            'users': post.getlist('users'),
+            'teams': post.getlist('teams'),
+        }
+        errors = []
+        if not data['name']:
+            errors.append('Name is required.')
+        parsed = None
+        try:
+            parsed = json.loads(data['filter_text'])
+        except ValueError:
+            errors.append('The rule is not valid JSON.')
+        if parsed is not None:
+            error = rule_helpers.validate_filter(parsed)
+            if error:
+                errors.append(error)
+        try:
+            grace = int(data['grace_minutes'])
+            if grace < 0:
+                raise ValueError
+        except ValueError:
+            grace = None
+            errors.append('Grace period must be a whole number of minutes (0 or more).')
+        if not data['message']:
+            errors.append('Message is required.')
+        else:
+            error = rule_helpers.validate_message(data['message'])
+            if error:
+                errors.append(error)
+        return data, parsed, grace, errors
+
+    def _save(self, rule, data, parsed, grace):
+        rule.name = data['name']
+        rule.is_active = data['is_active']
+        rule.filter = parsed
+        rule.grace_minutes = grace
+        rule.message = data['message']
+        rule.notify_assignee = data['notify_assignee']
+        rule.save()
+        rule.users.set(User.objects.filter(pk__in=[v for v in data['users'] if v.isdigit()]))
+        rule.teams.set(Team.objects.filter(pk__in=[v for v in data['teams'] if v.isdigit()]))
+
+
+class NotificationRuleCreateView(NotificationRuleFormMixin, View):
+    def get(self, request):
+        import json
+        from notifications import rules as rule_helpers
+        data = {
+            'name': '',
+            'is_active': True,
+            'filter_text': json.dumps(rule_helpers.DEFAULT_FILTER, indent=2),
+            'grace_minutes': '15',
+            'message': rule_helpers.DEFAULT_MESSAGE,
+            'notify_assignee': False,
+            'users': [],
+            'teams': [],
+        }
+        return render(request, self.template_name, self._ctx(None, data))
+
+    def post(self, request):
+        from notifications.models import NotificationRule
+        data, parsed, grace, errors = self._parse(request)
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return render(request, self.template_name, self._ctx(None, data))
+        rule = NotificationRule()
+        self._save(rule, data, parsed, grace)
+        messages.success(request, f'Rule "{rule.name}" created. It only applies to tickets created from now on.')
+        return redirect('settings-notifications')
+
+
+class NotificationRuleEditView(NotificationRuleFormMixin, View):
+    def _data_from_rule(self, rule):
+        import json
+        return {
+            'name': rule.name,
+            'is_active': rule.is_active,
+            'filter_text': json.dumps(rule.filter, indent=2),
+            'grace_minutes': str(rule.grace_minutes),
+            'message': rule.message,
+            'notify_assignee': rule.notify_assignee,
+            'users': [str(pk) for pk in rule.users.values_list('pk', flat=True)],
+            'teams': [str(pk) for pk in rule.teams.values_list('pk', flat=True)],
+        }
+
+    def get(self, request, pk):
+        from jira_integration.models import JiraTicket
+        from notifications import rules as rule_helpers
+        from notifications.models import NotificationRule
+        rule = get_object_or_404(NotificationRule, pk=pk)
+        test_result = None
+        test_key = request.GET.get('test_key', '').strip()
+        if test_key:
+            ticket = JiraTicket.objects.filter(issue_key__iexact=test_key).first()
+            if ticket is None:
+                test_result = {'key': test_key, 'found': False}
+            else:
+                test_result = {
+                    'key': ticket.issue_key,
+                    'found': True,
+                    'match': rule_helpers.ticket_matches(rule.filter, ticket),
+                    'labels': ticket.labels,
+                    'created_at': ticket.created_at,
+                    'eligible': ticket.created_at > rule.starts_at,
+                }
+        return render(request, self.template_name, self._ctx(rule, self._data_from_rule(rule), test_result))
+
+    def post(self, request, pk):
+        from notifications.models import NotificationRule
+        rule = get_object_or_404(NotificationRule, pk=pk)
+        data, parsed, grace, errors = self._parse(request)
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return render(request, self.template_name, self._ctx(rule, data))
+        self._save(rule, data, parsed, grace)
+        messages.success(request, f'Rule "{rule.name}" saved.')
+        return redirect('settings-notifications')
+
+
+class NotificationRuleToggleView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        from notifications.models import NotificationRule
+        rule = get_object_or_404(NotificationRule, pk=pk)
+        rule.is_active = not rule.is_active
+        rule.save(update_fields=['is_active', 'updated_at'])
+        messages.success(request, f'Rule "{rule.name}" {"activated" if rule.is_active else "deactivated"}.')
         return redirect('settings-notifications')
 
 
