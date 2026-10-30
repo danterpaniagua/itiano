@@ -90,6 +90,7 @@ def collect_entries(tickets, transitions, categories, end_dt):
                 'origin_status': previous_status,
                 'dest': dest_kind,
                 'dest_status': dest_status,
+                'left_at': left_at,
                 'ip_secs': max(0, int((left_at - current['at']).total_seconds())),
             })
             seen_entry = True
@@ -114,7 +115,7 @@ def drop_parent_entries(entries, collapse_seconds=COLLAPSE_SECONDS):
     return kept
 
 
-def _card(entry):
+def _card(entry, working_seconds=None):
     ticket = entry['ticket']
     origin_icon, origin_color, origin_tip, _ = ORIGIN_META[entry['origin']]
     dest_icon, dest_color, dest_tip, _ = DEST_META[entry['dest']]
@@ -137,15 +138,20 @@ def _card(entry):
         'dest_icon': dest_icon,
         'dest_color': dest_color,
         'dest_title': dest_title,
+        'total_secs': entry['ip_secs'],
+        'wh_secs': working_seconds(entry['at'], entry['left_at']) if working_seconds else None,
         'repeat': 1,
     }
 
 
-def build_days(entries, tz):
+def build_days(entries, tz, working_seconds=None):
     """Group entries by day (in `tz`), newest day first, into ordered cards (each day's chain stays
     oldest to newest, left to right). Consecutive entries of the same
     ticket in a day become one card with a repeat count; origin of the first and destination
-    of the last entry are kept."""
+    of the last entry are kept; the time in progress of merged stays is summed.
+
+    `working_seconds(start, end)` (optional) clips a stay to the working schedule; without it the
+    cards carry no working-hours time."""
     days = []
     by_date = {}
     for entry in entries:
@@ -161,14 +167,21 @@ def build_days(entries, tz):
             by_date[local_date] = day
             days.append(day)
         day['count'] += 1
-        card = _card(entry)
+        card = _card(entry, working_seconds)
         last = day['cards'][-1] if day['cards'] else None
         if last and last['key'] == card['key']:
             last['repeat'] += 1
+            last['total_secs'] += card['total_secs']
+            if card['wh_secs'] is not None:
+                last['wh_secs'] += card['wh_secs']
             for field in ('dest', 'dest_icon', 'dest_color', 'dest_title'):
                 last[field] = card[field]
         else:
             day['cards'].append(card)
+    for day in days:
+        for card in day['cards']:
+            card['total_label'] = _fmt(card['total_secs'])
+            card['wh_label'] = _fmt(card['wh_secs']) if card['wh_secs'] is not None else '—'
     days.sort(key=lambda d: d['date'], reverse=True)
     return days
 
@@ -212,21 +225,24 @@ def summarize(entries):
     }
 
 
-def build_ip_map(tickets, transitions, categories, start_dt, end_dt, tz, visible_keys=None):
+def build_ip_map(tickets, transitions, categories, start_dt, end_dt, tz, visible_keys=None,
+                 working_seconds=None):
     """Build the map for [start_dt, end_dt].
 
     `tickets`/`transitions` cover everything the viewer owns, so first-ever detection and the
     parent collapse see the full picture; `visible_keys` (optional set) then restricts what is
-    shown (the report's tag filter).
+    shown (the report's tag filter). `working_seconds` (optional) is the schedule clipper used for
+    the W-H card time; pass None when the viewer has no WorkSchedule.
     """
     entries = collect_entries(tickets, transitions, categories, end_dt)
     entries = drop_parent_entries(entries)
     entries = [e for e in entries if start_dt <= e['at'] <= end_dt]
     if visible_keys is not None:
         entries = [e for e in entries if e['ticket'].issue_key in visible_keys]
-    days = build_days(entries, tz)
+    days = build_days(entries, tz, working_seconds)
     return {
         'days': days,
+        'has_wh': working_seconds is not None,
         'summary': summarize(entries),
         'mermaid': mermaid_text(days),
     }

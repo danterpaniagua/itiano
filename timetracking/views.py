@@ -1583,6 +1583,10 @@ class DailyReportView(LoginRequiredMixin, View):
         ip_map_data = ip_map.build_ip_map(
             my_tickets, ticket_transitions, _ip_map_categories, start_dt, now, user_tz,
             visible_keys=_ip_map_visible,
+            working_seconds=(
+                working_seconds_bounds
+                if schedule and schedule.start_time and schedule.end_time else None
+            ),
         )
 
         return render(request, 'timetracking/report.html', {
@@ -1622,6 +1626,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'report_hierarchy_json': report_hierarchy_json,
             'ip_map_days': ip_map_data['days'],
             'ip_map_summary': ip_map_data['summary'],
+            'ip_map_has_wh': ip_map_data['has_wh'],
             'ip_map_mermaid': ip_map_data['mermaid'],
             'jira_base_url': get_app_setting('jira_base_url', '').rstrip('/'),
         })

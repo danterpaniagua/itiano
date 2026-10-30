@@ -192,10 +192,13 @@ def tr(when, from_status, to_status):
     return {'at': when, 'from_status': from_status, 'to_status': to_status}
 
 
-def build(tickets, transitions, start=None, end=None, tz=UTC, visible=None):
+def build(tickets, transitions, start=None, end=None, tz=UTC, visible=None, working_seconds=None):
     start = start or at(1, '00:00')
     end = end or at(31, '23:59')
-    return ip_map.build_ip_map(tickets, transitions, IP_CATEGORIES, start, end, tz, visible_keys=visible)
+    return ip_map.build_ip_map(
+        tickets, transitions, IP_CATEGORIES, start, end, tz, visible_keys=visible,
+        working_seconds=working_seconds,
+    )
 
 
 class IpMapEntryTests(TestCase):
@@ -361,13 +364,58 @@ class IpMapGroupingTests(TestCase):
         self.assertNotIn('"]; x', data['mermaid'])
 
 
+class IpMapCardTimeTests(TestCase):
+    @staticmethod
+    def half(start, end):
+        # Fake schedule clipper: counts half of the stay.
+        return int((end - start).total_seconds()) // 2
+
+    def test_total_and_working_time_per_card(self):
+        t = ft('G-1')
+        data = build([t], {'G-1': [
+            tr(at(5, '09:00'), 'Backlog', 'In Progress'),
+            tr(at(5, '11:00'), 'In Progress', 'Done'),
+        ]}, working_seconds=self.half)
+        card = data['days'][0]['cards'][0]
+        self.assertEqual((card['total_secs'], card['wh_secs']), (7200, 3600))
+        self.assertEqual((card['total_label'], card['wh_label']), ('2h 0m', '1h 0m'))
+        self.assertTrue(data['has_wh'])
+
+    def test_merged_card_sums_both_times(self):
+        t = ft('G-1')
+        data = build([t], {'G-1': [
+            tr(at(5, '09:00'), 'Backlog', 'In Progress'),
+            tr(at(5, '10:00'), 'In Progress', 'Selected for Development'),
+            tr(at(5, '11:00'), 'Selected for Development', 'In Progress'),
+            tr(at(5, '12:00'), 'In Progress', 'Done'),
+        ]}, working_seconds=self.half)
+        card = data['days'][0]['cards'][0]
+        self.assertEqual(card['repeat'], 2)
+        self.assertEqual((card['total_secs'], card['wh_secs']), (7200, 3600))
+
+    def test_still_in_progress_counts_up_to_end(self):
+        t = ft('G-1')
+        data = build([t], {'G-1': [tr(at(5, '09:00'), 'Backlog', 'In Progress')]},
+                     end=at(5, '09:40'), working_seconds=self.half)
+        card = data['days'][0]['cards'][0]
+        self.assertEqual((card['dest'], card['total_label']), ('ip', '40m'))
+
+    def test_no_clipper_means_no_working_time(self):
+        t = ft('G-1')
+        data = build([t], {'G-1': [tr(at(5, '09:00'), 'Backlog', 'In Progress')]})
+        card = data['days'][0]['cards'][0]
+        self.assertIsNone(card['wh_secs'])
+        self.assertEqual(card['wh_label'], '—')
+        self.assertFalse(data['has_wh'])
+
+
 class IpMapViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('agent', password='pass')
         UserProfile.objects.update_or_create(user=self.user, defaults={'jira_account_id': ACCOUNT_ID})
         WorkSchedule.objects.update_or_create(user=self.user, defaults={'timezone': 'UTC'})
         for name, cat in [('In Progress', 'in_progress'), ('Done', 'done'), ('Bloqueado', 'blocked')]:
-            JiraStatusConfig.objects.create(status_name=name, category=cat)
+            JiraStatusConfig.objects.update_or_create(status_name=name, defaults={'category': cat})
         self.client.force_login(self.user)
         self.url = reverse('timetracking-report')
 
@@ -410,6 +458,20 @@ class IpMapViewTests(TestCase):
         self.assertContains(response, 'In Progress map')
         self.assertContains(response, reverse('timetracking-ticket-timeline', args=['GITIN-1']))
         self.assertContains(response, 'Copy as Mermaid')
+
+    def test_card_time_total_and_working_hours(self):
+        self.ticket('GITIN-1', [
+            (at(1, '08:00'), 'Backlog', 'In Progress'),
+            (at(1, '10:00'), 'In Progress', 'Done'),
+        ], 'Done')
+        WorkSchedule.objects.filter(user=self.user).update(
+            start_time=dt.time(9, 0), end_time=dt.time(18, 0), thu=True,
+        )
+        response = self.report()
+        card = response.context['ip_map_days'][0]['cards'][0]
+        self.assertEqual((card['total_label'], card['wh_label']), ('2h 0m', '1h 0m'))
+        self.assertTrue(response.context['ip_map_has_wh'])
+        self.assertNotContains(response, 'No working schedule set')
 
     def test_jira_link_only_with_base_url(self):
         self.seed()

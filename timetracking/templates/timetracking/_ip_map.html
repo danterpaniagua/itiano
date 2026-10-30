@@ -1,4 +1,4 @@
-{# In Progress map (v5.18.0). Context: ip_map_days, ip_map_summary, ip_map_mermaid, jira_base_url #}
+{# In Progress map (v5.18.0). Context: ip_map_days, ip_map_summary, ip_map_mermaid, ip_map_has_wh, jira_base_url #}
 <style>
   .ipm-day { border-top: 1px solid var(--bs-border-color); padding-top: .75rem; margin-top: .75rem; }
   .ipm-day:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
@@ -20,6 +20,10 @@
     <div class="card-header d-flex flex-wrap gap-2 align-items-center">
         <span class="fw-semibold me-auto"><i class="bi bi-diagram-3 me-1"></i>In Progress map</span>
         {% if ip_map_days %}
+        <div class="btn-group btn-group-sm" role="group" aria-label="Card time">
+            <button type="button" class="btn btn-outline-secondary active ipm-mode" data-mode="total" title="Wall-clock time in progress">Total</button>
+            <button type="button" class="btn btn-outline-secondary ipm-mode" data-mode="wh"{% if not ip_map_has_wh %} disabled title="No working schedule set"{% else %} title="Time in progress inside your working hours"{% endif %}>W-H</button>
+        </div>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="ipm-copy">
             <i class="bi bi-clipboard"></i> Copy as Mermaid
         </button>
@@ -63,6 +67,10 @@
                         </span>
                     </div>
                     <div class="ipm-title my-1">{{ card.title }}</div>
+                    <div class="small text-muted mb-1">
+                        <i class="bi bi-stopwatch"></i>
+                        <span class="ipm-time" data-total="{{ card.total_label }}" data-wh="{{ card.wh_label }}">{{ card.total_label }}</span>{% if card.dest == 'ip' %} so far{% endif %}
+                    </div>
                     {% if card.labels %}
                     <div class="d-flex flex-wrap gap-1">
                         {% for label in card.labels|slice:":3" %}<span class="badge text-bg-secondary ipm-tag{% if forloop.counter == 3 %} d-none d-md-inline-block{% endif %}">{{ label }}</span>{% endfor %}
@@ -95,6 +103,12 @@
       btn.innerHTML = open
         ? 'Show less <i class="bi bi-chevron-up"></i>'
         : 'Show ' + btn.dataset.n + ' more <i class="bi bi-chevron-down"></i>';
+    });
+  });
+  document.querySelectorAll('.ipm-mode').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.ipm-mode').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      document.querySelectorAll('.ipm-time').forEach(function (el) { el.textContent = el.dataset[btn.dataset.mode]; });
     });
   });
   var copy = document.getElementById('ipm-copy');
