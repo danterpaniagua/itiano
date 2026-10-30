@@ -1,0 +1,116 @@
+{# In Progress map (v5.18.0). Context: ip_map_days, ip_map_summary, ip_map_mermaid, jira_base_url #}
+<style>
+  .ipm-day { border-top: 1px solid var(--bs-border-color); padding-top: .75rem; margin-top: .75rem; }
+  .ipm-day:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+  .ipm-cards { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; }
+  .ipm-card { width: 100%; position: relative; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .5rem; padding: .5rem .65rem; }
+  @media (min-width: 768px) {
+    .ipm-card { width: 210px; }
+    .ipm-card:not(.ipm-last)::after { content: "\F138"; font-family: "bootstrap-icons"; position: absolute; right: -1.3rem; top: 50%; transform: translateY(-50%); color: var(--bs-secondary-color); }
+  }
+  @media (max-width: 767.98px) { .ipm-day:not(.ipm-open) .ipm-card.ipm-extra { display: none; } }
+  .ipm-id { font-weight: 600; font-size: .85rem; text-decoration: none; }
+  .ipm-title { font-size: .8rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.4em; }
+  .ipm-tag { font-size: .65rem; }
+  .ipm-created { color: #6f42c1; } .ipm-done { color: #198754; } .ipm-blocked { color: #dc3545; }
+  .ipm-testing { color: #0d6efd; } .ipm-queue { color: #6c757d; } .ipm-ip { color: #0d6efd; }
+</style>
+
+<div class="card mb-3" id="ip-map-card">
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+        <span class="fw-semibold me-auto"><i class="bi bi-diagram-3 me-1"></i>In Progress map</span>
+        {% if ip_map_days %}
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="ipm-copy">
+            <i class="bi bi-clipboard"></i> Copy as Mermaid
+        </button>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if ip_map_days %}
+        <div class="small mb-2">
+            <strong>{{ ip_map_summary.entries }} entr{{ ip_map_summary.entries|pluralize:"y,ies" }} · {{ ip_map_summary.tickets }} ticket{{ ip_map_summary.tickets|pluralize }}</strong>
+            <span class="text-muted">· ended:
+                {% for d in ip_map_summary.destinations %}<span class="ms-1"><i class="bi {{ d.icon }} {{ d.color }}"></i> {{ d.count }}</span>{% endfor %}
+            </span>
+        </div>
+        <div class="small text-muted mb-3">
+            <span><i class="bi bi-plus-circle-fill ipm-created"></i> created</span>
+            <span class="ms-2"><i class="bi bi-check-circle-fill ipm-done"></i> done</span>
+            <span class="ms-2"><i class="bi bi-slash-circle-fill ipm-blocked"></i> blocked</span>
+            <span class="ms-2"><i class="bi bi-flask ipm-testing"></i> testing</span>
+            <span class="ms-2"><i class="bi bi-circle ipm-queue"></i> queue</span>
+            <span class="ms-2"><i class="bi bi-play-circle-fill ipm-ip"></i> still in progress</span>
+        </div>
+        {% for day in ip_map_days %}
+        <div class="ipm-day">
+            <div class="d-flex justify-content-between small mb-2">
+                <strong>{{ day.label }}</strong>
+                <span class="text-muted">{{ day.count }} entr{{ day.count|pluralize:"y,ies" }}</span>
+            </div>
+            <div class="ipm-cards">
+                {% for card in day.cards %}
+                <div class="ipm-card{% if forloop.last %} ipm-last{% endif %}{% if forloop.counter > 4 %} ipm-extra{% endif %}">
+                    <div class="d-flex justify-content-between align-items-center gap-2">
+                        <span class="text-nowrap">
+                            <a href="{% url 'timetracking-ticket-timeline' card.key %}?back_range={{ range_param }}{% for t in selected_tags %}&back_tags={{ t }}{% endfor %}{% for s in selected_statuses %}&back_statuses={{ s }}{% endfor %}" class="ipm-id">{{ card.key }}</a>{% if jira_base_url %}
+                            <a href="{{ jira_base_url }}/browse/{{ card.key }}" target="_blank" rel="noopener" class="text-muted small ms-1" title="Open in Jira"><i class="bi bi-box-arrow-up-right"></i></a>{% endif %}
+                        </span>
+                        <span class="text-nowrap">
+                            {% if card.repeat > 1 %}<span class="badge text-bg-light border me-1" title="Entered in progress {{ card.repeat }} times in a row">×{{ card.repeat }}</span>{% endif %}
+                            <i class="bi {{ card.origin_icon }} {{ card.origin_color }}" title="{{ card.origin_title }}"></i>
+                            <i class="bi bi-arrow-right small text-muted"></i>
+                            <i class="bi {{ card.dest_icon }} {{ card.dest_color }}" title="{{ card.dest_title }}"></i>
+                        </span>
+                    </div>
+                    <div class="ipm-title my-1">{{ card.title }}</div>
+                    {% if card.labels %}
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for label in card.labels|slice:":3" %}<span class="badge text-bg-secondary ipm-tag{% if forloop.counter == 3 %} d-none d-md-inline-block{% endif %}">{{ label }}</span>{% endfor %}
+                        {% if card.labels|length > 3 %}<span class="badge text-bg-light border ipm-tag d-none d-md-inline-block" title="{{ card.labels|slice:'3:'|join:', ' }}">+{{ card.labels|length|add:'-3' }}</span>{% endif %}
+                        {% if card.labels|length > 2 %}<span class="badge text-bg-light border ipm-tag d-md-none" title="{{ card.labels|slice:'2:'|join:', ' }}">+{{ card.labels|length|add:'-2' }}</span>{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% if day.cards|length > 4 %}
+            <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2 d-md-none ipm-more" data-n="{{ day.cards|length|add:'-4' }}">
+                Show {{ day.cards|length|add:'-4' }} more <i class="bi bi-chevron-down"></i>
+            </button>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {{ ip_map_mermaid|json_script:"ipm-mermaid-data" }}
+        {% else %}
+        <p class="text-muted small mb-0">No tickets were put into In Progress in this range.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+(function () {
+  document.querySelectorAll('.ipm-more').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var open = btn.closest('.ipm-day').classList.toggle('ipm-open');
+      btn.innerHTML = open
+        ? 'Show less <i class="bi bi-chevron-up"></i>'
+        : 'Show ' + btn.dataset.n + ' more <i class="bi bi-chevron-down"></i>';
+    });
+  });
+  var copy = document.getElementById('ipm-copy');
+  var data = document.getElementById('ipm-mermaid-data');
+  if (copy && data) {
+    copy.addEventListener('click', function () {
+      var text = JSON.parse(data.textContent);
+      var done = function () {
+        var old = copy.innerHTML;
+        copy.innerHTML = '<i class="bi bi-check2"></i> Copied';
+        setTimeout(function () { copy.innerHTML = old; }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done);
+      }
+    });
+  }
+})();
+</script>

@@ -11,6 +11,7 @@ from django.views import View
 from jira_integration.models import JiraEvent, JiraTicket
 from settings_hub.models import get_app_setting, JiraStatusConfig
 
+from . import ip_map
 from .models import ReportProject, TimeEntry, WorkSchedule
 
 
@@ -348,6 +349,7 @@ class DailyReportView(LoginRequiredMixin, View):
 
         # Build raw segments per ticket (single event fetch)
         ticket_segments = {}
+        ticket_transitions = {}
         for ticket in my_tickets:
             events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
             transitions = []
@@ -359,6 +361,7 @@ class DailyReportView(LoginRequiredMixin, View):
                             'to_status': item.get('toString', ''),
                             'at': event.received_at,
                         })
+            ticket_transitions[ticket.issue_key] = transitions
             creation_event = next((e for e in events if e.event_type == 'jira:issue_created'), None)
             creation_time = creation_event.received_at if creation_event else (events[0].received_at if events else None)
             creation_status = (
@@ -1570,6 +1573,18 @@ class DailyReportView(LoginRequiredMixin, View):
         else:
             report_hierarchy_json = 'null'
 
+        # --- In Progress map (v5.18.0): status entries, independent of the Time/Labor toggles ---
+        # The tag filter applies; the status filter does not (it filters by activity status).
+        _ip_map_categories = (
+            {c.status_name.lower(): c.category for c in _jira_configs}
+            if _jira_configs else {'in progress': 'in_progress', 'done': 'done', 'descartado': 'done'}
+        )
+        _ip_map_visible = matching_keys if selected_tags else None
+        ip_map_data = ip_map.build_ip_map(
+            my_tickets, ticket_transitions, _ip_map_categories, start_dt, now, user_tz,
+            visible_keys=_ip_map_visible,
+        )
+
         return render(request, 'timetracking/report.html', {
             'status_totals': status_totals,
             'status_stuck_alert': _status_stuck_alert,
@@ -1605,6 +1620,10 @@ class DailyReportView(LoginRequiredMixin, View):
             'ip_bar_json': ip_bar_json,
             'tag_totals_json': tag_totals_json,
             'report_hierarchy_json': report_hierarchy_json,
+            'ip_map_days': ip_map_data['days'],
+            'ip_map_summary': ip_map_data['summary'],
+            'ip_map_mermaid': ip_map_data['mermaid'],
+            'jira_base_url': get_app_setting('jira_base_url', '').rstrip('/'),
         })
 
 

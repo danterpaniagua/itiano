@@ -163,3 +163,285 @@ class ExclusiveTimeReportTests(TestCase):
         # Envelope = 2116's time + 2107's exclusive time (9h31m of "today" before 13:55).
         self.assertEqual(rows['GITIN-2116']['parent_row']['jira_today'], '10h 36m')
         self.assertEqual(rows['GITIN-2132']['jira_today'], '3h 47m')
+
+
+# ---------------------------------------------------------------------------
+# In Progress map (v5.18.0)
+# ---------------------------------------------------------------------------
+
+import zoneinfo
+from collections import namedtuple
+
+from itsm.models import Tag, Ticket, TicketTag
+from settings_hub.models import AppSetting, JiraStatusConfig
+from timetracking import ip_map
+
+FakeTicket = namedtuple('FakeTicket', 'issue_key title parent_key labels')
+IP_CATEGORIES = {
+    'in progress': 'in_progress', 'en curso': 'in_progress', 'bloqueado': 'blocked',
+    'testing': 'testing', 'done': 'done', 'descartado': 'done',
+    'backlog': 'backlog', 'selected for development': 'other',
+}
+
+
+def ft(key, parent='', labels=None):
+    return FakeTicket(key, f'Title {key}', parent, labels or [])
+
+
+def tr(when, from_status, to_status):
+    return {'at': when, 'from_status': from_status, 'to_status': to_status}
+
+
+def build(tickets, transitions, start=None, end=None, tz=UTC, visible=None):
+    start = start or at(1, '00:00')
+    end = end or at(31, '23:59')
+    return ip_map.build_ip_map(tickets, transitions, IP_CATEGORIES, start, end, tz, visible_keys=visible)
+
+
+class IpMapEntryTests(TestCase):
+    def test_first_entry_is_created_and_destination_done(self):
+        t = ft('G-1')
+        data = build([t], {'G-1': [
+            tr(at(5, '10:00'), 'Backlog', 'In Progress'),
+            tr(at(5, '12:00'), 'In Progress', 'Done'),
+        ]})
+        card = data['days'][0]['cards'][0]
+        self.assertEqual((card['origin'], card['dest']), ('created', 'done'))
+        self.assertEqual(data['summary']['entries'], 1)
+
+    def test_en_curso_duplicate_is_same_stay(self):
+        t = ft('G-1')
+        data = build([t], {'G-1': [
+            tr(at(5, '10:00'), 'Backlog', 'In Progress'),
+            tr(at(5, '10:01'), 'In Progress', 'En curso'),
+            tr(at(5, '12:00'), 'En curso', 'Bloqueado'),
+        ]})
+        self.assertEqual(data['summary']['entries'], 1)
+        self.assertEqual(data['days'][0]['cards'][0]['dest'], 'blocked')
+
+    def test_still_in_progress(self):
+        data = build([ft('G-1')], {'G-1': [tr(at(5, '10:00'), 'Backlog', 'In Progress')]})
+        self.assertEqual(data['days'][0]['cards'][0]['dest'], 'ip')
+
+    def test_origins_blocked_testing_queue_done(self):
+        t = ft('G-1')
+        history = [
+            tr(at(5, '09:00'), 'Backlog', 'In Progress'),
+            tr(at(5, '10:00'), 'In Progress', 'Bloqueado'),
+            tr(at(5, '11:00'), 'Bloqueado', 'In Progress'),
+            tr(at(5, '12:00'), 'In Progress', 'Testing'),
+            tr(at(5, '13:00'), 'Testing', 'In Progress'),
+            tr(at(5, '14:00'), 'In Progress', 'Selected for Development'),
+            tr(at(5, '15:00'), 'Selected for Development', 'In Progress'),
+            tr(at(5, '16:00'), 'In Progress', 'Done'),
+            tr(at(6, '09:00'), 'Done', 'In Progress'),
+        ]
+        entries = ip_map.collect_entries([t], {'G-1': history}, IP_CATEGORIES, at(31, '00:00'))
+        self.assertEqual(
+            [e['origin'] for e in entries], ['created', 'blocked', 'testing', 'queue', 'done'],
+        )
+        self.assertEqual(
+            [e['dest'] for e in entries], ['blocked', 'testing', 'queue', 'done', 'ip'],
+        )
+
+    def test_created_even_when_first_entry_is_before_range(self):
+        t = ft('G-1')
+        history = [
+            tr(at(1, '09:00'), 'Backlog', 'In Progress'),
+            tr(at(1, '10:00'), 'In Progress', 'Bloqueado'),
+            tr(at(8, '09:00'), 'Bloqueado', 'In Progress'),
+        ]
+        data = build([t], {'G-1': history}, start=at(8, '00:00'))
+        self.assertEqual(data['summary']['entries'], 1)
+        self.assertEqual(data['days'][0]['cards'][0]['origin'], 'blocked')
+
+    def test_entries_outside_range_are_excluded(self):
+        t = ft('G-1')
+        data = build([t], {'G-1': [tr(at(5, '10:00'), 'Backlog', 'In Progress')]}, start=at(6, '00:00'))
+        self.assertEqual(data['days'], [])
+        self.assertEqual(data['summary']['entries'], 0)
+
+
+class IpMapParentCollapseTests(TestCase):
+    def setUp(self):
+        self.parent = ft('G-P')
+        self.child = ft('G-C', parent='G-P')
+
+    def test_parent_dropped_when_child_enters_within_window_either_order(self):
+        for parent_at, child_at in [(at(5, '10:00:00'), at(5, '10:00:30')),
+                                    (at(5, '10:00:30'), at(5, '10:00:00'))]:
+            data = build([self.parent, self.child], {
+                'G-P': [tr(parent_at, 'Backlog', 'In Progress')],
+                'G-C': [tr(child_at, 'Backlog', 'In Progress')],
+            })
+            keys = [c['key'] for c in data['days'][0]['cards']]
+            self.assertEqual(keys, ['G-C'])
+
+    def test_parent_kept_outside_window(self):
+        data = build([self.parent, self.child], {
+            'G-P': [tr(at(5, '10:00:00'), 'Backlog', 'In Progress')],
+            'G-C': [tr(at(5, '10:05:00'), 'Backlog', 'In Progress')],
+        })
+        self.assertEqual([c['key'] for c in data['days'][0]['cards']], ['G-P', 'G-C'])
+
+    def test_parent_without_child_entry_kept(self):
+        data = build([self.parent, self.child], {
+            'G-P': [tr(at(5, '10:00:00'), 'Backlog', 'In Progress')],
+            'G-C': [],
+        })
+        self.assertEqual([c['key'] for c in data['days'][0]['cards']], ['G-P'])
+
+
+class IpMapGroupingTests(TestCase):
+    def test_consecutive_reentries_collapse_with_repeat(self):
+        t = ft('G-1')
+        data = build([t], {'G-1': [
+            tr(at(5, '09:00'), 'Backlog', 'In Progress'),
+            tr(at(5, '10:00'), 'In Progress', 'Selected for Development'),
+            tr(at(5, '11:00'), 'Selected for Development', 'In Progress'),
+            tr(at(5, '12:00'), 'In Progress', 'Done'),
+        ]})
+        cards = data['days'][0]['cards']
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(cards[0]['repeat'], 2)
+        self.assertEqual((cards[0]['origin'], cards[0]['dest']), ('created', 'done'))
+        self.assertEqual(data['days'][0]['count'], 2)
+
+    def test_returning_after_other_ticket_gets_own_card(self):
+        a, b = ft('G-A'), ft('G-B')
+        data = build([a, b], {
+            'G-A': [tr(at(5, '09:00'), 'Backlog', 'In Progress'),
+                    tr(at(5, '09:30'), 'In Progress', 'Bloqueado'),
+                    tr(at(5, '11:00'), 'Bloqueado', 'In Progress')],
+            'G-B': [tr(at(5, '10:00'), 'Backlog', 'In Progress')],
+        })
+        self.assertEqual([c['key'] for c in data['days'][0]['cards']], ['G-A', 'G-B', 'G-A'])
+
+    def test_days_use_viewer_timezone_around_midnight(self):
+        cordoba = zoneinfo.ZoneInfo('America/Argentina/Cordoba')  # UTC-3
+        t = ft('G-1')
+        data = build([t], {'G-1': [tr(at(6, '01:30'), 'Backlog', 'In Progress')]}, tz=cordoba)
+        self.assertEqual(data['days'][0]['date'], dt.date(2026, 10, 5))
+
+    def test_days_newest_first_chain_oldest_first(self):
+        a, b, c = ft('G-A'), ft('G-B'), ft('G-C')
+        data = build([a, b, c], {
+            'G-A': [tr(at(5, '09:00'), 'Backlog', 'In Progress')],
+            'G-B': [tr(at(6, '09:00'), 'Backlog', 'In Progress')],
+            'G-C': [tr(at(6, '10:00'), 'Backlog', 'In Progress')],
+        })
+        self.assertEqual([d['date'] for d in data['days']], [dt.date(2026, 10, 6), dt.date(2026, 10, 5)])
+        self.assertEqual([c['key'] for c in data['days'][0]['cards']], ['G-B', 'G-C'])
+        self.assertLess(data['mermaid'].index('G-B'), data['mermaid'].index('G-A'))
+
+    def test_visible_keys_restricts_cards_but_not_collapse(self):
+        a, b = ft('G-A'), ft('G-B')
+        data = build([a, b], {
+            'G-A': [tr(at(5, '09:00'), 'Backlog', 'In Progress')],
+            'G-B': [tr(at(5, '10:00'), 'Backlog', 'In Progress')],
+        }, visible={'G-B'})
+        self.assertEqual([c['key'] for c in data['days'][0]['cards']], ['G-B'])
+        self.assertEqual(data['summary']['entries'], 1)
+
+    def test_mermaid_text(self):
+        a, b = ft('G-A'), ft('G-B')
+        data = build([a, b], {
+            'G-A': [tr(at(5, '09:00'), 'Backlog', 'In Progress'), tr(at(5, '09:30'), 'In Progress', 'Done')],
+            'G-B': [tr(at(5, '10:00'), 'Backlog', 'In Progress')],
+        })
+        text = data['mermaid']
+        self.assertIn('flowchart LR', text)
+        self.assertIn('n0["G-A ✚→✔"]', text)
+        self.assertIn('n1["G-B ✚→▶"]', text)
+        self.assertIn('n0 --> n1', text)
+
+    def test_mermaid_sanitises_keys(self):
+        t = ft('G-1"]; x["')
+        data = build([t], {t.issue_key: [tr(at(5, '09:00'), 'Backlog', 'In Progress')]})
+        self.assertNotIn('"]; x', data['mermaid'])
+
+
+class IpMapViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('agent', password='pass')
+        UserProfile.objects.update_or_create(user=self.user, defaults={'jira_account_id': ACCOUNT_ID})
+        WorkSchedule.objects.update_or_create(user=self.user, defaults={'timezone': 'UTC'})
+        for name, cat in [('In Progress', 'in_progress'), ('Done', 'done'), ('Bloqueado', 'blocked')]:
+            JiraStatusConfig.objects.create(status_name=name, category=cat)
+        self.client.force_login(self.user)
+        self.url = reverse('timetracking-report')
+
+    def ticket(self, key, transitions, status, labels=None):
+        ticket = JiraTicket.objects.create(
+            issue_key=key, title=f'Title {key}', status=status, labels=labels or [],
+            assignee='Agent', assignee_account_id=ACCOUNT_ID,
+        )
+        for received_at, from_status, to_status in transitions:
+            JiraEvent.objects.create(
+                ticket=ticket, event_type='jira:issue_updated', received_at=received_at,
+                payload={'changelog': {'items': [
+                    {'field': 'status', 'fromString': from_status, 'toString': to_status},
+                ]}},
+            )
+        return ticket
+
+    def report(self, **params):
+        params.setdefault('range', 'custom')
+        params.setdefault('date_from', '2026-10-01')
+        params.setdefault('date_to', '2026-10-01')
+        with mock.patch('django.utils.timezone.now', return_value=at(2, '12:00')):
+            response = self.client.get(self.url, params)
+        self.assertEqual(response.status_code, 200)
+        return response
+
+    def seed(self):
+        self.ticket('GITIN-1', [
+            (at(1, '09:00'), 'Backlog', 'In Progress'),
+            (at(1, '11:00'), 'In Progress', 'Done'),
+        ], 'Done', labels=['INFRADEVOPS', 'SRE', 'A', 'B'])
+        self.ticket('GITIN-2', [(at(1, '10:00'), 'Backlog', 'In Progress')], 'In Progress')
+
+    def test_context_and_card_rendered(self):
+        self.seed()
+        response = self.report()
+        days = response.context['ip_map_days']
+        self.assertEqual([c['key'] for c in days[0]['cards']], ['GITIN-1', 'GITIN-2'])
+        self.assertEqual(response.context['ip_map_summary']['entries'], 2)
+        self.assertContains(response, 'In Progress map')
+        self.assertContains(response, reverse('timetracking-ticket-timeline', args=['GITIN-1']))
+        self.assertContains(response, 'Copy as Mermaid')
+
+    def test_jira_link_only_with_base_url(self):
+        self.seed()
+        self.assertNotContains(self.report(), '/browse/GITIN-1')
+        AppSetting.objects.create(key='jira_base_url', value='https://x.atlassian.net/')
+        self.assertContains(self.report(), 'https://x.atlassian.net/browse/GITIN-1')
+
+    def test_empty_range_shows_empty_state(self):
+        response = self.report(date_from='2026-09-01', date_to='2026-09-01')
+        self.assertContains(response, 'No tickets were put into In Progress in this range.')
+        self.assertNotContains(response, 'Copy as Mermaid')
+
+    def test_time_and_labor_toggles_do_not_change_map(self):
+        self.seed()
+        base = self.report().context['ip_map_summary']
+        self.assertEqual(self.report(time='exclusive').context['ip_map_summary'], base)
+
+    def test_tag_filter_limits_tickets_status_filter_does_not(self):
+        self.seed()
+        tag = Tag.objects.create(name='INFRADEVOPS')
+        ticket = Ticket.objects.create(
+            title='x', description='x', type='incident', external_id='GITIN-1', requester=self.user,
+        )
+        TicketTag.objects.create(ticket=ticket, tag=tag)
+        filtered = self.report(tags='INFRADEVOPS').context['ip_map_summary']
+        self.assertEqual(filtered['tickets'], 1)
+        status_filtered = self.report(statuses='Bloqueado').context['ip_map_summary']
+        self.assertEqual(status_filtered['entries'], 2)
+
+    def test_more_than_four_cards_renders_mobile_collapse(self):
+        for i in range(6):
+            self.ticket(f'GITIN-{10 + i}', [(at(1, f'0{i + 1}:00'), 'Backlog', 'In Progress')], 'In Progress')
+        response = self.report()
+        self.assertContains(response, 'ipm-more')
+        self.assertContains(response, 'Show 2 more')
