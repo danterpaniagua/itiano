@@ -216,7 +216,7 @@ class DailyReportView(LoginRequiredMixin, View):
         range_param = request.GET.get('range', 'today')
         if range_param not in ('today', 'week', 'month', 'custom'):
             range_param = 'today'
-        time_mode = 'exclusive' if request.GET.get('time') == 'exclusive' else 'overlap'
+        time_mode = 'overlap' if request.GET.get('time') == 'overlap' else 'exclusive'
         now = timezone.now()
         import zoneinfo as _zi
         try:
@@ -271,18 +271,22 @@ class DailyReportView(LoginRequiredMixin, View):
             prev_start_dt = start_dt - dt_module.timedelta(days=(dt_val - df).days + 1)
         prev_end_dt = start_dt
 
-        def range_bounds(entered_at, exited_at, ongoing_in_progress=False):
+        def range_bounds(entered_at, exited_at, ongoing_in_progress=False, ip=False):
             """
             Resolve the (seg_start, seg_end) window of this segment that counts toward
             the selected range, or None if it doesn't count at all. A segment counts if
             the transition INTO this status happened within [start_dt, now], or if it's
             an ongoing In Progress segment that started before the range (the ticket is
-            actively being worked on).
+            actively being worked on). In Progress segments (ip=True) count for whatever
+            part overlaps [start_dt, now], including stays that began before the range
+            and ended inside it.
             """
             if not entered_at:
                 return None
             if entered_at >= start_dt:
                 seg_start = entered_at
+            elif ip:
+                seg_start = start_dt
             elif ongoing_in_progress and exited_at is None:
                 seg_start = start_dt
             else:
@@ -292,9 +296,9 @@ class DailyReportView(LoginRequiredMixin, View):
                 return None
             return seg_start, seg_end
 
-        def range_seconds(entered_at, exited_at, ongoing_in_progress=False):
+        def range_seconds(entered_at, exited_at, ongoing_in_progress=False, ip=False):
             """Calendar (wall-clock) seconds of the segment that count toward the range."""
-            bounds = range_bounds(entered_at, exited_at, ongoing_in_progress)
+            bounds = range_bounds(entered_at, exited_at, ongoing_in_progress, ip)
             if not bounds:
                 return 0
             seg_start, seg_end = bounds
@@ -329,6 +333,48 @@ class DailyReportView(LoginRequiredMixin, View):
             if not bounds:
                 return 0
             return working_seconds_bounds(*bounds)
+
+        def _carry_zones(entered_at, lo, hi):
+            """Parts of [lo, hi] that do not count for a stay that began before the local day
+            they fall in (forgotten In Progress overnight): from that day's 00:00 to the first
+            working hour of the schedule, or the whole day when it is not a working day."""
+            if not schedule or not schedule.start_time or not schedule.end_time:
+                return []
+            try:
+                tz = _zi.ZoneInfo(schedule.timezone) if schedule.timezone else dt_module.timezone.utc
+            except Exception:
+                tz = dt_module.timezone.utc
+            zones = []
+            day = lo.astimezone(tz).date()
+            end_day = hi.astimezone(tz).date()
+            while day <= end_day:
+                day_start = dt_module.datetime.combine(day, dt_module.time(), tzinfo=tz)
+                if entered_at < day_start:
+                    if getattr(schedule, _weekday_attrs[day.weekday()], False):
+                        zones.append((day_start, dt_module.datetime.combine(day, schedule.start_time, tzinfo=tz)))
+                    else:
+                        zones.append((day_start, day_start + dt_module.timedelta(days=1)))
+                day += dt_module.timedelta(days=1)
+            return zones
+
+        def _carry_trim(entered_at, intervals):
+            """Intervals of a stay entered at `entered_at`, minus the overnight zones above."""
+            trimmed = []
+            for lo, hi in intervals:
+                pieces = [(lo, hi)]
+                for z_lo, z_hi in _carry_zones(entered_at, lo, hi):
+                    kept = []
+                    for a, b in pieces:
+                        if z_hi <= a or z_lo >= b:
+                            kept.append((a, b))
+                            continue
+                        if z_lo > a:
+                            kept.append((a, z_lo))
+                        if z_hi < b:
+                            kept.append((z_hi, b))
+                    pieces = kept
+                trimmed.extend(pieces)
+            return trimmed
 
         def fmt(seconds):
             seconds = max(0, int(seconds))
@@ -439,22 +485,30 @@ class DailyReportView(LoginRequiredMixin, View):
                 if min(e, hi) > max(s, lo)
             ]
 
-        def excl_secs(issue_key, idx, lo, hi, labor=False):
+        def excl_secs(issue_key, idx, lo, hi, labor=False, carry=None):
+            """Owned seconds in [lo, hi]. `carry` (the stay's entered_at) drops the overnight
+            zones of a stay carried over from a previous day (wall-clock only: Labor already
+            ignores everything outside the schedule)."""
             ivs = excl_ivs(issue_key, idx, lo, hi)
             if labor:
                 return sum(working_seconds_bounds(s, e) for s, e in ivs)
+            if carry is not None:
+                ivs = _carry_trim(carry, ivs)
             return int(sum((e - s).total_seconds() for s, e in ivs))
 
         def ip_range_seconds(issue_key, idx, seg, ongoing_ip):
             """range_seconds() for an IP segment, restricted to the time it owns in exclusive mode."""
+            bounds = range_bounds(seg['entered_at'], seg['exited_at'], ongoing_ip, ip=True)
+            if not bounds:
+                return 0
             if time_mode != 'exclusive':
-                return range_seconds(seg['entered_at'], seg['exited_at'], ongoing_ip)
-            bounds = range_bounds(seg['entered_at'], seg['exited_at'], ongoing_ip)
-            return excl_secs(issue_key, idx, *bounds) if bounds else 0
+                return sum(int((b - a).total_seconds()) for a, b in _carry_trim(seg['entered_at'], [bounds]))
+            return excl_secs(issue_key, idx, *bounds, carry=seg['entered_at'])
 
         # Compute range seconds per segment, respecting the new semantics:
         # - segments entered within the range count normally
-        # - ongoing In Progress segments entered before the range count from start_dt
+        # - In Progress segments count for the part that overlaps the range (v5.18.3), so
+        #   stays that began before the range count from start_dt
         # - all other pre-range segments contribute 0
         def ticket_seg_secs(ticket):
             is_ip = ticket.status.lower() in _ip_statuses
@@ -733,37 +787,74 @@ class DailyReportView(LoginRequiredMixin, View):
                 _stuck_count += 1
         _status_stuck_alert = _stuck_count > 0
 
-        # --- Tag totals, used by Time by Project/Environment (In Progress only, transitions started within the range) ---
-        # Using all-status time inflates weekly/monthly totals because N concurrent tickets
-        # each contribute the full range duration. Only IP segments with entered_at >= start_dt
-        # are counted — ongoing IP from before the range contributes 0 here.
+        # --- Tag totals, used by Time by Project/Environment (In Progress only) ---
+        # Same window as the other panels (v5.18.3): every IP segment counts for the part that
+        # overlaps [start_dt, now], so stays that began before the range count from start_dt.
+        # Exclusive mode measures it through the owned slices (a parent already yields to its
+        # active child). Overlap is per-ticket wall-clock, except that a parent only gets the
+        # time it was IP while none of its children was (the child + parent envelope rule of
+        # the Today panel), so a parent and its subtask are not counted twice.
+        def _merge_ivs(intervals):
+            merged = []
+            for lo, hi in sorted(iv for iv in intervals if iv[1] > iv[0]):
+                if merged and lo <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], hi))
+                else:
+                    merged.append((lo, hi))
+            return merged
+
+        def _ivs_secs(intervals, labor=False):
+            if labor:
+                return sum(working_seconds_bounds(lo, hi) for lo, hi in intervals)
+            return sum(int((hi - lo).total_seconds()) for lo, hi in intervals)
+
+        ip_windows = {}
+        for ticket in my_tickets:
+            windows = []
+            for idx, seg in enumerate(ticket_segments[ticket.issue_key]):
+                if not seg['status'] or seg['status'].lower() not in _ip_statuses or not seg['entered_at']:
+                    continue
+                lo = max(seg['entered_at'], start_dt)
+                hi = min(seg['exited_at'] or now, now)
+                if hi <= lo:
+                    continue
+                if time_mode == 'exclusive':
+                    windows.append((idx, lo, hi))
+                else:
+                    windows.extend((idx, a, b) for a, b in _carry_trim(seg['entered_at'], [(lo, hi)]))
+            ip_windows[ticket.issue_key] = windows
+
+        children_of = defaultdict(list)
+        for ticket in my_tickets:
+            if ticket.parent_key:
+                children_of[ticket.parent_key].append(ticket.issue_key)
+
         ticket_ip_range_secs = {}
         ticket_ip_range_labor_secs = {}
         for ticket in my_tickets:
-            segs = ticket_segments[ticket.issue_key]
-            qualifying = [
-                (idx, seg) for idx, seg in enumerate(segs)
-                if seg['status']
-                and seg['status'].lower() in _ip_statuses
-                and seg['entered_at']
-                and seg['entered_at'] >= start_dt
-            ]
+            key = ticket.issue_key
+            windows = ip_windows[key]
             if time_mode == 'exclusive':
-                ticket_ip_range_secs[ticket.issue_key] = sum(
-                    excl_secs(ticket.issue_key, idx, seg['entered_at'], now) for idx, seg in qualifying
+                ticket_ip_range_secs[key] = sum(
+                    excl_secs(key, idx, lo, hi, carry=ticket_segments[key][idx]['entered_at'])
+                    for idx, lo, hi in windows
                 )
-                ticket_ip_range_labor_secs[ticket.issue_key] = sum(
-                    excl_secs(ticket.issue_key, idx, seg['entered_at'], now, labor=True) for idx, seg in qualifying
+                ticket_ip_range_labor_secs[key] = sum(
+                    excl_secs(key, idx, lo, hi, labor=True) for idx, lo, hi in windows
                 )
                 continue
-            ticket_ip_range_secs[ticket.issue_key] = sum(
-                max(0, int((min(seg['exited_at'] or now, now) - seg['entered_at']).total_seconds()))
-                for _, seg in qualifying
-            )
-            ticket_ip_range_labor_secs[ticket.issue_key] = sum(
-                working_seconds_bounds(seg['entered_at'], min(seg['exited_at'] or now, now))
-                for _, seg in qualifying
-            )
+            own = [(lo, hi) for _, lo, hi in windows]
+            child_ivs = [(lo, hi) for ck in children_of.get(key, ()) for _, lo, hi in ip_windows.get(ck, ())]
+            if child_ivs:
+                with_children = _merge_ivs(own + child_ivs)
+                children_only = _merge_ivs(child_ivs)
+                ticket_ip_range_secs[key] = _ivs_secs(with_children) - _ivs_secs(children_only)
+                ticket_ip_range_labor_secs[key] = (
+                    _ivs_secs(with_children, labor=True) - _ivs_secs(children_only, labor=True)
+                )
+            else:
+                ticket_ip_range_secs[key] = _ivs_secs(own)
+                ticket_ip_range_labor_secs[key] = _ivs_secs(own, labor=True)
 
         filtered_keys = [t.issue_key for t in filtered_tickets]
         tag_seconds = defaultdict(int)
@@ -841,7 +932,7 @@ class DailyReportView(LoginRequiredMixin, View):
                 # owner is "paused" until the preempting ticket leaves IP.
                 total_secs = excl_secs(ticket.issue_key, ongoing_idx, ongoing_seg['entered_at'], now) if ongoing_seg else 0
                 today_ip_secs = sum(
-                    excl_secs(ticket.issue_key, i, today_start, now)
+                    excl_secs(ticket.issue_key, i, today_start, now, carry=seg['entered_at'])
                     for i, seg in enumerate(segs)
                     if seg['status'] and seg['status'].lower() in _ip_statuses and seg['entered_at']
                 )
@@ -854,10 +945,13 @@ class DailyReportView(LoginRequiredMixin, View):
                 else:
                     total_secs = 0
                 today_ip_secs = sum(
-                    max(0, int((min(seg['exited_at'] or now, now) - max(seg['entered_at'], today_start)).total_seconds()))
+                    int((b - a).total_seconds())
                     for seg in segs
                     if seg['status'] and seg['status'].lower() in _ip_statuses
                     and seg['entered_at'] and min(seg['exited_at'] or now, now) > max(seg['entered_at'], today_start)
+                    for a, b in _carry_trim(
+                        seg['entered_at'], [(max(seg['entered_at'], today_start), min(seg['exited_at'] or now, now))]
+                    )
                 )
                 running = bool(ongoing_seg)
             today_rows.append({
@@ -914,10 +1008,13 @@ class DailyReportView(LoginRequiredMixin, View):
 
         def _today_ivs(issue_key):
             return [
-                (max(seg['entered_at'], today_start), min(seg['exited_at'] or now, now))
+                iv
                 for seg in ticket_segments[issue_key]
                 if seg['status'] and seg['status'].lower() in _ip_statuses and seg['entered_at']
                 and min(seg['exited_at'] or now, now) > max(seg['entered_at'], today_start)
+                for iv in _carry_trim(
+                    seg['entered_at'], [(max(seg['entered_at'], today_start), min(seg['exited_at'] or now, now))]
+                )
             ]
 
         _parent_row_by_key = {r['ticket'].issue_key: r for r in today_rows if r['ticket'].issue_key in _parent_keys}

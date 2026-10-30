@@ -82,13 +82,19 @@ class ExclusiveTimeReportTests(TestCase):
             (at(1, '10:07:37'), 'Selected for Development', 'In Progress'),
         ], 'In Progress')
 
-    def test_default_matches_overlap(self):
+    def test_default_matches_exclusive(self):
         self.real_day_tickets()
         end = at(2, '00:00')
-        self.assertEqual(
-            self.ip_display(self.report(end)),
-            self.ip_display(self.report(end, time='overlap')),
-        )
+        response = self.report(end)
+        self.assertEqual(response.context['time_mode'], 'exclusive')
+        self.assertEqual(self.ip_display(response), self.ip_display(self.report(end, time='exclusive')))
+        self.assertNotEqual(self.ip_display(response), self.ip_display(self.report(end, time='overlap')))
+
+    def test_overlap_is_opt_in_and_carried_by_links(self):
+        response = self.report(at(2, '00:00'), time='overlap')
+        self.assertEqual(response.context['time_mode'], 'overlap')
+        self.assertContains(response, '<input type="hidden" name="time" value="overlap">')
+        self.assertNotContains(self.report(at(2, '00:00')), '<input type="hidden" name="time"')
 
     def test_overlap_counts_every_task(self):
         self.real_day_tickets()
@@ -99,10 +105,10 @@ class ExclusiveTimeReportTests(TestCase):
     def test_exclusive_real_data_example(self):
         self.real_day_tickets()
         shown = self.ip_display(self.report(at(2, '00:00'), time='exclusive'))
-        # 2107's morning IP segment was entered on Sep 30, before the range, and has already
-        # ended: the existing range rule only credits segments ENTERED inside the range (plus
-        # ongoing ones), so only its 13:55:00-13:55:02 slice counts here.
-        self.assertEqual(shown['GITIN-2107'], '0m')
+        # 2107's morning IP segment was entered on Sep 30, before the range: since v5.18.3 the
+        # part inside the range counts, but a stay carried over from the previous day only counts
+        # from the schedule's first working hour (09:00 here): 09:00-09:31:14 plus 13:55:00-02.
+        self.assertEqual(shown['GITIN-2107'], '31m')
         self.assertEqual(shown['GITIN-2116'], '10h 4m')
         self.assertEqual(shown['GITIN-2132'], '3h 47m')
 
@@ -143,15 +149,16 @@ class ExclusiveTimeReportTests(TestCase):
             (at(1, '02:00'), 'In Progress', 'Bloqueado'),
         ], 'Bloqueado')
         end = at(2, '00:00')
-        self.assertEqual(self.ip_display(self.report(end, time='overlap'))['A-1'], '23h 59m')
-        self.assertEqual(self.ip_display(self.report(end, time='exclusive'))['A-1'], '21h 59m')
+        # A was entered the day before, so it counts from the first working hour (09:00).
+        self.assertEqual(self.ip_display(self.report(end, time='overlap'))['A-1'], '14h 59m')
+        self.assertEqual(self.ip_display(self.report(end, time='exclusive'))['A-1'], '14h 59m')
 
     def test_exclusive_total_never_exceeds_elapsed(self):
         self.real_day_tickets()
         response = self.report(at(2, '00:00'), time='exclusive')
         secs = sum(t['secs'] for t in response.context['status_totals'] if t['status'] == 'In Progress')
-        # 2s (2107) + 10:04:57 (2116) + 3:47:23 (2132); never more than the day itself.
-        self.assertEqual(secs, 49942)
+        # 31:16 (2107, carried over: counts from 09:00) + 10:04:57 (2116) + 3:47:23 (2132).
+        self.assertEqual(secs, 51816)
         self.assertLessEqual(secs, 24 * 3600)
 
     def test_today_panel_marks_preempted_ticket_paused(self):
@@ -160,9 +167,117 @@ class ExclusiveTimeReportTests(TestCase):
         rows = {r['ticket'].issue_key: r for r in response.context['today_rows']}
         self.assertEqual(rows['GITIN-2132']['jira_ongoing'], 'paused')
         self.assertNotEqual(rows['GITIN-2116']['jira_ongoing'], 'paused')
-        # Envelope = 2116's time + 2107's exclusive time (9h31m of "today" before 13:55).
-        self.assertEqual(rows['GITIN-2116']['parent_row']['jira_today'], '10h 36m')
+        # Envelope = 2116's time + 2107's exclusive time (09:00-09:31 carried over, plus 2 s).
+        self.assertEqual(rows['GITIN-2116']['parent_row']['jira_today'], '1h 36m')
         self.assertEqual(rows['GITIN-2132']['jira_today'], '3h 47m')
+
+    def tag(self, key, name):
+        ticket = Ticket.objects.create(
+            title='x', description='x', type='incident', external_id=key, requester=self.user,
+        )
+        TicketTag.objects.create(ticket=ticket, tag=Tag.objects.get_or_create(name=name)[0])
+
+    def tag_totals(self, response):
+        return {row['tag']: row for row in response.context['tag_totals']}
+
+    def test_stay_from_before_range_ended_inside_counts_in_range_part(self):
+        # Carried over from the previous day: counts from 09:00 (first working hour) to 12:00.
+        self.ticket('A-1', [
+            (sep(30, '22:00'), 'Backlog', 'In Progress'),
+            (at(1, '12:00'), 'In Progress', 'Done'),
+        ], 'Done')
+        for mode in ('overlap', 'exclusive'):
+            with self.subTest(mode=mode):
+                shown = self.ip_display(self.report(at(2, '00:00'), time=mode))
+                self.assertEqual(shown['A-1'], '3h 0m')
+
+    def test_stay_ended_before_range_counts_zero(self):
+        self.ticket('A-1', [
+            (sep(29, '10:00'), 'Backlog', 'In Progress'),
+            (sep(29, '12:00'), 'In Progress', 'Done'),
+        ], 'Done')
+        for mode in ('overlap', 'exclusive'):
+            with self.subTest(mode=mode):
+                response = self.report(at(2, '00:00'), time=mode)
+                self.assertNotIn('A-1', [r['ticket'].issue_key for r in response.context['pivot_rows']])
+
+    def test_tag_totals_count_ongoing_and_straddling_stays_exclusive(self):
+        # A (newer) owns 00:00-12:00, then B (ongoing since Sep 30 20:00) owns the rest. Both are
+        # carried over, so neither counts before 09:00: A 09-12 (3h) + B 12:00-23:59:59.
+        self.ticket('A-1', [
+            (sep(30, '22:00'), 'Backlog', 'In Progress'),
+            (at(1, '12:00'), 'In Progress', 'Done'),
+        ], 'Done')
+        self.ticket('B-1', [(sep(30, '20:00'), 'Backlog', 'In Progress')], 'In Progress')
+        self.tag('A-1', 'SmartPedidos')
+        self.tag('B-1', 'SmartPedidos')
+        row = self.tag_totals(self.report(at(2, '00:00'), time='exclusive'))['SmartPedidos']
+        # The custom one-day range ends at 23:59:59.
+        self.assertEqual(row['secs'], 15 * 3600 - 1)
+        # Labor 09:00-18:00 on a Thursday: A 09-12 plus B 12-18.
+        self.assertEqual(row['labor_secs'], 9 * 3600)
+
+    def test_tag_totals_overlap_counts_each_ticket_wall_clock(self):
+        self.ticket('A-1', [
+            (sep(30, '22:00'), 'Backlog', 'In Progress'),
+            (at(1, '12:00'), 'In Progress', 'Done'),
+        ], 'Done')
+        self.ticket('B-1', [(sep(30, '20:00'), 'Backlog', 'In Progress')], 'In Progress')
+        self.tag('A-1', 'SmartPedidos')
+        self.tag('B-1', 'SmartPedidos')
+        row = self.tag_totals(self.report(at(2, '00:00'), time='overlap'))['SmartPedidos']
+        # A 09:00-12:00 (3h) + B 09:00-23:59:59, both carried over from the previous day.
+        self.assertEqual(row['secs'], 18 * 3600 - 1)
+
+    def test_carried_over_stay_does_not_count_before_first_working_hour(self):
+        # Forgotten In Progress overnight: 00:00-09:00 does not count, same-day entries do.
+        self.ticket('A-1', [(sep(30, '22:00'), 'Backlog', 'In Progress')], 'In Progress')
+        self.ticket('B-1', [(at(1, '07:00'), 'Backlog', 'In Progress')], 'In Progress')
+        for mode in ('overlap',):
+            shown = self.ip_display(self.report(at(2, '00:00'), time=mode))
+            self.assertEqual(shown['A-1'], '14h 59m')
+            self.assertEqual(shown['B-1'], '16h 59m')
+
+    def test_carried_over_stay_counts_nothing_on_a_non_working_day(self):
+        # Oct 3 2026 is a Saturday.
+        self.ticket('A-1', [
+            (at(2, '20:00'), 'Backlog', 'In Progress'),
+            (at(3, '12:00'), 'In Progress', 'Done'),
+        ], 'Done')
+        for mode in ('overlap', 'exclusive'):
+            with self.subTest(mode=mode):
+                response = self.report(at(4, '00:00'), time=mode, date_from='2026-10-03', date_to='2026-10-03')
+                self.assertNotIn('A-1', [r['ticket'].issue_key for r in response.context['pivot_rows']])
+
+    def test_tag_totals_overlap_counts_parent_and_child_once(self):
+        # P (parent) 08:00-12:00 and its subtask C 09:00-11:00 carry the same tag.
+        self.ticket('P-1', [
+            (at(1, '08:00'), 'Backlog', 'In Progress'),
+            (at(1, '12:00'), 'In Progress', 'Done'),
+        ], 'Done')
+        self.ticket('C-1', [
+            (at(1, '09:00'), 'Backlog', 'In Progress'),
+            (at(1, '11:00'), 'In Progress', 'Done'),
+        ], 'Done', parent='P-1')
+        self.tag('P-1', 'SmartPedidos')
+        self.tag('C-1', 'SmartPedidos')
+        for mode in ('overlap', 'exclusive'):
+            with self.subTest(mode=mode):
+                row = self.tag_totals(self.report(at(2, '00:00'), time=mode))['SmartPedidos']
+                # C 2h + P only while C was not IP (08-09, 11-12) = 4h, not 6h.
+                self.assertEqual(row['secs'], 4 * 3600)
+                # Labor 09:00-18:00: C 2h + P 11:00-12:00 = 3h.
+                self.assertEqual(row['labor_secs'], 3 * 3600)
+
+    def test_tag_total_matches_pivot_for_same_ticket(self):
+        self.ticket('A-1', [
+            (sep(30, '22:00'), 'Backlog', 'In Progress'),
+            (at(1, '12:00'), 'In Progress', 'Done'),
+        ], 'Done')
+        self.tag('A-1', 'Concentrador')
+        response = self.report(at(2, '00:00'), time='exclusive')
+        self.assertEqual(self.tag_totals(response)['Concentrador']['display'], '3h 0m')
+        self.assertEqual(self.ip_display(response)['A-1'], '3h 0m')
 
 
 # ---------------------------------------------------------------------------

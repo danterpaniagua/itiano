@@ -8,7 +8,7 @@
     <form method="get" class="d-flex flex-wrap gap-1 align-items-center" id="range-form">
         {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
         {% for s in selected_statuses %}<input type="hidden" name="statuses" value="{{ s }}">{% endfor %}
-        {% if time_mode == 'exclusive' %}<input type="hidden" name="time" value="exclusive">{% endif %}
+        {% if time_mode == 'overlap' %}<input type="hidden" name="time" value="overlap">{% endif %}
         <div class="btn-group btn-group-sm" role="group">
             <button type="submit" name="range" value="today"
                 class="btn btn-{% if range_param == 'today' %}primary{% else %}outline-secondary{% endif %}">Today</button>
@@ -37,7 +37,7 @@
         <span class="small text-muted">Time:</span>
         <div class="btn-group btn-group-sm" role="group">
             <button type="submit" name="time" value="overlap"
-                class="btn btn-{% if time_mode != 'exclusive' %}primary{% else %}outline-secondary{% endif %}">Overlap</button>
+                class="btn btn-{% if time_mode == 'overlap' %}primary{% else %}outline-secondary{% endif %}">Overlap</button>
             <button type="submit" name="time" value="exclusive"
                 class="btn btn-{% if time_mode == 'exclusive' %}primary{% else %}outline-secondary{% endif %}">Exclusive</button>
         </div>
@@ -91,7 +91,7 @@
                 </button>
                 <div class="dropdown-menu p-2" style="min-width:200px">
                     <form method="get" id="tags-filter-form">
-                        <input type="hidden" name="range" value="{{ range_param }}">{% if time_mode == 'exclusive' %}<input type="hidden" name="time" value="exclusive">{% endif %}
+                        <input type="hidden" name="range" value="{{ range_param }}">{% if time_mode == 'overlap' %}<input type="hidden" name="time" value="overlap">{% endif %}
                         {% if range_param == 'custom' %}<input type="hidden" name="date_from" value="{{ custom_date_from }}"><input type="hidden" name="date_to" value="{{ custom_date_to }}">{% endif %}
                         {% for s in selected_statuses %}<input type="hidden" name="statuses" value="{{ s }}">{% endfor %}
                         {% for tag in all_tags %}
@@ -118,7 +118,7 @@
                 </button>
                 <div class="dropdown-menu p-2" style="min-width:200px">
                     <form method="get" id="statuses-filter-form">
-                        <input type="hidden" name="range" value="{{ range_param }}">{% if time_mode == 'exclusive' %}<input type="hidden" name="time" value="exclusive">{% endif %}
+                        <input type="hidden" name="range" value="{{ range_param }}">{% if time_mode == 'overlap' %}<input type="hidden" name="time" value="overlap">{% endif %}
                         {% if range_param == 'custom' %}<input type="hidden" name="date_from" value="{{ custom_date_from }}"><input type="hidden" name="date_to" value="{{ custom_date_to }}">{% endif %}
                         {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
                         {% for status in all_statuses %}
@@ -137,13 +137,13 @@
 
             {# Clear buttons #}
             {% if selected_tags %}
-            <a href="?range={{ range_param }}{% if time_mode == 'exclusive' %}&time=exclusive{% endif %}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
+            <a href="?range={{ range_param }}{% if time_mode == 'overlap' %}&time=overlap{% endif %}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
                class="btn btn-sm btn-outline-danger">
                 <i class="bi bi-x"></i> Clear tags
             </a>
             {% endif %}
             {% if selected_statuses %}
-            <a href="?range={{ range_param }}{% if time_mode == 'exclusive' %}&time=exclusive{% endif %}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for t in selected_tags %}&tags={{ t }}{% endfor %}"
+            <a href="?range={{ range_param }}{% if time_mode == 'overlap' %}&time=overlap{% endif %}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for t in selected_tags %}&tags={{ t }}{% endfor %}"
                class="btn btn-sm btn-outline-danger">
                 <i class="bi bi-x"></i> Clear status
             </a>
@@ -162,13 +162,13 @@
     <span class="badge bg-dark">{{ custom_date_from }} – {{ custom_date_to }}</span>
     {% endif %}
     {% for tag in selected_tags %}
-    <a href="?range={{ range_param }}{% if time_mode == 'exclusive' %}&time=exclusive{% endif %}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for t in selected_tags %}{% if t != tag %}&tags={{ t }}{% endif %}{% endfor %}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
+    <a href="?range={{ range_param }}{% if time_mode == 'overlap' %}&time=overlap{% endif %}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for t in selected_tags %}{% if t != tag %}&tags={{ t }}{% endif %}{% endfor %}{% for s in selected_statuses %}&statuses={{ s }}{% endfor %}"
        class="badge bg-primary text-decoration-none">
         {{ tag }} <i class="bi bi-x" style="font-size:0.7em"></i>
     </a>
     {% endfor %}
     {% for status in selected_statuses %}
-    <a href="?range={{ range_param }}{% if time_mode == 'exclusive' %}&time=exclusive{% endif %}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for t in selected_tags %}&tags={{ t }}{% endfor %}{% for s in selected_statuses %}{% if s != status %}&statuses={{ s }}{% endif %}{% endfor %}"
+    <a href="?range={{ range_param }}{% if time_mode == 'overlap' %}&time=overlap{% endif %}{% if range_param == 'custom' %}&date_from={{ custom_date_from }}&date_to={{ custom_date_to }}{% endif %}{% for t in selected_tags %}&tags={{ t }}{% endfor %}{% for s in selected_statuses %}{% if s != status %}&statuses={{ s }}{% endif %}{% endfor %}"
        class="badge bg-secondary text-decoration-none">
         {{ status }} <i class="bi bi-x" style="font-size:0.7em"></i>
     </a>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — In Progress map, focus view (real week)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  body { background:#f4f6f8; }
+  .map-day { border-top:1px solid #dee2e6; padding-top:.75rem; margin-top:.75rem; }
+  .map-day:first-of-type { border-top:0; margin-top:0; padding-top:0; }
+  .map-cards { display:flex; flex-wrap:wrap; gap:.75rem 1.5rem; }
+  .map-card { width:100%; position:relative; background:#fff; border:1px solid #dee2e6; border-radius:.5rem; padding:.5rem .65rem; }
+  .env-grp { background:#eef4ff !important; border-color:#a8c7fa !important; }
+  .env-grp .env-head { display:flex; justify-content:space-between; gap:.5rem; font-size:.8rem; padding-bottom:.35rem; }
+  .env-grp .map-card { width:100% !important; position:static; margin-top:.4rem; border-left:3px solid #a8c7fa; }
+  .env-grp .map-card::after { display:none !important; }
+  .env-grp .map-card.carried { border-left:3px solid #0d6efd; }
+  .map-card.carried { border-left:3px solid #0d6efd; }
+  .map-card.resumed { border-left:3px solid #fd7e14; }
+  @media (min-width:768px) {
+    .map-card { width:215px; }
+    .map-card:not(.last)::after { content:"\F138"; font-family:"bootstrap-icons"; position:absolute; right:-1.3rem; top:50%; transform:translateY(-50%); color:#adb5bd; }
+  }
+  .map-id { font-weight:600; font-size:.85rem; text-decoration:none; }
+  .map-title { font-size:.8rem; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.4em; }
+  .map-tag { font-size:.65rem; }
+  @media (max-width:767.98px) { .map-day:not(.open) .map-card.extra { display:none; } }
+  .st-created { color:#6f42c1; } .st-done { color:#198754; } .st-blocked { color:#dc3545; }
+  .st-testing { color:#0d6efd; } .st-queue { color:#6c757d; } .st-ip { color:#0d6efd; }
+  .legend i { margin-right:.2rem; }
+  .note { font-size:.7rem; color:#6c757d; }
+</style>
+</head>
+<body class="p-3 p-md-4">
+<div class="container-fluid" style="max-width:1100px">
+
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+    <h5 class="mb-0 me-auto"><i class="bi bi-diagram-3 me-1"></i> In Progress map — focus view</h5>
+    <span class="text-muted small">REAL DATA Fri 23/10 → Fri 30/10 (generated Fri 30/10 16:19) — local file, do not commit</span>
+  </div>
+  <p class="text-muted small">
+    Exclusive (default): one ticket owns the time at each moment. The chain follows who had the focus; cards show the time
+    that ticket <em>owned</em>. Overlap: the current entries map (unchanged). Use the toggles to compare.
+  </p>
+
+  <div class="card mb-4">
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+      <strong class="me-auto"><i class="bi bi-diagram-3 me-1"></i>In Progress map</strong>
+      <div class="btn-group btn-group-sm" id="rangeGroup" role="group" aria-label="Range">
+        <button class="btn btn-outline-secondary" data-r="today">Today</button>
+        <button class="btn btn-outline-secondary active" data-r="week">Week</button>
+        <button class="btn btn-outline-secondary" data-r="month">Month</button>
+      </div>
+      <div class="d-flex flex-wrap gap-1 align-items-center">
+        <input id="dFrom" class="form-control form-control-sm" style="width:118px" placeholder="dd/mmm/yyyy" aria-label="From">
+        <span class="small text-muted">→</span>
+        <input id="dTo" class="form-control form-control-sm" style="width:118px" placeholder="dd/mmm/yyyy" aria-label="To">
+        <button id="dApply" class="btn btn-sm btn-outline-primary">Apply</button>
+      </div>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Time mode" id="modeGroup">
+        <button class="btn btn-outline-secondary" data-mode="overlap">Overlap</button>
+        <button class="btn btn-outline-secondary active" data-mode="exclusive">Exclusive</button>
+      </div>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Card time" id="timeGroup">
+        <button class="btn btn-outline-secondary active" data-t="total">Total</button>
+        <button class="btn btn-outline-secondary" data-t="wh">W-H</button>
+      </div>
+      <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-clipboard"></i> Copy as Mermaid</button>
+    </div>
+    <div class="card-body">
+      <div class="small text-muted mb-1" id="rangeLabel"></div>
+      <div class="small mb-2" id="summary"></div>
+      <div class="small text-muted mb-3 legend">
+        <span><i class="bi bi-plus-circle-fill st-created"></i>created</span>
+        <span class="ms-2"><i class="bi bi-check-circle-fill st-done"></i>done</span>
+        <span class="ms-2"><i class="bi bi-slash-circle-fill st-blocked"></i>blocked</span>
+        <span class="ms-2"><i class="bi bi-flask st-testing"></i>testing</span>
+        <span class="ms-2"><i class="bi bi-circle st-queue"></i>queue</span>
+        <span class="ms-2"><i class="bi bi-play-circle-fill st-ip"></i>still in progress</span>
+        <span class="ms-3"><span class="badge text-bg-primary">▶ since</span> carried over from before the day</span>
+        <span class="ms-2"><span class="badge text-bg-warning">↩ resumed</span> got the focus back</span>
+      </div>
+      <div id="alert"></div>
+      <div id="days"></div>
+      <p class="note mt-3 mb-0" id="foot"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+// kind: created|blocked|testing|queue|done ; dest: done|blocked|testing|queue|ip
+var ICON = {
+  created:['bi-plus-circle-fill','st-created'], done:['bi-check-circle-fill','st-done'],
+  blocked:['bi-slash-circle-fill','st-blocked'], testing:['bi-flask','st-testing'],
+  queue:['bi-circle','st-queue'], ip:['bi-play-circle-fill','st-ip']
+};
+// REAL data, generated Fri 30/10 16:24, range Fri 23/10 → Fri 30/10 (local only, do not commit)
+var EXCL = [{"label": "Fri 30/10", "cards": [{"id": "GITIN-2318", "title": "[SP] Concentrador update 20->22", "tags": ["Concentrador", "INFRADEVOPS", "SRE", "SmartPedidos"], "o": "blocked", "d": "done", "paused": false, "since": "Thu 29/10 17:18", "resumed": false, "total": "3h 39m", "wh": "3h 39m", "secs": 13175, "wh_s": 13175, "folded": "2 short returns (14 s, 16 s) folded", "start": "08:00", "end": "11:39", "parent": {"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade"}, "parent_mine": true, "parent_ip": true}, {"id": "GITIN-2201", "title": "[CLOUD] Evaluar Proveedor de Envio de Correos", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "done", "d": "done", "paused": false, "since": "", "resumed": false, "total": "20 s", "wh": "20 s", "secs": 20, "wh_s": 20, "folded": "", "start": "11:39", "end": "11:39", "parent": {"id": "GITIN-1310", "title": "E6. Gestion de Costos"}, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2341", "title": "[OPE] Cotizacion Sendgrid", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "blocked", "paused": false, "since": "", "resumed": false, "total": "20m", "wh": "20m", "secs": 1214, "wh_s": 1214, "folded": "", "start": "11:39", "end": "11:59", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade", "tags": ["INFRADEVOPS", "SRE", "SmartPedidos"], "o": "blocked", "d": "blocked", "paused": false, "since": "Thu 29/10 17:18", "resumed": false, "total": "2h 30m", "wh": "2h 30m", "secs": 9056, "wh_s": 9056, "folded": "", "start": "12:00", "end": "14:31", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2341", "title": "[OPE] Cotizacion Sendgrid", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "blocked", "d": "blocked", "paused": false, "since": "", "resumed": false, "total": "34m", "wh": "34m", "secs": 2082, "wh_s": 2082, "folded": "", "start": "14:31", "end": "15:05", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2343", "title": "[OPE] Seguridad Informatica. Caso Binance", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": false, "since": "", "resumed": false, "total": "1h 5m", "wh": "1h 5m", "secs": 3904, "wh_s": 3904, "folded": "", "start": "15:06", "end": "16:31", "parent": null, "parent_mine": false, "parent_ip": false}], "subs": {"GITIN-2315": [1, 2], "GITIN-1310": [1, 14]}, "date": "2026-10-30"}, {"label": "Thu 29/10", "cards": [{"id": "GITIN-2318", "title": "[SP] Concentrador update 20->22", "tags": ["Concentrador", "INFRADEVOPS", "SRE", "SmartPedidos"], "o": "created", "d": "blocked", "paused": false, "since": "Wed 28/10 16:23", "resumed": false, "total": "55m", "wh": "55m", "secs": 3337, "wh_s": 3337, "folded": "", "start": "08:00", "end": "08:55", "parent": {"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade"}, "parent_mine": true, "parent_ip": true}, {"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "blocked", "paused": false, "since": "Thu 22/10 11:02", "resumed": false, "total": "3h 34m", "wh": "3h 34m", "secs": 12877, "wh_s": 12877, "folded": "", "start": "08:55", "end": "12:30", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": false}, {"id": "GITIN-2307", "title": "[OPE] Presentacion de IA", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "blocked", "paused": false, "since": "", "resumed": false, "total": "4h 46m", "wh": "4h 29m", "secs": 17160, "wh_s": 16159, "folded": "", "start": "12:30", "end": "17:16", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2318", "title": "[SP] Concentrador update 20->22", "tags": ["Concentrador", "INFRADEVOPS", "SRE", "SmartPedidos"], "o": "blocked", "d": "ip", "paused": true, "since": "", "resumed": false, "total": "6h 41m", "wh": "0 s", "secs": 24076, "wh_s": 0, "folded": "", "start": "17:18", "end": "00:00", "parent": {"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade"}, "parent_mine": true, "parent_ip": false}], "subs": {"GITIN-2315": [1, 2], "GITIN-2268": [1, 4]}, "date": "2026-10-29"}, {"label": "Wed 28/10", "cards": [{"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": true, "since": "Thu 22/10 11:02", "resumed": false, "total": "2h 7m", "wh": "2h 7m", "secs": 7670, "wh_s": 7670, "folded": "", "start": "08:00", "end": "10:07", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": false}, {"id": "GITIN-2201", "title": "[CLOUD] Evaluar Proveedor de Envio de Correos", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "blocked", "d": "done", "paused": false, "since": "", "resumed": false, "total": "20m", "wh": "20m", "secs": 1225, "wh_s": 1225, "folded": "", "start": "10:07", "end": "10:28", "parent": {"id": "GITIN-1310", "title": "E6. Gestion de Costos"}, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": true, "since": "", "resumed": true, "total": "12m", "wh": "12m", "secs": 773, "wh_s": 773, "folded": "", "start": "10:28", "end": "10:41", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": false}, {"id": "GITIN-2228", "title": "[OPE] Graylog: nvme0n3. Alta latencia", "tags": ["Graylog", "INFRADEVOPS", "Operaciones", "SRE"], "o": "blocked", "d": "done", "paused": false, "since": "", "resumed": false, "total": "2h 33m", "wh": "2h 33m", "secs": 9228, "wh_s": 9228, "folded": "", "start": "10:41", "end": "13:14", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": true, "since": "", "resumed": true, "total": "3h 8m", "wh": "3h 8m", "secs": 11330, "wh_s": 11330, "folded": "", "start": "13:14", "end": "16:23", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": false}, {"id": "GITIN-2318", "title": "[SP] Concentrador update 20->22", "tags": ["Concentrador", "INFRADEVOPS", "SRE", "SmartPedidos"], "o": "created", "d": "ip", "paused": true, "since": "", "resumed": false, "total": "7h 36m", "wh": "36m", "secs": 27372, "wh_s": 2172, "folded": "", "start": "16:23", "end": "00:00", "parent": {"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade"}, "parent_mine": true, "parent_ip": false}], "subs": {"GITIN-2268": [1, 4], "GITIN-1310": [1, 14], "GITIN-2315": [1, 2]}, "date": "2026-10-28"}, {"label": "Tue 27/10", "cards": [{"id": "GITIN-2316", "title": "[SML] Pico de requests", "tags": ["INFRADEVOPS", "SEGURIDAD", "SRE", "SmartLoyalty"], "o": "created", "d": "done", "paused": false, "since": "Mon 26/10 21:33", "resumed": false, "total": "1h 9m", "wh": "1h 9m", "secs": 4189, "wh_s": 4189, "folded": "", "start": "08:00", "end": "09:09", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": true, "since": "Thu 22/10 11:02", "resumed": false, "total": "1m", "wh": "50 s", "secs": 84, "wh_s": 50, "folded": "3 short returns (14 s, 27 s, 34 s) folded", "start": "09:09", "end": "09:09", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": false}, {"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade", "tags": ["INFRADEVOPS", "SRE", "SmartPedidos"], "o": "blocked", "d": "blocked", "paused": false, "since": "", "resumed": false, "total": "2m", "wh": "2m", "secs": 163, "wh_s": 163, "folded": "1 short return (5 s) folded", "start": "09:09", "end": "09:12", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2317", "title": "[SP] Platform update 20->22", "tags": ["INFRADEVOPS", "Platform", "SRE", "SmartPedidos"], "o": "created", "d": "done", "paused": false, "since": "", "resumed": false, "total": "40m", "wh": "40m", "secs": 2418, "wh_s": 2418, "folded": "", "start": "09:12", "end": "09:52", "parent": {"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade"}, "parent_mine": true, "parent_ip": true}, {"id": "GITIN-2320", "title": "[OPE] Comandos IA", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "created", "d": "ip", "paused": true, "since": "", "resumed": false, "total": "34m", "wh": "34m", "secs": 2044, "wh_s": 2044, "folded": "", "start": "09:53", "end": "10:27", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2323", "title": "[SML] Problemas con Despliegue", "tags": ["INFRADEVOPS"], "o": "created", "d": "ip", "paused": true, "since": "", "resumed": false, "total": "2h 56m", "wh": "2h 56m", "secs": 10610, "wh_s": 10610, "folded": "", "start": "10:27", "end": "13:24", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2324", "title": "[OPE] WebServiceCG: Alertas y WebScenario", "tags": ["INFRADEVOPS", "Operaciones", "SRE", "SmartLoyalty", "WebserviceCG"], "o": "created", "d": "done", "paused": false, "since": "", "resumed": false, "total": "44 s", "wh": "44 s", "secs": 44, "wh_s": 44, "folded": "", "start": "13:24", "end": "13:24", "parent": {"id": "GITIN-2323", "title": "[SML] Problemas con Despliegue"}, "parent_mine": true, "parent_ip": true}, {"id": "GITIN-2323", "title": "[SML] Problemas con Despliegue", "tags": ["INFRADEVOPS"], "o": "created", "d": "blocked", "paused": false, "since": "", "resumed": true, "total": "1h 31m", "wh": "1h 31m", "secs": 5503, "wh_s": 5503, "folded": "", "start": "13:24", "end": "14:56", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2328", "title": "[OPE] AgustinZ con problemas en el entorno", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "created", "d": "done", "paused": false, "since": "", "resumed": false, "total": "3h 49m", "wh": "2h 2m", "secs": 13791, "wh_s": 7371, "folded": "", "start": "14:57", "end": "18:46", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2329", "title": "[OPE] Graylog: Problemas cont Token Creation", "tags": ["Graylog", "INFRADEVOPS", "SRE"], "o": "created", "d": "done", "paused": false, "since": "", "resumed": false, "total": "2m", "wh": "0 s", "secs": 160, "wh_s": 0, "folded": "", "start": "18:47", "end": "18:50", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": true, "since": "", "resumed": true, "total": "5h 9m", "wh": "0 s", "secs": 18585, "wh_s": 0, "folded": "", "start": "18:50", "end": "00:00", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": false}], "subs": {"GITIN-2268": [1, 4], "GITIN-2315": [1, 2], "GITIN-2323": [1, 1]}, "date": "2026-10-27"}, {"label": "Mon 26/10", "cards": [{"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": true, "since": "Thu 22/10 11:02", "resumed": false, "total": "54m", "wh": "54m", "secs": 3297, "wh_s": 3297, "folded": "1 short return (37 s) folded", "start": "08:00", "end": "08:54", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": false}, {"id": "GITIN-2300", "title": "[OPE] Problemas Trivy", "tags": ["INFRADEVOPS", "Jenkins", "Operaciones", "SRE"], "o": "created", "d": "done", "paused": false, "since": "", "resumed": false, "total": "1h 38m", "wh": "1h 38m", "secs": 5923, "wh_s": 5923, "folded": "", "start": "08:54", "end": "10:33", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2310", "title": "[OPE] Node vulnerability", "tags": ["INFRADEVOPS", "Operaciones", "SRE", "SmartPedidos"], "o": "created", "d": "done", "paused": false, "since": "", "resumed": false, "total": "4m", "wh": "4m", "secs": 243, "wh_s": 243, "folded": "", "start": "10:33", "end": "10:37", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": true, "since": "", "resumed": true, "total": "4h 55m", "wh": "4h 55m", "secs": 17752, "wh_s": 17752, "folded": "", "start": "10:37", "end": "15:33", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": false}, {"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade", "tags": ["INFRADEVOPS", "SRE", "SmartPedidos"], "o": "created", "d": "blocked", "paused": false, "since": "", "resumed": false, "total": "5h 57m", "wh": "1h 26m", "secs": 21448, "wh_s": 5182, "folded": "", "start": "15:33", "end": "21:31", "parent": null, "parent_mine": false, "parent_ip": false}, {"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": true, "since": "", "resumed": true, "total": "2m", "wh": "0 s", "secs": 137, "wh_s": 0, "folded": "", "start": "21:31", "end": "21:33", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": false}, {"id": "GITIN-2316", "title": "[SML] Pico de requests", "tags": ["INFRADEVOPS", "SEGURIDAD", "SRE", "SmartLoyalty"], "o": "created", "d": "ip", "paused": true, "since": "", "resumed": false, "total": "2h 26m", "wh": "0 s", "secs": 8796, "wh_s": 0, "folded": "", "start": "21:33", "end": "00:00", "parent": null, "parent_mine": false, "parent_ip": false}], "subs": {"GITIN-2268": [1, 4]}, "date": "2026-10-26"}, {"label": "Sun 25/10", "cards": [], "subs": {}, "date": "2026-10-25"}, {"label": "Sat 24/10", "cards": [{"id": "GITIN-2299", "title": "[CLOUD] Falllo integracion CLOUD - SP", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "created", "d": "done", "paused": false, "since": "", "resumed": false, "total": "1h 39m", "wh": "0 s", "secs": 5972, "wh_s": 0, "folded": "", "start": "16:06", "end": "17:45", "parent": null, "parent_mine": false, "parent_ip": false}], "subs": {}, "date": "2026-10-24"}, {"label": "Fri 23/10", "cards": [{"id": "GITIN-2288", "title": "[OPE] Relevamiento desde la oficina", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "paused": true, "since": "Thu 22/10 11:02", "resumed": false, "total": "16h 0m", "wh": "9h 0m", "secs": 57600, "wh_s": 32400, "folded": "", "start": "08:00", "end": "00:00", "parent": {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi"}, "parent_mine": true, "parent_ip": true}], "subs": {"GITIN-2268": [1, 4]}, "date": "2026-10-23"}];
+var OVER = [{"label": "Fri 30/10", "cards": [{"id": "GITIN-2201", "title": "[CLOUD] Evaluar Proveedor de Envio de Correos", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "done", "d": "done", "total": "0m", "wh": "0m", "repeat": 1}, {"id": "GITIN-2341", "title": "[OPE] Cotizacion Sendgrid", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "blocked", "total": "54m", "wh": "54m", "repeat": 2}, {"id": "GITIN-2343", "title": "[OPE] Seguridad Informatica. Caso Binance", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "ip", "total": "40m", "wh": "40m", "repeat": 2}], "date": "2026-10-30"}, {"label": "Thu 29/10", "cards": [{"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "blocked", "d": "blocked", "total": "1m", "wh": "1m", "repeat": 1}, {"id": "GITIN-2307", "title": "[OPE] Presentacion de IA", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "created", "d": "blocked", "total": "4h 46m", "wh": "4h 29m", "repeat": 1}, {"id": "GITIN-2318", "title": "[SP] Concentrador update 20->22", "tags": ["Concentrador", "INFRADEVOPS", "SRE", "SmartPedidos"], "o": "blocked", "d": "done", "total": "18h 41m", "wh": "4h 0m", "repeat": 1}], "date": "2026-10-29"}, {"label": "Wed 28/10", "cards": [{"id": "GITIN-2201", "title": "[CLOUD] Evaluar Proveedor de Envio de Correos", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "blocked", "d": "done", "total": "20m", "wh": "20m", "repeat": 1}, {"id": "GITIN-2228", "title": "[OPE] Graylog: nvme0n3. Alta latencia", "tags": ["Graylog", "INFRADEVOPS", "Operaciones", "SRE"], "o": "blocked", "d": "done", "total": "2h 33m", "wh": "2h 33m", "repeat": 1}, {"id": "GITIN-2318", "title": "[SP] Concentrador update 20->22", "tags": ["Concentrador", "INFRADEVOPS", "SRE", "SmartPedidos"], "o": "created", "d": "blocked", "total": "16h 31m", "wh": "1h 31m", "repeat": 1}], "date": "2026-10-28"}, {"label": "Tue 27/10", "cards": [{"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade", "tags": ["INFRADEVOPS", "SRE", "SmartPedidos"], "o": "blocked", "d": "blocked", "total": "43m", "wh": "43m", "repeat": 1}, {"id": "GITIN-2317", "title": "[SP] Platform update 20->22", "tags": ["INFRADEVOPS", "Platform", "SRE", "SmartPedidos"], "o": "created", "d": "done", "total": "40m", "wh": "40m", "repeat": 1}, {"id": "GITIN-2320", "title": "[OPE] Comandos IA", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "created", "d": "blocked", "total": "1h 47m", "wh": "1h 47m", "repeat": 1}, {"id": "GITIN-2323", "title": "[SML] Problemas con Despliegue", "tags": ["INFRADEVOPS"], "o": "created", "d": "blocked", "total": "4h 29m", "wh": "4h 29m", "repeat": 1}, {"id": "GITIN-2324", "title": "[OPE] WebServiceCG: Alertas y WebScenario", "tags": ["INFRADEVOPS", "Operaciones", "SRE", "SmartLoyalty", "WebserviceCG"], "o": "created", "d": "done", "total": "0m", "wh": "0m", "repeat": 1}, {"id": "GITIN-2328", "title": "[OPE] AgustinZ con problemas en el entorno", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "created", "d": "done", "total": "3h 49m", "wh": "2h 2m", "repeat": 1}, {"id": "GITIN-2329", "title": "[OPE] Graylog: Problemas cont Token Creation", "tags": ["Graylog", "INFRADEVOPS", "SRE"], "o": "created", "d": "done", "total": "2m", "wh": "0m", "repeat": 1}], "date": "2026-10-27"}, {"label": "Mon 26/10", "cards": [{"id": "GITIN-2300", "title": "[OPE] Problemas Trivy", "tags": ["INFRADEVOPS", "Jenkins", "Operaciones", "SRE"], "o": "created", "d": "done", "total": "1h 38m", "wh": "1h 38m", "repeat": 1}, {"id": "GITIN-2310", "title": "[OPE] Node vulnerability", "tags": ["INFRADEVOPS", "Operaciones", "SRE", "SmartPedidos"], "o": "created", "d": "done", "total": "4m", "wh": "4m", "repeat": 1}, {"id": "GITIN-2268", "title": "[OPE] Problemas con WiFi", "tags": ["INFRADEVOPS", "Operaciones", "SRE"], "o": "blocked", "d": "blocked", "total": "2h 1m", "wh": "2h 1m", "repeat": 1}, {"id": "GITIN-2315", "title": "[SP] Node 20->22 upgrade", "tags": ["INFRADEVOPS", "SRE", "SmartPedidos"], "o": "created", "d": "blocked", "total": "5h 57m", "wh": "1h 26m", "repeat": 1}, {"id": "GITIN-2316", "title": "[SML] Pico de requests", "tags": ["INFRADEVOPS", "SEGURIDAD", "SRE", "SmartLoyalty"], "o": "created", "d": "done", "total": "11h 36m", "wh": "1h 9m", "repeat": 1}], "date": "2026-10-26"}, {"label": "Sat 24/10", "cards": [{"id": "GITIN-2299", "title": "[CLOUD] Falllo integracion CLOUD - SP", "tags": ["INFRADEVOPS", "SRE", "SmartCloud"], "o": "created", "d": "done", "total": "1h 39m", "wh": "0m", "repeat": 1}], "date": "2026-10-24"}];
+var mode = 'exclusive', tmode = 'total';
+
+function icon(k){ return '<i class="bi '+ICON[k][0]+' '+ICON[k][1]+'"></i>'; }
+function cardHtml(c, last, extra, own){
+  var cls = 'map-card' + (last?' last':'') + (extra?' extra':'') + (mode==='exclusive'&&c.since&&!c.resumed?' carried':'') + (c.resumed?' resumed':'');
+  var badges = '';
+  if (mode==='exclusive' && c.since && !c.resumed) badges += '<span class="badge text-bg-primary me-1">▶ since '+c.since+'</span>';
+  if (mode==='exclusive' && c.resumed) badges += '<span class="badge text-bg-warning me-1">↩ resumed</span>';
+  var tags = c.tags.slice(0,3).map(function(t){return '<span class="badge text-bg-secondary map-tag">'+t+'</span>';}).join(' ')
+           + (c.tags.length>3 ? ' <span class="badge text-bg-light border map-tag">+'+(c.tags.length-3)+'</span>' : '');
+  var t = tmode==='total' ? c.total : c.wh;
+  return '<div class="'+cls+'">'
+    + '<div class="d-flex justify-content-between align-items-center gap-2">'
+    + (own ? '<span class="text-primary small" title="'+c.id+' · '+c.title+'">↳ own time</span>' : '<span class="text-nowrap"><a href="#" class="map-id">'+c.id+'</a> <a href="#" class="text-muted small ms-1"><i class="bi bi-box-arrow-up-right"></i></a></span>')
+    + '<span class="text-nowrap">'+icon(c.o)+' <i class="bi bi-arrow-right small text-muted"></i> '+icon(c.d)+'</span></div>'
+    + (badges ? '<div class="my-1">'+badges+'</div>' : '')
+    + (own ? '' : '<div class="map-title my-1">'+c.title+'</div>')+parentHint(c)
+    + '<div class="small text-muted mb-1"><i class="bi bi-stopwatch"></i> '+t+(mode==='exclusive'?' <span class="note">owned</span>':'')+(c.d==='ip'&&!c.paused?' so far':'')+(c.paused?' <span class="badge text-bg-light border">⏸ paused</span>':'')+(c.repeat>1?' <span class="badge text-bg-light border">×'+c.repeat+'</span>':'')+'</div>'
+    + (c.folded && mode==='exclusive' ? '<div class="note mb-1" title="'+c.folded+'"><i class="bi bi-arrow-return-left"></i> '+c.folded+'</div>' : '')
+    + '<div class="d-flex flex-wrap gap-1">'+tags+'</div></div>';
+}
+
+
+function fmtS(s){ s=Math.round(s); if(s<60) return s+' s'; var m=Math.floor(s/60), h=Math.floor(m/60); m=m%60; return h?h+'h '+m+'m':m+'m'; }
+// Rules (Exclusive, time order): a subtask stay while its parent is ALSO In Progress sits in a parent envelope
+// (consecutive ones share it; "(continued)" when it comes back). A parent owning the time alone is a plain card.
+// A subtask running while its parent is NOT In Progress is a plain card tagged "subtask of X", with a warning when
+// the parent is yours (you may have forgotten to put it In Progress). Time never changes because of this.
+function runsOf(d){
+  var runs=[], seen={};
+  d.cards.forEach(function(c,i){
+    c.n=i+1;
+    var fk = (c.parent && c.parent_ip) ? c.parent.id : null;
+    var last = runs[runs.length-1];
+    if (fk && last && last.fk===fk) last.cards.push(c);
+    else runs.push({fk:fk, cards:[c], continued:!!(fk && seen[fk])});
+    if (fk) seen[fk]=true;
+  });
+  return runs;
+}
+function runTitle(r){ var t=r.fk; r.cards.forEach(function(c){ if(c.parent && c.parent.id===r.fk) t=c.parent.title; }); return t; }
+function runHead(r, d, tm){
+  var secs=0, wh=0; r.cards.forEach(function(c){ secs+=c.secs; wh+=c.wh_s; });
+  var sub = d.subs[r.fk];
+  return '<div class="env-head"><span><i class="bi bi-diagram-2 text-primary"></i> <strong>'+r.fk+'</strong> <span class="text-muted">'+runTitle(r)+'</span>'
+    + ' <span class="badge text-bg-light border" title="The parent is also In Progress (paused behind its subtask)">parent in progress</span>'
+    + (r.continued ? ' <span class="badge text-bg-light border">(continued)</span>' : (sub?' <span class="badge text-bg-light border" title="Only the subtasks that were In Progress are listed">'+sub[0]+' of '+sub[1]+' subtask'+(sub[1]===1?'':'s')+'</span>':''))
+    + '</span><span class="text-nowrap small"><i class="bi bi-stopwatch"></i> '+(tm==='total'?fmtS(secs):fmtS(wh))+'</span></div>';
+}
+function parentHint(c){
+  if (mode!=='exclusive' || !c.parent || c.parent_ip) return '';
+  return '<div class="note" style="padding-left:0;width:auto"><i class="bi bi-arrow-return-right"></i> subtask of <strong>'+c.parent.id.replace('GITIN-','')+'</strong>'
+    + (c.parent_mine ? ' <span class="badge text-bg-warning" title="This subtask ran while its parent was not In Progress">⚠ parent not In Progress</span>' : '')+'</div>';
+}
+// Alert for the range: subtask stays that ran under a parent of yours that was not In Progress.
+function alertHtml(){
+  var by={}, total=0, stays=0;
+  inRange(EXCL).forEach(function(d){ d.cards.forEach(function(c){
+    if (c.parent && c.parent_mine && !c.parent_ip){
+      var k=c.id+'→'+c.parent.id; by[k]=by[k]||{id:c.id,p:c.parent.id,n:0,secs:0}; by[k].n++; by[k].secs+=c.secs; total+=c.secs; stays++; } }); });
+  var keys=Object.keys(by); if(!keys.length) return '';
+  return '<div class="alert alert-warning py-2 small mb-3"><i class="bi bi-exclamation-triangle-fill me-1"></i>'
+    + '<strong>'+stays+' stay'+(stays===1?'':'s')+' ('+fmtS(total)+')</strong> ran under a parent that was not In Progress: '
+    + keys.map(function(k){ var x=by[k]; return '<span class="me-2"><strong>'+x.id.replace('GITIN-','')+'</strong> → '+x.p.replace('GITIN-','')+' ('+x.n+')</span>'; }).join('')
+    + '<div class="text-muted mt-1">Time is counted for the subtask as usual; the parent gets none. Put the parent In Progress, or ignore if intended.</div></div>';
+}
+function envHtml(r, d, last, extra){
+  return '<div class="map-card env-grp'+(last?' last':'')+(extra?' extra':'')+'">'+runHead(r, d, tmode)
+    + r.cards.map(function(c){ return cardHtml(c, true, false); }).join('')+'</div>';
+}
+function render(){
+  var data = inRange(mode==='exclusive' ? EXCL : OVER);
+  rangeLabel();
+  var n = data.reduce(function(a,d){return a+d.cards.length;},0);
+  document.getElementById('summary').innerHTML = '<strong>'+n+' '+(mode==='exclusive'?'focus stretch':'entr')+(mode==='exclusive'?(n===1?'':'es'):(n===1?'y':'ies'))+'</strong>'
+    + '<span class="text-muted"> · '+(mode==='exclusive'?'one ticket owns the time at each moment':'every entry into In Progress, ignoring who had the focus')+'</span>';
+  document.getElementById('alert').innerHTML = mode==='exclusive' ? alertHtml() : '';
+  document.getElementById('days').innerHTML = !data.length ? '<p class="text-muted small mb-0">No In Progress activity in this range.</p>' : data.map(function(d){
+    var cards;
+    if (mode==='exclusive') {
+      var rs = runsOf(d);
+      cards = rs.map(function(r,i){ var last=i===rs.length-1, extra=i>=4;
+        return r.fk ? envHtml(r, d, last, extra) : cardHtml(r.cards[0], last, extra); }).join('');
+    } else {
+      cards = d.cards.map(function(c,i){ return cardHtml(c, i===d.cards.length-1, i>=4); }).join('');
+    }
+    return '<div class="map-day"><div class="d-flex justify-content-between small mb-2"><strong>'+d.label+'</strong><span class="text-muted">'+d.cards.length+' card'+(d.cards.length===1?'':'s')+'</span></div><div class="map-cards">'+cards+'</div></div>';
+  }).join('');
+  document.getElementById('foot').textContent = mode==='exclusive'
+    ? 'Time order. Blue envelope = a subtask running while its parent is also In Progress (“(continued)” when it comes back later); a parent owning the time alone is a plain card; a subtask running while its parent is not In Progress is a plain card with “subtask of X” and, if the parent is yours, a warning. Carried-over tickets restart at the first working hour. Returns to a paused ticket shorter than 60 s are folded into its card (their time still counts). Tickets still open from before the day show “▶ since”. A ticket that gets the focus back after another one closes shows “↩ resumed”.'
+    : 'Overlap: unchanged entries map. Tickets already in progress from before the day do not appear.';
+}
+function wire(id, attr, fn){
+  document.querySelectorAll('#'+id+' button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('#'+id+' button').forEach(function(x){x.classList.toggle('active', x===b);});
+      fn(b.dataset[attr]); render();
+    });
+  });
+}
+wire('modeGroup','mode',function(v){mode=v;});
+wire('timeGroup','t',function(v){tmode=v;});
+
+// ---- Range filter: Today | Week | Month | From → To (dd/mmm/yyyy). Mock "today" = 30/Oct/2026; data covers 23/Oct → 30/Oct.
+var TODAY='2026-10-30', MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var rng={k:'week'};
+function parseD(s){
+  var m=/^(\d{1,2})\/([A-Za-z]{3})\/(\d{4})$/.exec((s||'').trim()); if(!m) return null;
+  var mo=MON.indexOf(m[2][0].toUpperCase()+m[2].slice(1).toLowerCase()); if(mo<0) return null;
+  var d=new Date(Date.UTC(+m[3],mo,+m[1])); if(d.getUTCMonth()!==mo) return null;
+  return d.toISOString().slice(0,10);
+}
+function addDays(iso,n){ var d=new Date(iso+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+function fmtD(iso){ var d=new Date(iso+'T00:00:00Z'); return ('0'+d.getUTCDate()).slice(-2)+'/'+MON[d.getUTCMonth()]+'/'+d.getUTCFullYear(); }
+function bounds(){
+  if (rng.k==='today') return [TODAY,TODAY];
+  if (rng.k==='week') return [addDays(TODAY,-7),TODAY];
+  if (rng.k==='month') return [addDays(TODAY,-30),TODAY];
+  return [rng.from,rng.to];
+}
+function inRange(arr){ var b=bounds(); return arr.filter(function(d){ return d.date>=b[0] && d.date<=b[1]; }); }
+function rangeLabel(){ var b=bounds(); var el=document.getElementById('rangeLabel');
+  if (el) el.textContent='Range: '+fmtD(b[0])+' → '+fmtD(b[1])+' (mock data covers 23/Oct/2026 → 30/Oct/2026)'; }
+document.querySelectorAll('#rangeGroup button').forEach(function(b){ b.addEventListener('click', function(){
+  rng={k:b.dataset.r};
+  document.querySelectorAll('#rangeGroup button').forEach(function(x){ x.classList.toggle('active', x===b); });
+  document.getElementById('dFrom').value=''; document.getElementById('dTo').value='';
+  document.getElementById('dFrom').classList.remove('is-invalid'); document.getElementById('dTo').classList.remove('is-invalid');
+  render(); }); });
+document.getElementById('dApply').addEventListener('click', function(){
+  var fe=document.getElementById('dFrom'), te=document.getElementById('dTo'), f=parseD(fe.value), t=parseD(te.value);
+  fe.classList.toggle('is-invalid', !f); te.classList.toggle('is-invalid', !t || (f && t<f));
+  if (!f || !t || t<f) return;
+  rng={k:'custom',from:f,to:t};
+  document.querySelectorAll('#rangeGroup button').forEach(function(x){ x.classList.remove('active'); });
+  render(); });
+
+render();
+</script>
+</body>
+</html>
