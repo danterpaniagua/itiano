@@ -171,6 +171,28 @@ class ExclusiveTimeReportTests(TestCase):
         self.assertEqual(rows['GITIN-2116']['parent_row']['jira_today'], '1h 36m')
         self.assertEqual(rows['GITIN-2132']['jira_today'], '3h 47m')
 
+    def test_focus_map_matches_the_exclusive_report(self):
+        # Parity: the map's owned time per ticket equals the report's Exclusive In Progress time.
+        from collections import defaultdict
+        self.real_day_tickets()
+        end = at(2, '00:00')
+        report = self.report(end, time='exclusive')
+        report_secs = sum(t['secs'] for t in report.context['status_totals'] if t['status'] == 'In Progress')
+        with mock.patch('django.utils.timezone.now', return_value=end):
+            page = self.client.get(reverse('timetracking-map'), {
+                'range': 'custom', 'date_from': '2026-10-01', 'date_to': '2026-10-01',
+            })
+        self.assertEqual(page.status_code, 200)
+        per_ticket = defaultdict(int)
+        for day in page.context['focus_days']:
+            for card in day['cards']:
+                per_ticket[card['key']] += card['secs']
+        self.assertEqual(sum(per_ticket.values()), report_secs)
+        shown = self.ip_display(report)
+        for key, secs in per_ticket.items():
+            expected = f'{secs // 3600}h {secs % 3600 // 60}m' if secs >= 3600 else f'{secs // 60}m'
+            self.assertEqual(shown[key], expected, key)
+
     def tag(self, key, name):
         ticket = Ticket.objects.create(
             title='x', description='x', type='incident', external_id=key, requester=self.user,
@@ -247,7 +269,10 @@ class ExclusiveTimeReportTests(TestCase):
         for mode in ('overlap', 'exclusive'):
             with self.subTest(mode=mode):
                 response = self.report(at(4, '00:00'), time=mode, date_from='2026-10-03', date_to='2026-10-03')
-                self.assertNotIn('A-1', [r['ticket'].issue_key for r in response.context['pivot_rows']])
+                # The ticket may still show up (its Done status entered inside the range), but it
+                # has no In Progress time.
+                ip_secs = sum(t['secs'] for t in response.context['status_totals'] if t['status'] == 'In Progress')
+                self.assertEqual(ip_secs, 0)
 
     def test_tag_totals_overlap_counts_parent_and_child_once(self):
         # P (parent) 08:00-12:00 and its subtask C 09:00-11:00 carry the same tag.
@@ -524,7 +549,9 @@ class IpMapCardTimeTests(TestCase):
         self.assertFalse(data['has_wh'])
 
 
-class IpMapViewTests(TestCase):
+class MapPageMixin:
+    """Shared setup for the /time/map/ page tests."""
+
     def setUp(self):
         self.user = User.objects.create_user('agent', password='pass')
         UserProfile.objects.update_or_create(user=self.user, defaults={'jira_account_id': ACCOUNT_ID})
@@ -532,11 +559,11 @@ class IpMapViewTests(TestCase):
         for name, cat in [('In Progress', 'in_progress'), ('Done', 'done'), ('Bloqueado', 'blocked')]:
             JiraStatusConfig.objects.update_or_create(status_name=name, defaults={'category': cat})
         self.client.force_login(self.user)
-        self.url = reverse('timetracking-report')
+        self.url = reverse('timetracking-map')
 
-    def ticket(self, key, transitions, status, labels=None):
+    def ticket(self, key, transitions, status, labels=None, parent=''):
         ticket = JiraTicket.objects.create(
-            issue_key=key, title=f'Title {key}', status=status, labels=labels or [],
+            issue_key=key, title=f'Title {key}', status=status, labels=labels or [], parent_key=parent,
             assignee='Agent', assignee_account_id=ACCOUNT_ID,
         )
         for received_at, from_status, to_status in transitions:
@@ -548,10 +575,10 @@ class IpMapViewTests(TestCase):
             )
         return ticket
 
-    def report(self, **params):
+    def page(self, **params):
         params.setdefault('range', 'custom')
-        params.setdefault('date_from', '2026-10-01')
-        params.setdefault('date_to', '2026-10-01')
+        params.setdefault('date_from', '01/Oct/2026')
+        params.setdefault('date_to', '01/Oct/2026')
         with mock.patch('django.utils.timezone.now', return_value=at(2, '12:00')):
             response = self.client.get(self.url, params)
         self.assertEqual(response.status_code, 200)
@@ -564,9 +591,17 @@ class IpMapViewTests(TestCase):
         ], 'Done', labels=['INFRADEVOPS', 'SRE', 'A', 'B'])
         self.ticket('GITIN-2', [(at(1, '10:00'), 'Backlog', 'In Progress')], 'In Progress')
 
+
+class IpMapViewTests(MapPageMixin, TestCase):
+    """The entries map (Overlap view of /time/map/)."""
+
+    def page(self, **params):
+        params.setdefault('time', 'overlap')
+        return super().page(**params)
+
     def test_context_and_card_rendered(self):
         self.seed()
-        response = self.report()
+        response = self.page()
         days = response.context['ip_map_days']
         self.assertEqual([c['key'] for c in days[0]['cards']], ['GITIN-1', 'GITIN-2'])
         self.assertEqual(response.context['ip_map_summary']['entries'], 2)
@@ -582,7 +617,7 @@ class IpMapViewTests(TestCase):
         WorkSchedule.objects.filter(user=self.user).update(
             start_time=dt.time(9, 0), end_time=dt.time(18, 0), thu=True,
         )
-        response = self.report()
+        response = self.page()
         card = response.context['ip_map_days'][0]['cards'][0]
         self.assertEqual((card['total_label'], card['wh_label']), ('2h 0m', '1h 0m'))
         self.assertTrue(response.context['ip_map_has_wh'])
@@ -590,35 +625,258 @@ class IpMapViewTests(TestCase):
 
     def test_jira_link_only_with_base_url(self):
         self.seed()
-        self.assertNotContains(self.report(), '/browse/GITIN-1')
+        self.assertNotContains(self.page(), '/browse/GITIN-1')
         AppSetting.objects.create(key='jira_base_url', value='https://x.atlassian.net/')
-        self.assertContains(self.report(), 'https://x.atlassian.net/browse/GITIN-1')
+        self.assertContains(self.page(), 'https://x.atlassian.net/browse/GITIN-1')
 
     def test_empty_range_shows_empty_state(self):
-        response = self.report(date_from='2026-09-01', date_to='2026-09-01')
+        response = self.page(date_from='01/Sep/2026', date_to='01/Sep/2026')
         self.assertContains(response, 'No tickets were put into In Progress in this range.')
         self.assertNotContains(response, 'Copy as Mermaid')
 
-    def test_time_and_labor_toggles_do_not_change_map(self):
+    def test_tag_filter_uses_labels(self):
         self.seed()
-        base = self.report().context['ip_map_summary']
-        self.assertEqual(self.report(time='exclusive').context['ip_map_summary'], base)
-
-    def test_tag_filter_limits_tickets_status_filter_does_not(self):
-        self.seed()
-        tag = Tag.objects.create(name='INFRADEVOPS')
-        ticket = Ticket.objects.create(
-            title='x', description='x', type='incident', external_id='GITIN-1', requester=self.user,
-        )
-        TicketTag.objects.create(ticket=ticket, tag=tag)
-        filtered = self.report(tags='INFRADEVOPS').context['ip_map_summary']
+        filtered = self.page(tags='INFRADEVOPS').context['ip_map_summary']
         self.assertEqual(filtered['tickets'], 1)
-        status_filtered = self.report(statuses='Bloqueado').context['ip_map_summary']
-        self.assertEqual(status_filtered['entries'], 2)
+        self.assertEqual(self.page().context['ip_map_summary']['tickets'], 2)
 
     def test_more_than_four_cards_renders_mobile_collapse(self):
         for i in range(6):
             self.ticket(f'GITIN-{10 + i}', [(at(1, f'0{i + 1}:00'), 'Backlog', 'In Progress')], 'In Progress')
-        response = self.report()
+        response = self.page()
         self.assertContains(response, 'ipm-more')
         self.assertContains(response, 'Show 2 more')
+
+
+# ---------------------------------------------------------------------------
+# In Progress map: Exclusive chain page (v5.18.4)
+# ---------------------------------------------------------------------------
+
+from timetracking import focus_map
+from timetracking.map_views import format_map_date, parse_map_date
+
+
+def focus(tickets, transitions, start=None, end=None, now=None, visible=None, parent_titles=None,
+          subs_total=None, tz=UTC, schedule=None):
+    schedule = schedule or WorkSchedule(start_time=dt.time(9, 0), end_time=dt.time(18, 0))
+    return focus_map.build_focus_map(
+        tickets, transitions, IP_CATEGORIES, schedule, tz,
+        start or at(1, '00:00'), end or at(1, '23:59:59'), now or at(2, '00:00'),
+        visible_keys=visible, parent_titles=parent_titles, subs_total=subs_total,
+    )
+
+
+class FocusMapChainTests(TestCase):
+    def test_chain_follows_the_focus_and_resumes_the_previous_ticket(self):
+        a, b = ft('G-A'), ft('G-B')
+        data = focus([a, b], {
+            'G-A': [tr(at(1, '09:00'), 'Backlog', 'In Progress'), tr(at(1, '12:00'), 'In Progress', 'Done')],
+            'G-B': [tr(at(1, '10:00'), 'Backlog', 'In Progress'), tr(at(1, '11:00'), 'In Progress', 'Done')],
+        })
+        cards = data['days'][0]['cards']
+        self.assertEqual([c['key'] for c in cards], ['G-A', 'G-B', 'G-A'])
+        self.assertEqual([c['n'] for c in cards], [1, 2, 3])
+        self.assertEqual([c['resumed'] for c in cards], [False, False, True])
+        self.assertEqual([c['paused'] for c in cards], [True, False, False])
+        self.assertEqual([c['dest'] for c in cards], ['ip', 'done', 'done'])
+
+    def test_short_return_is_folded_into_the_ticket_card(self):
+        a, b, d = ft('G-A'), ft('G-B'), ft('G-D')
+        data = focus([a, b, d], {
+            'G-A': [tr(at(1, '09:00'), 'Backlog', 'In Progress'), tr(at(1, '12:00'), 'In Progress', 'Done')],
+            'G-B': [tr(at(1, '10:00'), 'Backlog', 'In Progress'), tr(at(1, '10:30'), 'In Progress', 'Done')],
+            'G-D': [tr(at(1, '10:30:20'), 'Backlog', 'In Progress'), tr(at(1, '10:45'), 'In Progress', 'Done')],
+        })
+        cards = data['days'][0]['cards']
+        self.assertEqual([c['key'] for c in cards], ['G-A', 'G-B', 'G-D', 'G-A'])
+        self.assertEqual(cards[0]['secs'], 3600 + 20)
+        self.assertEqual(cards[0]['folded'], '1 short return (20 s) folded')
+
+    def test_parent_yields_to_its_active_child(self):
+        p, c = ft('G-P'), ft('G-C', parent='G-P')
+        data = focus([p, c], {
+            'G-P': [tr(at(1, '09:00'), 'Backlog', 'In Progress'), tr(at(1, '11:00'), 'In Progress', 'Done')],
+            'G-C': [tr(at(1, '09:01'), 'Backlog', 'In Progress'), tr(at(1, '10:00'), 'In Progress', 'Done')],
+        })
+        cards = data['days'][0]['cards']
+        self.assertEqual([c['key'] for c in cards], ['G-P', 'G-C', 'G-P'])
+        self.assertEqual(cards[0]['secs'], 60)
+        self.assertEqual(cards[1]['secs'], 59 * 60)
+
+    def test_total_and_working_hours_labels(self):
+        t = ft('G-1')
+        data = focus([t], {'G-1': [
+            tr(at(1, '08:00'), 'Backlog', 'In Progress'), tr(at(1, '10:00'), 'In Progress', 'Done'),
+        ]})
+        card = data['days'][0]['cards'][0]
+        self.assertEqual((card['total_label'], card['wh_label']), ('2h 0m', '1h 0m'))
+        self.assertEqual((card['start'], card['end']), ('08:00', '10:00'))
+
+    def test_days_newest_first(self):
+        a, b = ft('G-A'), ft('G-B')
+        data = focus([a, b], {
+            'G-A': [tr(at(1, '09:00'), 'Backlog', 'In Progress'), tr(at(1, '10:00'), 'In Progress', 'Done')],
+            'G-B': [tr(at(2, '09:00'), 'Backlog', 'In Progress'), tr(at(2, '10:00'), 'In Progress', 'Done')],
+        }, end=at(2, '23:59:59'), now=at(3, '00:00'))
+        self.assertEqual([d['date'] for d in data['days']], [dt.date(2026, 10, 2), dt.date(2026, 10, 1)])
+
+    def test_tag_filter_hides_cards_without_changing_owned_time(self):
+        a, b = ft('G-A'), ft('G-B')
+        transitions = {
+            'G-A': [tr(at(1, '09:00'), 'Backlog', 'In Progress'), tr(at(1, '12:00'), 'In Progress', 'Done')],
+            'G-B': [tr(at(1, '10:00'), 'Backlog', 'In Progress'), tr(at(1, '11:00'), 'In Progress', 'Done')],
+        }
+        everything = focus([a, b], transitions)['days'][0]['cards']
+        only_a = focus([a, b], transitions, visible={'G-A'})['days'][0]['cards']
+        self.assertEqual([c['key'] for c in only_a], ['G-A', 'G-A'])
+        self.assertEqual(
+            sum(c['secs'] for c in only_a),
+            sum(c['secs'] for c in everything if c['key'] == 'G-A'),
+        )
+
+
+class FocusMapCarryOverTests(TestCase):
+    def test_carried_over_ticket_restarts_at_the_first_working_hour(self):
+        a = ft('G-A')
+        data = focus([a], {'G-A': [tr(sep(30, '22:00'), 'Backlog', 'In Progress')]})
+        card = data['days'][0]['cards'][0]
+        self.assertEqual(card['start'], '09:00')
+        self.assertEqual(card['since'], 'Wed 30/09 22:00')
+        self.assertTrue(card['running'])
+        self.assertEqual(card['secs'], 15 * 3600 - 1)
+
+    def test_same_day_entry_before_the_first_working_hour_counts_from_entry(self):
+        b = ft('G-B')
+        data = focus([b], {'G-B': [tr(at(1, '07:00'), 'Backlog', 'In Progress')]})
+        card = data['days'][0]['cards'][0]
+        self.assertEqual((card['start'], card['since']), ('07:00', ''))
+
+    def test_carried_over_ticket_shows_nothing_on_a_non_working_day(self):
+        a = ft('G-A')
+        # Oct 3 2026 is a Saturday.
+        data = focus([a], {'G-A': [tr(at(2, '20:00'), 'Backlog', 'In Progress')]},
+                     start=at(3, '00:00'), end=at(3, '23:59:59'), now=at(4, '00:00'))
+        self.assertEqual(data['days'], [])
+        self.assertEqual(data['summary']['stays'], 0)
+
+
+class FocusMapParentTests(TestCase):
+    def test_subtask_with_parent_in_progress_goes_in_an_envelope(self):
+        p, c = ft('G-P'), ft('G-C', parent='G-P')
+        data = focus([p, c], {
+            'G-P': [tr(at(1, '08:00'), 'Backlog', 'In Progress'), tr(at(1, '18:00'), 'In Progress', 'Done')],
+            'G-C': [tr(at(1, '09:00'), 'Backlog', 'In Progress'), tr(at(1, '10:00'), 'In Progress', 'Done')],
+        }, subs_total={'G-P': 3})
+        runs = data['days'][0]['runs']
+        self.assertEqual([r['family'] for r in runs], [None, 'G-P', None])
+        self.assertEqual([c['key'] for c in runs[1]['cards']], ['G-C'])
+        self.assertTrue(runs[1]['cards'][0]['parent_ip'])
+        self.assertEqual((runs[1]['sub_active'], runs[1]['sub_total']), (1, 3))
+        self.assertIsNone(data['alert'])
+
+    def test_envelope_comes_back_marked_continued(self):
+        p = ft('G-P')
+        c1, c2 = ft('G-C1', parent='G-P'), ft('G-C2', parent='G-P')
+        data = focus([p, c1, c2], {
+            'G-P': [tr(at(1, '08:00'), 'Backlog', 'In Progress'), tr(at(1, '18:00'), 'In Progress', 'Done')],
+            'G-C1': [tr(at(1, '09:00'), 'Backlog', 'In Progress'), tr(at(1, '10:00'), 'In Progress', 'Done')],
+            'G-C2': [tr(at(1, '11:00'), 'Backlog', 'In Progress'), tr(at(1, '12:00'), 'In Progress', 'Done')],
+        }, subs_total={'G-P': 3})
+        envelopes = [r for r in data['days'][0]['runs'] if r['family']]
+        self.assertEqual([r['continued'] for r in envelopes], [False, True])
+        self.assertEqual([r['sub_active'] for r in envelopes], [2, 2])
+
+    def test_subtask_while_parent_not_in_progress_warns(self):
+        p, c = ft('G-P'), ft('G-C', parent='G-P')
+        data = focus([p, c], {
+            'G-P': [tr(at(1, '08:00'), 'Backlog', 'Bloqueado')],
+            'G-C': [tr(at(1, '09:00'), 'Backlog', 'In Progress'), tr(at(1, '10:00'), 'In Progress', 'Done')],
+        })
+        card = data['days'][0]['cards'][0]
+        self.assertTrue(card['parent_mine'])
+        self.assertFalse(card['parent_ip'])
+        self.assertEqual([r['family'] for r in data['days'][0]['runs']], [None])
+        self.assertEqual(data['alert']['stays'], 1)
+        self.assertEqual(data['alert']['items'], [{'id': 'G-C', 'parent': 'G-P', 'count': 1, 'secs': 3600}])
+        # Time is unchanged: the subtask owns it as usual.
+        self.assertEqual(card['secs'], 3600)
+
+    def test_parent_that_is_not_the_viewers_gets_no_warning(self):
+        c = ft('G-C', parent='X-9')
+        data = focus([c], {'G-C': [tr(at(1, '09:00'), 'Backlog', 'In Progress'), tr(at(1, '10:00'), 'In Progress', 'Done')]},
+                     parent_titles={'X-9': 'Outside parent'})
+        card = data['days'][0]['cards'][0]
+        self.assertEqual(card['parent'], {'id': 'X-9', 'title': 'Outside parent'})
+        self.assertFalse(card['parent_mine'])
+        self.assertIsNone(data['alert'])
+
+    def test_fmt_secs(self):
+        self.assertEqual([focus_map.fmt_secs(s) for s in (20, 60, 3661)], ['20 s', '1m', '1h 1m'])
+
+
+class MapDateTests(TestCase):
+    def test_parse_and_format(self):
+        self.assertEqual(parse_map_date('23/Oct/2026'), dt.date(2026, 10, 23))
+        self.assertEqual(parse_map_date('3/oct/2026'), dt.date(2026, 10, 3))
+        self.assertEqual(parse_map_date('2026-10-23'), dt.date(2026, 10, 23))
+        for bad in ('', '31/Feb/2026', '23/Xyz/2026', '23-10-2026'):
+            self.assertIsNone(parse_map_date(bad))
+        self.assertEqual(format_map_date(dt.date(2026, 10, 3)), '03/Oct/2026')
+
+
+class FocusMapViewTests(MapPageMixin, TestCase):
+    def test_requires_login(self):
+        self.client.logout()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+
+    def test_default_view_is_the_exclusive_chain(self):
+        self.seed()
+        response = self.page()
+        self.assertEqual(response.context['view_mode'], 'exclusive')
+        self.assertEqual([c['key'] for c in response.context['focus_days'][0]['cards']], ['GITIN-1', 'GITIN-2'])
+        self.assertContains(response, 'Exclusive chain')
+        self.assertNotContains(response, 'Copy as Mermaid')
+
+    def test_alert_renders_for_a_subtask_under_a_parent_not_in_progress(self):
+        self.ticket('GITIN-P', [(at(1, '08:00'), 'Backlog', 'Bloqueado')], 'Bloqueado')
+        self.ticket('GITIN-C', [(at(1, '09:00'), 'Backlog', 'In Progress')], 'In Progress', parent='GITIN-P')
+        response = self.page()
+        self.assertContains(response, 'ran under a parent that was not In Progress')
+        self.assertContains(response, 'parent not In Progress')
+
+    def test_range_params(self):
+        self.seed()
+        response = self.page(range='today')
+        self.assertEqual(response.context['range_param'], 'today')
+        response = self.page(range='custom', date_from='01/Oct/2026', date_to='02/Oct/2026')
+        self.assertEqual((response.context['date_from_text'], response.context['date_to_text']), ('01/Oct/2026', '02/Oct/2026'))
+        self.assertEqual(response.context['range_error'], '')
+
+    def test_invalid_range_shows_an_error_and_falls_back_to_week(self):
+        for params in ({'date_from': 'nope', 'date_to': '01/Oct/2026'},
+                       {'date_from': '05/Oct/2026', 'date_to': '01/Oct/2026'}):
+            with self.subTest(params=params):
+                response = self.page(**params)
+                self.assertTrue(response.context['range_error'])
+                self.assertEqual(response.context['range_param'], 'week')
+                self.assertContains(response, 'dd/mmm/yyyy')
+
+    def test_overlap_view_is_the_entries_map(self):
+        self.seed()
+        response = self.page(time='overlap')
+        self.assertEqual(response.context['view_mode'], 'overlap')
+        self.assertContains(response, 'Copy as Mermaid')
+
+    def test_tag_filter_hides_other_tickets(self):
+        self.seed()
+        response = self.page(tags='INFRADEVOPS')
+        self.assertEqual({c['key'] for d in response.context['focus_days'] for c in d['cards']}, {'GITIN-1'})
+
+    def test_report_links_to_the_map_and_no_longer_renders_it(self):
+        self.seed()
+        with mock.patch('django.utils.timezone.now', return_value=at(2, '12:00')):
+            response = self.client.get(reverse('timetracking-report'), {'range': 'week'})
+        self.assertContains(response, reverse('timetracking-map'))
+        self.assertNotContains(response, 'ip-map-card')
+        self.assertNotIn('ip_map_days', response.context)

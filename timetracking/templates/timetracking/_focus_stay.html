@@ -1,0 +1,15 @@
+{# One stay row. Context: card, show_who (bool: show the ticket ID in the row) #}
+<div class="fm-stay">
+    <span class="fm-n{% if card.resumed %} fm-back{% endif %}" title="Handoff order">{{ card.n }}</span>
+    {% if show_who %}<a href="{% url 'timetracking-ticket-timeline' card.key %}" class="fm-id" title="{{ card.title }}">{{ card.key }}</a>{% endif %}
+    {% if card.since %}<span class="badge text-bg-primary fm-tg" title="Still In Progress from before the day">▶ since {{ card.since }}</span>{% endif %}
+    {% if card.resumed %}<span class="badge text-bg-warning fm-tg" title="Got the focus back">↩ resumed</span>{% endif %}
+    <span>{{ card.start }} → {% if card.running %}now{% else %}{{ card.end }}{% endif %}</span>
+    <i class="bi {{ card.origin_icon }} {{ card.origin_color }}" title="{{ card.origin_title }}"></i>
+    <i class="bi bi-arrow-right small text-muted"></i>
+    {% if card.paused %}<span class="badge text-bg-light border fm-tg" title="Another ticket took the focus">⏸ paused</span>
+    {% elif card.running %}<i class="bi {{ card.dest_icon }} {{ card.dest_color }}" title="Still in progress"></i> <span class="small">running</span>
+    {% else %}<i class="bi {{ card.dest_icon }} {{ card.dest_color }}" title="{{ card.dest_title }}"></i>{% endif %}
+    <span class="fm-tm"><i class="bi bi-stopwatch"></i> <span class="fm-time" data-total="{{ card.total_label }}" data-wh="{{ card.wh_label }}">{{ card.total_label }}</span></span>
+    {% if card.folded %}<div class="fm-note"><i class="bi bi-arrow-return-left"></i> {{ card.folded }}</div>{% endif %}
+</div>

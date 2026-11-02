@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}In Progress Map – Itiano{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h5 class="mb-0 me-auto"><i class="bi bi-diagram-3"></i> In Progress Map</h5>
+    <a href="{% url 'timetracking-report' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-bar-chart"></i> Time Report</a>
+</div>
+
+{% if not jira_account_id and not jira_username %}
+<div class="alert alert-light border small">
+    <i class="bi bi-info-circle me-1"></i>
+    Link your <a href="{% url 'settings-user' %}">Jira account in Settings</a> to see your map.
+</div>
+{% else %}
+
+{# ── Filters: range (Today | Week | Month | From → To), view, tags ── #}
+<form method="get" class="d-flex flex-wrap gap-2 align-items-center mb-2" id="map-range-form">
+    {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
+    {% if view_mode == 'overlap' %}<input type="hidden" name="time" value="overlap">{% endif %}
+    <div class="btn-group btn-group-sm" role="group" aria-label="Range">
+        <button type="submit" name="range" value="today" class="btn btn-{% if range_param == 'today' %}primary{% else %}outline-secondary{% endif %}">Today</button>
+        <button type="submit" name="range" value="week" class="btn btn-{% if range_param == 'week' %}primary{% else %}outline-secondary{% endif %}">Week</button>
+        <button type="submit" name="range" value="month" class="btn btn-{% if range_param == 'month' %}primary{% else %}outline-secondary{% endif %}">Month</button>
+    </div>
+    <div class="d-flex flex-wrap gap-1 align-items-center">
+        <input type="text" name="date_from" value="{{ date_from_text }}" placeholder="dd/mmm/yyyy" aria-label="From"
+               class="form-control form-control-sm{% if range_error %} is-invalid{% endif %}" style="width:120px" autocomplete="off">
+        <span class="small text-muted">→</span>
+        <input type="text" name="date_to" value="{{ date_to_text }}" placeholder="dd/mmm/yyyy" aria-label="To"
+               class="form-control form-control-sm{% if range_error %} is-invalid{% endif %}" style="width:120px" autocomplete="off">
+        <button type="submit" name="range" value="custom"
+                class="btn btn-sm btn-{% if range_param == 'custom' %}primary{% else %}outline-secondary{% endif %}">
+            <i class="bi bi-calendar-range"></i> Apply
+        </button>
+    </div>
+</form>
+{% if range_error %}<div class="alert alert-warning py-1 small mb-2">{{ range_error }}</div>{% endif %}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+    {# View: Exclusive chain (default) or the entries map #}
+    <form method="get" class="d-flex flex-wrap gap-1 align-items-center" id="map-view-form">
+        <input type="hidden" name="range" value="{{ range_param }}">
+        {% if range_param == 'custom' %}<input type="hidden" name="date_from" value="{{ date_from_text }}"><input type="hidden" name="date_to" value="{{ date_to_text }}">{% endif %}
+        {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
+        <span class="small text-muted">View:</span>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="submit" name="time" value="exclusive" class="btn btn-{% if view_mode == 'exclusive' %}primary{% else %}outline-secondary{% endif %}"
+                    title="Only one ticket owns the time at each moment, in time order">Exclusive</button>
+            <button type="submit" name="time" value="overlap" class="btn btn-{% if view_mode == 'overlap' %}primary{% else %}outline-secondary{% endif %}"
+                    title="Every entry into In Progress, ignoring who had the focus">Overlap</button>
+        </div>
+    </form>
+    {# Tag filter: chips + add #}
+    <form method="get" class="d-flex flex-wrap gap-1 align-items-center" id="map-tag-form">
+        <input type="hidden" name="range" value="{{ range_param }}">
+        {% if range_param == 'custom' %}<input type="hidden" name="date_from" value="{{ date_from_text }}"><input type="hidden" name="date_to" value="{{ date_to_text }}">{% endif %}
+        {% if view_mode == 'overlap' %}<input type="hidden" name="time" value="overlap">{% endif %}
+        {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
+        {% for tag in selected_tags %}
+        <a class="badge text-bg-primary text-decoration-none"
+           href="?range={{ range_param }}{% if range_param == 'custom' %}&date_from={{ date_from_text }}&date_to={{ date_to_text }}{% endif %}{% if view_mode == 'overlap' %}&time=overlap{% endif %}{% for t in selected_tags %}{% if t != tag %}&tags={{ t }}{% endif %}{% endfor %}"
+           title="Remove {{ tag }}">{{ tag }} &times;</a>
+        {% endfor %}
+        <select name="tags" class="form-select form-select-sm" style="width:auto" aria-label="Add tag" onchange="this.form.submit()">
+            <option value="">+ tag</option>
+            {% for tag in all_tags %}{% if tag not in selected_tags %}<option value="{{ tag }}">{{ tag }}</option>{% endif %}{% endfor %}
+        </select>
+    </form>
+</div>
+
+<div class="small text-muted mb-2">
+    {{ range_start|date:"d/M/Y" }} → {{ range_end|date:"d/M/Y" }}
+</div>
+
+{% if view_mode == 'exclusive' %}
+{% include 'timetracking/_focus_map.html' %}
+{% else %}
+{% include 'timetracking/_ip_map.html' %}
+{% endif %}
+
+{% endif %}{# jira_account_id or jira_username #}
+{% endblock %}

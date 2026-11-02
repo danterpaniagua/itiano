@@ -1,0 +1,156 @@
+{# In Progress map, Exclusive chain (v5.18.4). Context: focus_days, focus_alert, focus_summary, jira_base_url #}
+<style>
+  .fm-day { border-top: 1px solid var(--bs-border-color); padding-top: .75rem; margin-top: .9rem; }
+  .fm-day:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+  .fm-flow { font-size: .72rem; color: var(--bs-secondary-color); display: flex; flex-wrap: wrap; gap: .15rem .35rem; margin-bottom: .6rem; }
+  .fm-flow .fm-chip { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 0 .45rem; white-space: nowrap; }
+  .fm-groups { display: flex; flex-wrap: wrap; gap: .75rem 1.6rem; align-items: flex-start; }
+  .fm-grp { width: 100%; position: relative; }
+  @media (min-width: 768px) {
+    .fm-grp { width: 310px; }
+    .fm-grp:not(.fm-last)::after { content: "\F138"; font-family: "bootstrap-icons"; position: absolute; right: -1.35rem; top: 1.1rem; color: var(--bs-secondary-color); }
+  }
+  @media (max-width: 767.98px) { .fm-day:not(.fm-open) .fm-grp.fm-extra { display: none; } }
+  .fm-tk { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .5rem; padding: .45rem .6rem; }
+  .fm-env { background: var(--bs-primary-bg-subtle); border: 1px solid var(--bs-primary-border-subtle); border-radius: .6rem; padding: .45rem .5rem .5rem; }
+  .fm-env-head { display: flex; justify-content: space-between; gap: .5rem; font-size: .8rem; padding: 0 .1rem .35rem; }
+  .fm-tl { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .5rem; padding: .35rem .55rem; }
+  .fm-tl .fm-stay + .fm-stay::before { content: "\2193"; display: block; width: 100%; color: var(--bs-secondary-color); font-size: .7rem; line-height: .8rem; padding-left: .3rem; }
+  .fm-stay { font-size: .76rem; padding: .1rem 0; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+  .fm-id { font-weight: 600; font-size: .85rem; text-decoration: none; }
+  .fm-title { font-size: .78rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .fm-tag { font-size: .62rem; }
+  .fm-tg { font-size: .62rem; }
+  .fm-tm { margin-left: auto; color: var(--bs-secondary-color); white-space: nowrap; }
+  .fm-note { font-size: .68rem; color: var(--bs-secondary-color); width: 100%; padding-left: 1.45rem; }
+  .fm-n { display: inline-flex; align-items: center; justify-content: center; width: 1.15rem; height: 1.15rem; border-radius: 50%; background: #0d6efd; color: #fff; font-size: .65rem; font-weight: 600; flex: 0 0 auto; }
+  .fm-n.fm-back { background: #fd7e14; }
+  .ipm-created { color: #6f42c1; } .ipm-done { color: #198754; } .ipm-blocked { color: #dc3545; }
+  .ipm-testing { color: #0d6efd; } .ipm-queue { color: #6c757d; } .ipm-ip { color: #0d6efd; }
+</style>
+
+<div class="card mb-3" id="focus-map-card">
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+        <span class="fw-semibold me-auto"><i class="bi bi-diagram-3 me-1"></i>Exclusive chain</span>
+        {% if focus_days %}
+        <div class="btn-group btn-group-sm" role="group" aria-label="Card time">
+            <button type="button" class="btn btn-outline-secondary active fm-mode" data-mode="total" title="Wall-clock time the ticket owned">Total</button>
+            <button type="button" class="btn btn-outline-secondary fm-mode" data-mode="wh" title="The same time inside your working hours">W-H</button>
+        </div>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if focus_alert %}
+        <div class="alert alert-warning py-2 small mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            <strong>{{ focus_alert.stays }} stay{{ focus_alert.stays|pluralize }} ({{ focus_alert.total_label }})</strong>
+            ran under a parent that was not In Progress:
+            {% for item in focus_alert.items %}<span class="me-2"><strong>{{ item.id }}</strong> → {{ item.parent }} ({{ item.count }})</span>{% endfor %}
+            <div class="text-muted mt-1">Time is counted for the subtask as usual; the parent gets none. Put the parent In Progress, or ignore if intended.</div>
+        </div>
+        {% endif %}
+
+        {% if focus_days %}
+        <div class="small mb-2">
+            <strong>{{ focus_summary.stays }} stay{{ focus_summary.stays|pluralize }} · {{ focus_summary.tickets }} ticket{{ focus_summary.tickets|pluralize }}</strong>
+            <span class="text-muted">· one ticket owns the time at each moment</span>
+        </div>
+        <div class="small text-muted mb-3">
+            <span><i class="bi bi-plus-circle-fill ipm-created"></i> created</span>
+            <span class="ms-2"><i class="bi bi-check-circle-fill ipm-done"></i> done</span>
+            <span class="ms-2"><i class="bi bi-slash-circle-fill ipm-blocked"></i> blocked</span>
+            <span class="ms-2"><i class="bi bi-flask ipm-testing"></i> testing</span>
+            <span class="ms-2"><i class="bi bi-circle ipm-queue"></i> queue</span>
+            <span class="ms-2"><i class="bi bi-play-circle-fill ipm-ip"></i> running</span>
+            <span class="ms-3"><span class="fm-n">1</span> handoff order</span>
+            <span class="ms-2"><span class="fm-n fm-back">2</span> got the focus back</span>
+        </div>
+
+        {% for day in focus_days %}
+        <div class="fm-day">
+            <div class="d-flex justify-content-between small mb-1">
+                <strong>{{ day.label }}</strong>
+                <span class="text-muted">{{ day.tickets }} ticket{{ day.tickets|pluralize }} · {{ day.count }} stay{{ day.count|pluralize }}</span>
+            </div>
+            <div class="fm-flow"><span>Flow:</span>
+                {% for card in day.cards %}<span class="fm-chip"><strong>{{ card.n }}</strong> {{ card.key }}</span>{% if not forloop.last %}<span>→</span>{% endif %}{% endfor %}
+            </div>
+            <div class="fm-groups">
+                {% for run in day.runs %}
+                <div class="fm-grp{% if forloop.last %} fm-last{% endif %}{% if forloop.counter > 4 %} fm-extra{% endif %}">
+                    {% if run.family %}
+                    <div class="fm-env">
+                        <div class="fm-env-head">
+                            <span><i class="bi bi-diagram-2 text-primary"></i> <strong>{{ run.family }}</strong> <span class="text-muted">{{ run.title }}</span>
+                                <span class="badge text-bg-light border fm-tg" title="The parent is also In Progress (paused behind its subtask)">parent in progress</span>
+                                {% if run.continued %}<span class="badge text-bg-light border fm-tg">(continued)</span>
+                                {% else %}<span class="badge text-bg-light border fm-tg" title="Only the subtasks that were In Progress are listed">{{ run.sub_active }} of {{ run.sub_total }} subtask{{ run.sub_total|pluralize }}</span>{% endif %}
+                            </span>
+                            <span class="text-nowrap small"><i class="bi bi-stopwatch"></i> <span class="fm-time" data-total="{{ run.total_label }}" data-wh="{{ run.wh_label }}">{{ run.total_label }}</span></span>
+                        </div>
+                        <div class="fm-tl">
+                            {% for card in run.cards %}{% include 'timetracking/_focus_stay.html' with show_who=True %}{% endfor %}
+                            <div class="mt-1 pt-1 border-top small">
+                                {% for card in run.cards %}{% ifchanged card.key %}<span class="me-2"><strong>{{ card.key }}</strong>
+                                    {% for label in card.labels|slice:":3" %}<span class="badge text-bg-secondary fm-tag">{{ label }}</span> {% endfor %}</span>{% endifchanged %}{% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    {% with card=run.cards.0 %}
+                    <div class="fm-tk">
+                        <div class="d-flex justify-content-between gap-2">
+                            <span class="text-nowrap">
+                                <a href="{% url 'timetracking-ticket-timeline' card.key %}" class="fm-id">{{ card.key }}</a>{% if jira_base_url %}
+                                <a href="{{ jira_base_url }}/browse/{{ card.key }}" target="_blank" rel="noopener" class="text-muted small ms-1" title="Open in Jira"><i class="bi bi-box-arrow-up-right"></i></a>{% endif %}
+                            </span>
+                        </div>
+                        <div class="fm-title my-1">{{ card.title }}</div>
+                        {% if card.parent %}
+                        <div class="fm-note ps-0"><i class="bi bi-arrow-return-right"></i> subtask of <strong>{{ card.parent.id }}</strong>
+                            {% if card.parent_mine %}<span class="badge text-bg-warning fm-tg" title="This subtask ran while its parent was not In Progress">⚠ parent not In Progress</span>{% endif %}</div>
+                        {% endif %}
+                        {% include 'timetracking/_focus_stay.html' with show_who=False %}
+                        {% if card.labels %}<div class="d-flex flex-wrap gap-1 mt-1">
+                            {% for label in card.labels|slice:":3" %}<span class="badge text-bg-secondary fm-tag">{{ label }}</span>{% endfor %}
+                            {% if card.labels|length > 3 %}<span class="badge text-bg-light border fm-tag" title="{{ card.labels|slice:'3:'|join:', ' }}">+{{ card.labels|length|add:'-3' }}</span>{% endif %}
+                        </div>{% endif %}
+                    </div>
+                    {% endwith %}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% if day.runs|length > 4 %}
+            <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2 d-md-none fm-more" data-n="{{ day.runs|length|add:'-4' }}">
+                Show {{ day.runs|length|add:'-4' }} more <i class="bi bi-chevron-down"></i>
+            </button>
+            {% endif %}
+        </div>
+        {% endfor %}
+        <p class="small text-muted mt-3 mb-0">
+            Time order, newest day first. A blue envelope is a subtask running while its parent is also In Progress; a parent that owns the time alone is a plain card.
+            A tag filter only hides tickets; the time each ticket owns does not change. A ticket still In Progress from a previous day restarts at your first working hour.
+        </p>
+        {% else %}
+        <p class="text-muted small mb-0">No In Progress activity in this range.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+(function () {
+  document.querySelectorAll('.fm-mode').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.fm-mode').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      document.querySelectorAll('.fm-time').forEach(function (el) { el.textContent = el.dataset[btn.dataset.mode]; });
+    });
+  });
+  document.querySelectorAll('.fm-more').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var open = btn.closest('.fm-day').classList.toggle('fm-open');
+      btn.innerHTML = open ? 'Show less <i class="bi bi-chevron-up"></i>' : 'Show ' + btn.dataset.n + ' more <i class="bi bi-chevron-down"></i>';
+    });
+  });
+})();
+</script>

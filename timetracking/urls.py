@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import map_views, views
 
 urlpatterns = [
     path('', views.TimeEntryListView.as_view(), name='timetracking-list'),
@@ -9,5 +9,6 @@ urlpatterns = [
     path('<int:pk>/delete/', views.TimeEntryDeleteView.as_view(), name='timetracking-delete'),
     path('report/', views.DailyReportView.as_view(), name='timetracking-report'),
     path('report/ticket/<str:issue_key>/', views.TicketTimelineView.as_view(), name='timetracking-ticket-timeline'),
+    path('map/', map_views.TimeMapView.as_view(), name='timetracking-map'),
     path('schedule/', views.WorkScheduleView.as_view(), name='timetracking-schedule'),
 ]

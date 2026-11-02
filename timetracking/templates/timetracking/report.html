@@ -42,6 +42,9 @@
                 class="btn btn-{% if time_mode == 'exclusive' %}primary{% else %}outline-secondary{% endif %}">Exclusive</button>
         </div>
     </form>
+    <a href="{% url 'timetracking-map' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-diagram-3"></i> In Progress Map
+    </a>
     <a href="{% url 'timetracking-list' %}" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-list"></i> All Entries
     </a>
@@ -457,9 +460,6 @@
     </div>
 </div>
 {% endif %}
-
-{# ── In Progress map (v5.18.0) ── #}
-{% include 'timetracking/_ip_map.html' %}
 
 {# ── Gantt Timeline ── #}
 {% if gantt_rows %}
