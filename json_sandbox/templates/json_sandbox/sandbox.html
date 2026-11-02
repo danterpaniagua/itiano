@@ -16,8 +16,9 @@
     {% if show_back %}<input type="hidden" name="back" value="1">{% endif %}
     <input type="hidden" name="mode" id="mode-input" value="{{ mode }}">
 
-    {# Mode toggle #}
-    <div class="btn-group mb-3" role="group">
+    {# Mode toggle + Save as note #}
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <div class="btn-group" role="group">
         <button type="button" class="btn btn-sm {% if mode == 'jsonpath' %}btn-dark{% else %}btn-outline-secondary{% endif %}"
                 onclick="setMode('jsonpath')">
             <i class="bi bi-search"></i> JSONPath
@@ -26,6 +27,15 @@
                 onclick="setMode('filter')">
             <i class="bi bi-funnel"></i> Filter
         </button>
+    </div>
+    <input type="text" name="note_title" class="form-control form-control-sm ms-md-auto flex-grow-1 flex-md-grow-0"
+           style="max-width:320px" maxlength="255" placeholder="Note title (optional)" aria-label="Note title">
+    {# A button, not a submit: Enter in the other fields must evaluate, never save #}
+    <input type="hidden" name="save_note" id="save-note-input" value="">
+    <button type="button" onclick="saveAsNote()" class="btn btn-outline-secondary btn-sm"
+            title="Save the payload, expression or filter and the last result as a note in Notes">
+        <i class="bi bi-journal-plus"></i> Save as note
+    </button>
     </div>
 
     <div class="row g-3">
@@ -128,6 +138,11 @@
     ta.addEventListener('input', validate);
     if (ta.value.trim()) validate();
 })();
+
+function saveAsNote() {
+    document.getElementById('save-note-input').value = '1';
+    document.getElementById('sandbox-form').submit();
+}
 
 function setMode(m) {
     document.getElementById('mode-input').value = m;

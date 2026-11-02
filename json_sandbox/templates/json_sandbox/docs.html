@@ -8,6 +8,15 @@
     <li><strong>Filter</strong> — Evaluate a full automation filter condition tree and see whether it matches.</li>
 </ul>
 
+<h6 class="text-muted mt-3">Save as note</h6>
+<p>The <em>Save as note</em> button next to the mode toggle stores your work in the <a href="{% url 'notes-list' %}">Notes</a> app, in a notebook called <strong>JSON Sandbox</strong> (created the first time). Give it a title or leave it empty (<code>JSON sandbox - date time</code>).</p>
+<ul>
+    <li>The note holds, in order and skipping empty parts: the mode, the payload, the JSONPath expression or the filter, and the last result (matches, <em>no matches</em>, or <em>Filter matched: yes/no</em>).</li>
+    <li>It stores what you typed; nothing is re-evaluated later, so a work-in-progress or invalid payload can be saved too (without a result).</li>
+    <li>An empty form is not saved, and a payload over 1 MB is rejected.</li>
+    <li>The note is yours; share or delete it from Notes like any other note.</li>
+</ul>
+
 <h6 class="text-muted mt-3">JSONPath Tips</h6>
 <ul>
     <li><code>$.field</code> — top-level field</li>
