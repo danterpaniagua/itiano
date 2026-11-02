@@ -1,0 +1,37 @@
+{# Shared by the vault list and the credential page. Needs `clipboard_ttl` (seconds, 0 = never clear). #}
+const clipboardTtl = {{ clipboard_ttl|default:0 }};
+let clipboardTimer = null;
+let clipboardOnTick = null;
+
+async function sha256Hex(text) {
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function stopClipboardCountdown() {
+    clearInterval(clipboardTimer);
+    if (clipboardOnTick) clipboardOnTick(null);
+    clipboardOnTick = null;
+}
+
+// Copies `text`. For a secret, clears the clipboard after the TTL, only if it still holds that
+// secret (compared by SHA-256, so the secret itself is not kept in memory). Best effort.
+async function copyToClipboard(text, secret, onTick) {
+    stopClipboardCountdown();
+    await navigator.clipboard.writeText(text);
+    if (!secret || clipboardTtl <= 0 || !(window.crypto && crypto.subtle)) return;
+    const digest = await sha256Hex(text);
+    let left = clipboardTtl;
+    clipboardOnTick = onTick || null;
+    if (clipboardOnTick) clipboardOnTick(left);
+    clipboardTimer = setInterval(async () => {
+        left -= 1;
+        if (left > 0) { if (clipboardOnTick) clipboardOnTick(left); return; }
+        stopClipboardCountdown();
+        try {
+            if (await sha256Hex(await navigator.clipboard.readText()) === digest) {
+                await navigator.clipboard.writeText('');
+            }
+        } catch (e) { /* browser refused or page hidden: nothing happens */ }
+    }, 1000);
+}

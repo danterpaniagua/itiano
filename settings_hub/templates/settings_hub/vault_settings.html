@@ -19,6 +19,22 @@
             <h5 class="mb-0 me-auto"><i class="bi bi-key me-1"></i> Vault: Teams &amp; Sharing</h5>
         </div>
 
+        {# ── Clipboard TTL (all users) ── #}
+        <div class="section-card">
+            <div class="section-title"><i class="bi bi-clipboard-x me-1"></i>Clipboard</div>
+            <form method="post" action="{% url 'settings-vault-clipboard-ttl' %}" class="row g-2 align-items-end">
+                {% csrf_token %}
+                <div class="col-12 col-md-4">
+                    <label class="form-label form-label-sm mb-1">Clear copied secrets after (seconds)</label>
+                    <input type="number" name="ttl" value="{{ clipboard_ttl }}" min="0" max="{{ clipboard_ttl_max }}" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-12 col-md-3">
+                    <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-check-lg"></i> Save</button>
+                </div>
+            </form>
+            <div class="small text-muted mt-2">Applies to every user, in the vault list and on the credential page. 0 turns it off. Default 30.</div>
+        </div>
+
         {# ── Teams ── #}
         <div class="section-card">
             <div class="section-title"><i class="bi bi-people me-1"></i>Teams</div>

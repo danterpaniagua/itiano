@@ -37,6 +37,12 @@
 <h6 class="mt-3">Copying Secrets</h6>
 <p>Secrets are never shown in plaintext. Use the <i class="bi bi-clipboard"></i> button to copy the decrypted secret directly to your clipboard via a secure AJAX request.</p>
 
+<h6 class="mt-3">Credential Page</h6>
+<p>Click a credential name to open its read-only page: type, owner, container, expiry, URL, username, and the public key or certificate. Every item has a <i class="bi bi-clipboard"></i> button. Secret fields (password, private key, API secret) are never shown; their button fetches the value only when pressed. <strong>Edit</strong> appears only if you can edit the credential.</p>
+
+<h6 class="mt-3">Clipboard Clearing</h6>
+<p>A copied secret is removed from the clipboard after a set time (30 s by default), but only if the clipboard still holds that secret, so something you copied afterwards is never erased. Staff set the time for everyone at <strong>Settings → App → Vault</strong> (0 turns it off). Clearing is best effort: the browser may refuse it, and it needs the page to stay open.</p>
+
 <h6 class="mt-3">Expiry Warnings</h6>
 <p>Credentials with an expiry date within 30 days show a warning badge in the list.</p>
 

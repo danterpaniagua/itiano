@@ -29,6 +29,7 @@ urlpatterns = [
     path('categories/<int:pk>/edit/', views.CategoryEditView.as_view(), name='settings-category-edit'),
     path('categories/<int:pk>/delete/', views.CategoryDeleteView.as_view(), name='settings-category-delete'),
     path('vault/', views.VaultSettingsView.as_view(), name='settings-vault'),
+    path('vault/clipboard-ttl/', views.VaultClipboardTtlView.as_view(), name='settings-vault-clipboard-ttl'),
     path('vault/teams/create/', views.TeamCreateView.as_view(), name='settings-vault-team-create'),
     path('vault/teams/<int:pk>/edit/', views.TeamEditView.as_view(), name='settings-vault-team-edit'),
     path('vault/teams/<int:pk>/members/add/', views.TeamMemberAddView.as_view(), name='settings-vault-team-member-add'),

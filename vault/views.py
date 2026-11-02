@@ -4,6 +4,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from notifications.models import notify
@@ -133,6 +134,7 @@ def credential_list(request):
         'shared_by_team': shared_by_team,
         'personal_count': personal_count,
         'total_visible_count': visible_all.count(),
+        'clipboard_ttl': clipboard_ttl_seconds(),
     })
 
 
@@ -218,6 +220,7 @@ CREDENTIAL_COPY_FIELDS = {
 
 @login_required
 @require_POST
+@never_cache
 def credential_copy(request, pk):
     credential = get_object_or_404(Credential, pk=pk, is_deleted=False)
     if not _can_access(request.user, credential):
@@ -232,6 +235,56 @@ def credential_copy(request, pk):
     from .crypto import decrypt_for_credential
     secret = decrypt_for_credential(credential, request.user, token)
     return JsonResponse({'secret': secret})
+
+
+COPY_LABELS = {
+    Credential.TYPE_PASSWORD: {'key': 'Password'},
+    Credential.TYPE_SECRET: {'key': 'Secret'},
+    Credential.TYPE_API_KEY: {'key': 'API key', 'secret': 'API secret'},
+    Credential.TYPE_SSH_KEY: {'key': 'Private key'},
+    Credential.TYPE_CERTIFICATE: {'key': 'Private key'},
+}
+
+CLIPBOARD_TTL_DEFAULT = 30
+CLIPBOARD_TTL_MAX = 3600
+
+
+def clipboard_ttl_seconds():
+    """Seconds before a copied secret is cleared from the clipboard (0 = never). One value for every user."""
+    from settings_hub.models import get_app_setting
+    try:
+        ttl = int(get_app_setting('vault_clipboard_ttl_seconds', str(CLIPBOARD_TTL_DEFAULT)))
+    except (TypeError, ValueError):
+        return CLIPBOARD_TTL_DEFAULT
+    return min(max(ttl, 0), CLIPBOARD_TTL_MAX)
+
+
+def _container_path(container):
+    parts = []
+    while container is not None and len(parts) < 20:
+        parts.append(container.name)
+        container = container.parent
+    return ' / '.join(reversed(parts))
+
+
+@login_required
+def credential_detail(request, pk):
+    credential = get_object_or_404(Credential, pk=pk, is_deleted=False)
+    if not _can_access(request.user, credential):
+        raise PermissionDenied
+    # Only slot and label reach the template: a secret, a masked value or a ciphertext is never rendered.
+    secret_rows = [
+        {'slot': slot, 'label': COPY_LABELS[credential.credential_type][slot]}
+        for slot, field in CREDENTIAL_COPY_FIELDS.get(credential.credential_type, {}).items()
+        if getattr(credential, field)
+    ]
+    return render(request, 'vault/credential_detail.html', {
+        'credential': credential,
+        'can_edit': _can_edit(request.user, credential),
+        'secret_rows': secret_rows,
+        'container_path': _container_path(credential.container) if credential.container_id else '',
+        'clipboard_ttl': clipboard_ttl_seconds(),
+    })
 
 
 @login_required

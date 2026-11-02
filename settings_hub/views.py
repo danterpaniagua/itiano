@@ -17,6 +17,7 @@ from itsm.models import Category, Tag
 from jira_integration.models import JiraEvent
 from timetracking.models import ReportEnvironment, ReportProject, ReportService, WorkSchedule
 from vault.models import Container, ContainerAccess
+from vault.views import CLIPBOARD_TTL_MAX, clipboard_ttl_seconds
 from .models import get_app_setting, AppSetting, JiraStatusConfig
 
 _DAYS = [
@@ -170,8 +171,25 @@ class VaultSettingsView(StaffRequiredMixin, View):
             'containers': containers,
             'all_users': User.objects.order_by('username'),
             'all_teams': teams,
+            'clipboard_ttl': clipboard_ttl_seconds(),
+            'clipboard_ttl_max': CLIPBOARD_TTL_MAX,
             'active': 'app',
         })
+
+
+class VaultClipboardTtlView(StaffRequiredMixin, View):
+    """One clipboard TTL for every user (not per user)."""
+    def post(self, request):
+        try:
+            ttl = int(request.POST.get('ttl', '').strip())
+        except ValueError:
+            ttl = -1
+        if not 0 <= ttl <= CLIPBOARD_TTL_MAX:
+            messages.error(request, f'Enter a whole number of seconds from 0 to {CLIPBOARD_TTL_MAX}.')
+            return redirect('settings-vault')
+        AppSetting.objects.update_or_create(key='vault_clipboard_ttl_seconds', defaults={'value': str(ttl)})
+        messages.success(request, 'Clipboard clearing is off.' if ttl == 0 else f'Copied secrets are cleared after {ttl} s.')
+        return redirect('settings-vault')
 
 
 class TeamCreateView(StaffRequiredMixin, View):
