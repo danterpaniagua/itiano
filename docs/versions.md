@@ -141,4 +141,5 @@
 | v5.18.6 | Vault: Read-Only Credential Page + Global Clipboard TTL (experimental) | Delivered | [v5/v5.18.6.md](v5/v5.18.6.md) |
 | v5.18.7 | Notes: @ Mentions with Autocomplete, Chips and Backlinks | Delivered | [v5/v5.18.7.md](v5/v5.18.7.md) |
 | v5.19.0 | Notes: System Prompts (Folder Tree, Viewers Group, Admin-Only Edit) | Delivered | [v5/v5.19.0.md](v5/v5.19.0.md) |
-| v5.19.1 | Documentation Sync: Version Index, VERSION, Feature Docs, Architecture Apps | In progress | [v5/v5.19.1.md](v5/v5.19.1.md) |
+| v5.19.1 | Documentation Sync: Version Index, VERSION, Feature Docs, Architecture Apps | Delivered | [v5/v5.19.1.md](v5/v5.19.1.md) |
+| v5.20.0 | Time Report Renamed to /time/current/ (old paths redirect until v5.21.0) | In progress | [v5/v5.20.0.md](v5/v5.20.0.md) |

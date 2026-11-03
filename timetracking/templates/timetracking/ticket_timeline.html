@@ -13,7 +13,7 @@
         <i class="bi bi-box-arrow-up-right"></i> Jira
     </a>
     {% endif %}
-    <a href="{% url 'timetracking-report' %}?range={{ back_range }}{% for t in back_tags %}&tags={{ t }}{% endfor %}{% for s in back_statuses %}&statuses={{ s }}{% endfor %}"
+    <a href="{% url 'timetracking-current' %}?range={{ back_range }}{% for t in back_tags %}&tags={{ t }}{% endfor %}{% for s in back_statuses %}&statuses={{ s }}{% endfor %}"
        class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Report
     </a>

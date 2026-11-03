@@ -218,7 +218,7 @@ class RunRuleTests(TestCase):
         rules.run_rule(_make_rule(self.user))
         note = Notification.objects.get()
         self.assertEqual(note.message, 'Untagged ticket GITIN-1: Title GITIN-1')
-        self.assertEqual(note.url, '/time/report/ticket/GITIN-1/timeline/')
+        self.assertEqual(note.url, '/time/current/ticket/GITIN-1/')
 
     def test_jira_base_url_link(self):
         AppSetting.objects.create(key='jira_base_url', value='https://x.atlassian.net/')

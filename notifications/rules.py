@@ -3,6 +3,7 @@ import re
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.urls import reverse
 from django.utils import timezone
 
 from automations.evaluator import evaluate_filter
@@ -113,7 +114,7 @@ def ticket_url(ticket):
     base = get_app_setting('jira_base_url', '').rstrip('/')
     if base:
         return f'{base}/browse/{ticket.issue_key}'
-    return f'/time/report/ticket/{ticket.issue_key}/timeline/'
+    return reverse('timetracking-ticket-timeline', args=[ticket.issue_key])
 
 
 def rule_recipients(rule, ticket):

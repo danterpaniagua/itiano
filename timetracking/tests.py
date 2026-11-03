@@ -30,7 +30,7 @@ class ExclusiveTimeReportTests(TestCase):
         UserProfile.objects.update_or_create(user=self.user, defaults={'jira_account_id': ACCOUNT_ID})
         WorkSchedule.objects.update_or_create(user=self.user, defaults={'timezone': 'UTC'})
         self.client.force_login(self.user)
-        self.url = reverse('timetracking-report')
+        self.url = reverse('timetracking-current')
 
     def ticket(self, key, transitions, status, parent=''):
         """transitions: [(received_at, from_status, to_status), ...]"""
@@ -876,7 +876,36 @@ class FocusMapViewTests(MapPageMixin, TestCase):
     def test_report_links_to_the_map_and_no_longer_renders_it(self):
         self.seed()
         with mock.patch('django.utils.timezone.now', return_value=at(2, '12:00')):
-            response = self.client.get(reverse('timetracking-report'), {'range': 'week'})
+            response = self.client.get(reverse('timetracking-current'), {'range': 'week'})
         self.assertContains(response, reverse('timetracking-map'))
         self.assertNotContains(response, 'ip-map-card')
         self.assertNotIn('ip_map_days', response.context)
+
+
+class TimeCurrentRouteTests(TestCase):
+    """v5.20.0: /time/report/ became /time/current/; the old paths redirect until v5.21.0."""
+    def setUp(self):
+        self.user = User.objects.create_user('agent_test', password='pass')
+        UserProfile.objects.update_or_create(user=self.user, defaults={'jira_account_id': ACCOUNT_ID})
+        WorkSchedule.objects.create(user=self.user, start_time=dt.time(9), end_time=dt.time(18))
+        JiraTicket.objects.create(issue_key='GITIN-1', title='T', assignee_account_id=ACCOUNT_ID)
+        self.client.force_login(self.user)
+
+    def test_new_paths(self):
+        self.assertEqual(reverse('timetracking-current'), '/time/current/')
+        self.assertEqual(reverse('timetracking-ticket-timeline', args=['GITIN-1']), '/time/current/ticket/GITIN-1/')
+        self.assertEqual(self.client.get('/time/current/').status_code, 200)
+        self.assertEqual(self.client.get('/time/current/ticket/GITIN-1/').status_code, 200)
+
+    def test_old_report_path_redirects_and_keeps_the_query(self):
+        response = self.client.get('/time/report/', {'range': 'week', 'tags': 'a'})
+        self.assertRedirects(response, '/time/current/?range=week&tags=a', fetch_redirect_response=False)
+
+    def test_old_timeline_path_redirects(self):
+        response = self.client.get('/time/report/ticket/GITIN-1/', {'back_range': 'week'})
+        self.assertRedirects(response, '/time/current/ticket/GITIN-1/?back_range=week', fetch_redirect_response=False)
+
+    def test_links_point_to_the_new_path(self):
+        for url in (reverse('timetracking-list'), reverse('timetracking-map'), reverse('dashboard')):
+            self.assertContains(self.client.get(url), '/time/current/', msg_prefix=url)
+            self.assertNotContains(self.client.get(url), '/time/report/', msg_prefix=url)
