@@ -1104,6 +1104,33 @@ class TagReportViewTests(TagReportBase):
         self.assertEqual(sum(s['totals']['tickets'] for s in response.context['sections']), 4)
         self.assertEqual(response.context['totals']['ip_wh'], 10800 + 3600 + 3600)
 
+    def test_paused_is_a_grouped_column_with_blocked_overlapped_and_total(self):
+        self.scenario()
+        html = self.get().content.decode()
+        self.assertIn('colspan="3" class="text-center border-bottom-0" title="Paused = Blocked + Overlapped">Paused</th>', html)
+        for header in ('>Blocked</th>', '>Overlapped</th>', '>Total</th>'):
+            self.assertIn(header, html)
+
+    def test_overlapped_totals_per_row_section_and_grand_total(self):
+        self.scenario()
+        response = self.get()
+        row = response.context['sections'][0]['rows'][0]
+        self.assertEqual((row['overlap_wh'], row['overlap_label']), (3600, '1h 0m'))
+        pedidos = response.context['sections'][0]['totals']
+        self.assertEqual((pedidos['blocked_wh'], pedidos['overlap_wh'], pedidos['paused_wh']), (7200, 3600, 10800))
+        self.assertEqual(pedidos['overlap_label'], '1h 0m')
+        self.assertEqual(response.context['totals']['overlap_wh'], 3600)
+        self.assertContains(response, 'Paused 3h 0m')
+        self.assertContains(response, '(Blocked 2h 0m + Overlapped 1h 0m)')
+
+    def test_totals_are_rows_under_the_same_columns_with_a_parallel_wait_hint(self):
+        self.scenario()
+        html = self.get().content.decode()
+        self.assertIn('<tfoot', html)
+        self.assertIn('Total (each ticket once) · 2 tickets', html)
+        self.assertIn('tickets are blocked in parallel', html)
+        self.assertEqual(html.count('<colgroup>'), 3)   # SmartPedidos + SmartLoyalty tables (the empty sections have none) + the grand total
+
     def test_the_id_links_to_jira_when_the_base_url_is_set(self):
         self.scenario()
         AppSetting.objects.create(key='jira_base_url', value='https://x.atlassian.net/')

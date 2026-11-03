@@ -144,4 +144,5 @@
 | v5.19.1 | Documentation Sync: Version Index, VERSION, Feature Docs, Architecture Apps | Delivered | [v5/v5.19.1.md](v5/v5.19.1.md) |
 | v5.20.0 | Time Report Renamed to /time/current/ (old paths redirect until v5.21.0) | Delivered | [v5/v5.20.0.md](v5/v5.20.0.md) |
 | v5.20.1 | Fix: First Visit of a User Without a Work Schedule No Longer Crashes | Delivered | [v5/v5.20.1.md](v5/v5.20.1.md) |
-| v5.21.0 | Time Report by Tag (/time/report/): IP, Blocked, Paused in WH, Default Main Projects, Copy as Prompt | In progress | [v5/v5.21.0.md](v5/v5.21.0.md) |
+| v5.21.0 | Time Report by Tag (/time/report/): IP, Blocked, Paused in WH, Default Main Projects, Copy as Prompt | Delivered | [v5/v5.21.0.md](v5/v5.21.0.md) |
+| v5.21.1 | Time Report: Paused as Blocked / Overlapped / Total Columns with Total Rows | In progress | [v5/v5.21.1.md](v5/v5.21.1.md) |

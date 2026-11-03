@@ -216,9 +216,10 @@ def _totals(rows):
         'tickets': len(rows),
         'ip_wh': sum(r['ip_wh'] for r in rows),
         'blocked_wh': sum(r['blocked_wh'] for r in rows),
+        'overlap_wh': sum(r['overlap_wh'] for r in rows),
         'paused_wh': sum(r['paused_wh'] for r in rows),
     }
-    for name in ('ip', 'blocked', 'paused'):
+    for name in ('ip', 'blocked', 'overlap', 'paused'):
         totals[f'{name}_label'] = focus_map.fmt_secs(totals[f'{name}_wh'])
     return totals
 
@@ -228,6 +229,7 @@ def decorate(rows):
     for row in rows.values():
         row['ip_label'] = focus_map.fmt_secs(row['ip_wh'])
         row['blocked_label'] = focus_map.fmt_secs(row['blocked_wh'])
+        row['overlap_label'] = focus_map.fmt_secs(row['overlap_wh'])
         row['paused_label'] = focus_map.fmt_secs(row['paused_wh'])
     return rows
 
