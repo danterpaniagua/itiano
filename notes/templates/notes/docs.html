@@ -29,6 +29,16 @@
 <p>The list only offers what you can see. Mentions inside code, and things like <code>user@host.com</code>, are ignored. The <strong>Preview</strong> tab turns each mention into a chip with the current title or name; if you cannot open the object you only see <em>no access</em>, and a removed object shows <em>deleted</em>. Sharing a note never shares the objects it mentions: every reader sees chips according to their own access.</p>
 <p>The ITSM ticket, Jira ticket and credential pages list the notes that mention them (only notes you can read) in a collapsed <strong>Notes mentioning this</strong> card.</p>
 
+<h6 class="text-muted mt-3">System Prompts</h6>
+<p>Prompt templates that features use (for example the time report export) are kept as notes in a <strong>System Prompts</strong> folder at the bottom of the sidebar, grouped in a folder per project (<em>Itiano</em> for system-wide prompts). Each prompt has an id such as <code>prompt_time_report</code> (<code>prompt_</code> plus the feature path in snake_case) that the app uses to find it, so you can rename the title freely.</p>
+<ul class="small">
+    <li><strong>Who sees it:</strong> system admins, managers, and users in the <em>System Prompts viewers</em> group (or with the <code>view_system_prompts</code> permission, assigned in the Django admin). Everyone else does not see the folder.</li>
+    <li><strong>Who edits it:</strong> system admins only; the rest open it read-only.</li>
+    <li>System prompts cannot be deleted or shared. If a prompt is missing or empty, the feature uses its built-in default text.</li>
+    <li>Placeholders such as <code>{tag}</code> are documented by each feature and left as typed if unknown.</li>
+</ul>
+<p class="text-muted small">Notes shared with you as read-only now open in the editor in read-only mode.</p>
+
 <h6 class="text-muted mt-3">Sharing</h6>
 <div class="table-responsive"><table class="table table-sm table-bordered">
     <thead class="table-light"><tr><th>Permission</th><th>Can do</th></tr></thead>

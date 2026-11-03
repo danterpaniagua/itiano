@@ -11,10 +11,12 @@
     <input type="text" id="note-title" class="form-control form-control-sm fw-semibold me-auto"
            style="max-width:400px"
            value="{% if note %}{{ note.title }}{% endif %}"
-           placeholder="Note title">
+           placeholder="Note title"{% if read_only %} readonly{% endif %}>
+    {% if not read_only %}
     <button class="btn btn-primary btn-sm" onclick="saveNote()">
         <i class="bi bi-floppy"></i> Save
     </button>
+    {% endif %}
     {% if note and perm == 'owner' and not note.is_system %}
     <a href="{% url 'note-share' note.pk %}" class="btn btn-outline-secondary btn-sm" title="Share">
         <i class="bi bi-people"></i>
@@ -30,6 +32,12 @@
     {% endif %}
     {% if note.is_system %}
     <span class="badge bg-light text-dark border" title="Private system note"><i class="bi bi-lock"></i> Private</span>
+    {% endif %}
+    {% if note.key %}
+    <span class="badge bg-light text-dark border" title="System prompt id"><i class="bi bi-gear"></i> {{ note.key }}</span>
+    {% endif %}
+    {% if read_only %}
+    <span class="badge bg-secondary" title="You can read this note but not edit it"><i class="bi bi-lock"></i> read-only</span>
     {% endif %}
 </div>
 
@@ -47,7 +55,7 @@
     </select>
     <small id="save-status" class="text-muted"></small>
 </div>
-{% elif not note.is_system %}
+{% elif not note.is_system and not note.key %}
 <small class="text-muted d-block mb-2">
     <i class="bi bi-person-lines-fill text-info"></i>
     Shared by {{ note.owner.username }}
@@ -78,7 +86,7 @@
         <div class="position-relative">
             <textarea id="note-body" class="form-control font-monospace border-0 rounded-0 rounded-bottom"
                       style="min-height:65vh; resize:vertical"
-                      spellcheck="false"
+                      spellcheck="false"{% if read_only %} readonly{% endif %}
                       placeholder="Write markdown here... Type @ to mention a Jira ticket (@GITIN-2315), @ticket:42 or @cred:17">{% if note %}{{ note.body }}{% endif %}</textarea>
             {# @ autocomplete: full width, docked at the bottom of the editor, tappable rows #}
             <div id="mention-menu" class="list-group list-group-flush border-top shadow-sm position-absolute start-0 end-0 bottom-0 bg-body"
@@ -217,7 +225,7 @@ async function renderPreview() {
 document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        saveNote();
+        {% if not read_only %}saveNote();{% endif %}
     }
 });
 </script>

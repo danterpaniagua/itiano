@@ -8,11 +8,13 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
-from . import mentions
+from . import mentions, system_prompts
 from .models import Note, Notebook, NoteShare
 
 
 def _note_perm(user, note):
+    if note.key:   # system prompt: permission comes from the user, not from ownership or shares
+        return system_prompts.perm_for(user)
     if note.owner == user:
         return 'owner'
     share = NoteShare.objects.filter(note=note, shared_with=user).first()
@@ -21,13 +23,15 @@ def _note_perm(user, note):
 
 class NoteListView(LoginRequiredMixin, View):
     def get(self, request, notebook_pk=None):
-        notebooks = Notebook.objects.filter(owner=request.user)
+        if system_prompts.can_edit(request.user):
+            system_prompts.ensure_all(request.user)
+        notebooks = Notebook.objects.filter(owner=request.user, is_system=False)
         selected_notebook = None
         if notebook_pk:
-            selected_notebook = get_object_or_404(Notebook, pk=notebook_pk, owner=request.user)
+            selected_notebook = get_object_or_404(Notebook, pk=notebook_pk, owner=request.user, is_system=False)
             notes = selected_notebook.notes.select_related('notebook')
         else:
-            notes = Note.objects.filter(owner=request.user).select_related('notebook')
+            notes = Note.objects.filter(owner=request.user, key='').select_related('notebook')
 
         shared_notes = Note.objects.filter(
             shares__shared_with=request.user
@@ -38,30 +42,33 @@ class NoteListView(LoginRequiredMixin, View):
             'notes': notes,
             'selected_notebook': selected_notebook,
             'shared_notes': shared_notes,
+            'system_tree': system_prompts.system_tree(request.user),
         })
 
 
 class NoteEditView(LoginRequiredMixin, View):
-    def _resolve(self, request, pk):
+    def _resolve(self, request, pk, write):
         if pk:
             note = get_object_or_404(Note, pk=pk)
             perm = _note_perm(request.user, note)
-            if perm not in ('owner', 'write'):
+            allowed = ('owner', 'write') if write else ('owner', 'write', 'read')
+            if perm not in allowed:
                 raise PermissionDenied
             return note, perm
         return None, 'owner'
 
     def get(self, request, pk=None):
-        note, perm = self._resolve(request, pk)
-        notebooks = Notebook.objects.filter(owner=request.user if note is None else note.owner)
+        note, perm = self._resolve(request, pk, write=False)
+        notebooks = Notebook.objects.filter(owner=request.user if note is None else note.owner, is_system=False)
         return render(request, 'notes/note_edit.html', {
             'note': note,
             'perm': perm,
+            'read_only': perm == 'read',
             'notebooks': notebooks,
         })
 
     def post(self, request, pk=None):
-        note, perm = self._resolve(request, pk)
+        note, perm = self._resolve(request, pk, write=True)
         if note is None:
             note = Note(owner=request.user)
 
@@ -71,7 +78,7 @@ class NoteEditView(LoginRequiredMixin, View):
         if perm == 'owner':
             notebook_pk = request.POST.get('notebook')
             if notebook_pk:
-                note.notebook = get_object_or_404(Notebook, pk=notebook_pk, owner=note.owner)
+                note.notebook = get_object_or_404(Notebook, pk=notebook_pk, owner=note.owner, is_system=False)
             else:
                 note.notebook = None
 
@@ -83,7 +90,7 @@ class NoteEditView(LoginRequiredMixin, View):
 class NoteDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         note = get_object_or_404(Note, pk=pk, owner=request.user)
-        if note.is_system:
+        if note.is_system or note.key:
             raise PermissionDenied
         note.delete()
         return redirect('notes-list')
@@ -92,7 +99,7 @@ class NoteDeleteView(LoginRequiredMixin, View):
 class NoteShareView(LoginRequiredMixin, View):
     def get(self, request, pk):
         note = get_object_or_404(Note, pk=pk, owner=request.user)
-        if note.is_system:
+        if note.is_system or note.key:
             messages.error(request, 'System notes cannot be shared.')
             return redirect('note-edit', pk=pk)
         shares = note.shares.select_related('shared_with')
@@ -113,7 +120,7 @@ class NoteShareView(LoginRequiredMixin, View):
 
     def post(self, request, pk):
         note = get_object_or_404(Note, pk=pk, owner=request.user)
-        if note.is_system:
+        if note.is_system or note.key:
             messages.error(request, 'System notes cannot be shared.')
             return redirect('note-edit', pk=pk)
         action = request.POST.get('action')
@@ -147,7 +154,7 @@ class NotebookCreateView(LoginRequiredMixin, View):
 
 class NotebookDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        notebook = get_object_or_404(Notebook, pk=pk, owner=request.user)
+        notebook = get_object_or_404(Notebook, pk=pk, owner=request.user, is_system=False)
         if not notebook.notes.exists():
             notebook.delete()
         return redirect('notes-list')

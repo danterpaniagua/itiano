@@ -318,3 +318,220 @@ class EditorMarkupTests(TestCase):
         self.assertContains(response, 'id="mention-menu"')
         self.assertContains(response, reverse('notes-mention-search'))
         self.assertContains(response, reverse('notes-mention-resolve'))
+
+
+# ── System prompts (v5.19.0) ─────────────────────────────────────────────────
+
+from django.contrib.auth.models import Group, Permission  # noqa: E402
+
+from . import system_prompts  # noqa: E402
+from .models import Notebook  # noqa: E402
+
+
+class SystemPromptRegistryTests(TestCase):
+    def test_id_must_be_prompt_prefix_and_snake_case(self):
+        for bad in ('time_report', 'prompt_', 'prompt_Time', 'prompt_time-report', 'prompt__x', 'Prompt_x'):
+            with self.assertRaises(ValueError, msg=bad):
+                system_prompts.register(bad, 'itiano', 'T', 'body')
+
+    def test_project_must_exist(self):
+        with self.assertRaises(ValueError):
+            system_prompts.register('prompt_x', 'nope', 'T', 'body')
+
+    def test_valid_id_is_registered(self):
+        self.addCleanup(system_prompts.PROMPTS.pop, 'prompt_time_report', None)
+        system_prompts.register('prompt_time_report', 'itiano', 'T', 'body')
+        self.assertIn('prompt_time_report', system_prompts.PROMPTS)
+
+    def test_no_feature_prompt_ships_with_the_mechanism(self):
+        self.assertEqual(system_prompts.PROMPTS, {})
+
+    def test_viewers_group_exists_with_the_permission(self):
+        group = Group.objects.get(name='System Prompts viewers')
+        self.assertTrue(group.permissions.filter(codename='view_system_prompts').exists())
+
+
+class SystemPromptsTests(TestCase):
+    def setUp(self):
+        system_prompts.register('prompt_demo_report', 'itiano', 'Demo report prompt', 'Default for {tag}')
+        self.addCleanup(system_prompts.PROMPTS.pop, 'prompt_demo_report', None)
+        self.admin = User.objects.create_user('admin_t', password='x', is_staff=True)
+        self.manager = make_user('mgr_t', 'manager')
+        self.agent = make_user('agent_t', 'agent')
+        viewer = make_user('viewer_t', 'agent')
+        viewer.groups.add(Group.objects.get(name='System Prompts viewers'))
+        self.viewer = User.objects.get(pk=viewer.pk)
+        self.note = system_prompts.ensure_prompt('prompt_demo_report', self.admin)
+
+    def edit_url(self):
+        return reverse('note-edit', args=[self.note.pk])
+
+    # tree + registry
+    def test_ensure_creates_the_tree_from_the_default_and_is_idempotent(self):
+        system_prompts.ensure_prompt('prompt_demo_report', self.admin)
+        root = Notebook.objects.get(key='system_prompts')
+        project = Notebook.objects.get(key='itiano')
+        self.assertEqual((root.name, root.parent, root.is_system), ('System Prompts', None, True))
+        self.assertEqual((project.name, project.parent_id, project.is_system), ('Itiano', root.pk, True))
+        self.assertEqual((self.note.key, self.note.title, self.note.body, self.note.notebook_id),
+                         ('prompt_demo_report', 'Demo report prompt', 'Default for {tag}', project.pk))
+        self.assertEqual(Note.objects.filter(key='prompt_demo_report').count(), 1)
+        self.assertEqual(Notebook.objects.filter(is_system=True).count(), 2)
+
+    def test_get_prompt_returns_the_edited_text(self):
+        self.note.body = 'Edited {tag}'
+        self.note.save()
+        self.assertEqual(system_prompts.get_prompt('prompt_demo_report'), 'Edited {tag}')
+
+    def test_get_prompt_falls_back_to_the_default(self):
+        self.note.delete()
+        self.assertEqual(system_prompts.get_prompt('prompt_demo_report'), 'Default for {tag}')
+        system_prompts.ensure_prompt('prompt_demo_report', self.admin)
+        Note.objects.filter(key='prompt_demo_report').update(body='   ')
+        self.assertEqual(system_prompts.get_prompt('prompt_demo_report'), 'Default for {tag}')
+
+    def test_unknown_prompt_is_an_error(self):
+        with self.assertRaises(KeyError):
+            system_prompts.get_prompt('prompt_missing')
+
+    def test_opening_notes_as_admin_creates_the_prompt(self):
+        self.note.delete()
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('notes-list'))
+        self.assertTrue(Note.objects.filter(key='prompt_demo_report').exists())
+        self.assertContains(response, 'System Prompts')
+        self.assertContains(response, 'Demo report prompt')
+
+    # visibility
+    def test_sidebar_visibility(self):
+        for user, visible in ((self.admin, True), (self.manager, True), (self.viewer, True), (self.agent, False)):
+            self.client.force_login(user)
+            response = self.client.get(reverse('notes-list'))
+            self.assertEqual('Demo report prompt' in response.content.decode(), visible, user.username)
+
+    def test_allowed_users_see_the_folder_even_with_no_prompts(self):
+        self.note.delete()
+        system_prompts.PROMPTS.pop('prompt_demo_report')
+        self.addCleanup(system_prompts.register, 'prompt_demo_report', 'itiano', 'Demo report prompt', 'Default for {tag}')
+        for user in (self.admin, self.manager, self.viewer):
+            self.client.force_login(user)
+            html = self.client.get(reverse('notes-list')).content.decode()
+            self.assertIn('System Prompts', html, user.username)
+            self.assertIn('Itiano', html, user.username)
+            self.assertIn('no prompts yet', html, user.username)
+        self.client.force_login(self.agent)
+        html = self.client.get(reverse('notes-list')).content.decode()
+        self.assertNotIn('System Prompts', html)
+        self.assertNotIn('no prompts yet', html)
+
+    def test_the_empty_line_is_gone_once_a_prompt_exists(self):
+        self.client.force_login(self.manager)
+        self.assertNotContains(self.client.get(reverse('notes-list')), 'no prompts yet')
+
+    def test_permission_direct_to_the_user_also_grants_view(self):
+        user = make_user('perm_t', 'agent')
+        user.user_permissions.add(Permission.objects.get(codename='view_system_prompts'))
+        self.assertTrue(system_prompts.can_view(User.objects.get(pk=user.pk)))
+
+    def test_viewers_and_outsiders_on_the_edit_page(self):
+        self.client.force_login(self.agent)
+        self.assertEqual(self.client.get(self.edit_url()).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.get(self.edit_url()).status_code, 302)
+
+    # editing
+    def test_admin_edits_the_prompt(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(self.edit_url())
+        self.assertNotContains(response, 'read-only')
+        self.assertContains(response, 'onclick="saveNote()"')
+        self.assertContains(response, 'prompt_demo_report')
+        self.client.post(self.edit_url(), {'title': 'Renamed', 'body': 'New {tag}', 'notebook': ''})
+        self.note.refresh_from_db()
+        self.assertEqual((self.note.title, self.note.body), ('Renamed', 'New {tag}'))
+        self.assertEqual(system_prompts.get_prompt('prompt_demo_report'), 'New {tag}')
+
+    def test_key_and_folder_survive_an_edit(self):
+        self.client.force_login(self.admin)
+        folder = self.note.notebook_id
+        self.client.post(self.edit_url(), {'title': 'X', 'body': 'Y', 'notebook': ''})
+        self.note.refresh_from_db()
+        self.assertEqual((self.note.key, self.note.notebook_id), ('prompt_demo_report', folder))
+
+    def test_manager_and_group_viewer_get_a_read_only_editor(self):
+        for user in (self.manager, self.viewer):
+            self.client.force_login(user)
+            response = self.client.get(self.edit_url())
+            self.assertContains(response, 'read-only', msg_prefix=user.username)
+            self.assertNotContains(response, 'onclick="saveNote()"', msg_prefix=user.username)
+            self.assertContains(response, 'readonly', msg_prefix=user.username)
+            response = self.client.post(self.edit_url(), {'title': 'Hack', 'body': 'Hack', 'notebook': ''})
+            self.assertEqual(response.status_code, 403, user.username)
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.body, 'Default for {tag}')
+
+    # protections
+    def test_a_system_prompt_cannot_be_deleted_or_shared(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.post(reverse('note-delete', args=[self.note.pk])).status_code, 403)
+        self.assertTrue(Note.objects.filter(pk=self.note.pk).exists())
+        response = self.client.post(reverse('note-share', args=[self.note.pk]),
+                                    {'action': 'add', 'user_id': self.manager.pk, 'permission': 'read'})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.note.shares.count(), 0)
+        self.assertEqual(self.client.get(reverse('note-share', args=[self.note.pk])).status_code, 302)
+
+    def test_a_system_folder_cannot_be_deleted(self):
+        self.client.force_login(self.admin)
+        root = Notebook.objects.get(key='system_prompts')
+        self.assertEqual(self.client.post(reverse('notebook-delete', args=[root.pk])).status_code, 404)
+
+    # personal notes untouched
+    def test_personal_lists_do_not_include_system_notes_or_folders(self):
+        self.client.force_login(self.admin)
+        Note.objects.create(title='Mine', body='x', owner=self.admin)
+        response = self.client.get(reverse('notes-list'))
+        self.assertEqual([n.title for n in response.context['notes']], ['Mine'])
+        self.assertEqual(list(response.context['notebooks']), [])
+        self.assertEqual(self.client.get(reverse('note-new')).context['notebooks'].count(), 0)
+
+    def test_a_personal_notebook_can_share_a_name_with_a_system_folder(self):
+        Notebook.objects.create(name='Itiano', owner=self.admin)
+        self.assertEqual(Notebook.objects.filter(name='Itiano').count(), 2)
+        other = User.objects.create_user('staff2', password='x', is_staff=True)
+        system_prompts.ensure_prompt('prompt_demo_report', other)
+        self.assertEqual(Note.objects.filter(key='prompt_demo_report').count(), 1)
+
+    def test_personal_notes_still_work_as_before(self):
+        owner = make_user('plain_t')
+        self.client.force_login(owner)
+        self.client.post(reverse('note-new'), {'title': 'P', 'body': 'b', 'notebook': ''})
+        note = Note.objects.get(title='P')
+        response = self.client.get(reverse('note-edit', args=[note.pk]))
+        self.assertContains(response, 'onclick="saveNote()"')
+        self.assertNotContains(response, 'read-only')
+        self.assertContains(response, reverse('note-share', args=[note.pk]))
+
+
+class ReadSharedNoteTests(TestCase):
+    """A read share used to get 403 on the editor; it now opens read-only (v5.19.0)."""
+    def setUp(self):
+        self.owner = make_user('ope_test')
+        self.reader = make_user('reader')
+        self.note = Note.objects.create(title='Shared', body='text', owner=self.owner)
+        NoteShare.objects.create(note=self.note, shared_with=self.reader, permission='read')
+
+    def test_reader_opens_it_read_only_and_cannot_save(self):
+        self.client.force_login(self.reader)
+        url = reverse('note-edit', args=[self.note.pk])
+        response = self.client.get(url)
+        self.assertContains(response, 'read-only')
+        self.assertNotContains(response, 'onclick="saveNote()"')
+        self.assertEqual(self.client.post(url, {'title': 'x', 'body': 'x'}).status_code, 403)
+
+    def test_a_write_share_still_edits(self):
+        NoteShare.objects.filter(note=self.note).update(permission='write')
+        self.client.force_login(self.reader)
+        self.client.post(reverse('note-edit', args=[self.note.pk]), {'title': 'Shared', 'body': 'changed'})
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.body, 'changed')

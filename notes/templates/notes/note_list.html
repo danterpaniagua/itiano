@@ -69,6 +69,24 @@
         </a>
         {% endfor %}
         {% endif %}
+
+        {# System prompts: admins, managers and the viewers group only; the project folders always show #}
+        {% if system_tree %}
+        <hr class="my-2">
+        <div class="small text-muted px-2 mb-1"><i class="bi bi-gear"></i> System Prompts</div>
+        {% for project in system_tree %}
+        <div class="small fw-semibold px-2"><i class="bi bi-folder2 text-warning"></i> {{ project.name }}</div>
+        {% for note in project.notes %}
+        <a href="{% url 'note-edit' note.pk %}"
+           class="d-flex align-items-center gap-2 text-decoration-none text-body py-1 px-2 ms-3 rounded mb-1">
+            <i class="bi bi-file-earmark-text text-info"></i>
+            <span class="text-truncate small" title="{{ note.key }}">{{ note.title }}</span>
+        </a>
+        {% empty %}
+        <div class="small text-muted ps-4 mb-1">no prompts yet</div>
+        {% endfor %}
+        {% endfor %}
+        {% endif %}
     </div>
 
     {# Note list #}

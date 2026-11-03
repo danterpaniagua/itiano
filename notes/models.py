@@ -6,10 +6,22 @@ class Notebook(models.Model):
     name = models.CharField(max_length=255)
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notebooks')
     created_at = models.DateTimeField(auto_now_add=True)
+    # System folders (v5.19.0): snake_case id, nested under a parent, global (see notes/system_prompts.py).
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
+    key = models.CharField(max_length=64, blank=True, default='')
+    is_system = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['name']
-        unique_together = [('owner', 'name')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'name'], condition=models.Q(is_system=False),
+                name='notes_notebook_owner_name_personal_uniq',
+            ),
+            models.UniqueConstraint(
+                fields=['key'], condition=~models.Q(key=''), name='notes_notebook_key_uniq',
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -25,9 +37,15 @@ class Note(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_system = models.BooleanField(default=False)
+    # System prompt id (`prompt_<feature>`, v5.19.0); empty for personal notes.
+    key = models.CharField(max_length=100, blank=True, default='')
 
     class Meta:
         ordering = ['-updated_at']
+        permissions = [('view_system_prompts', 'Can view system prompts')]
+        constraints = [
+            models.UniqueConstraint(fields=['key'], condition=~models.Q(key=''), name='notes_note_key_uniq'),
+        ]
 
     def __str__(self):
         return self.title
