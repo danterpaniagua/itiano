@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Time Report – Itiano{% endblock %}
+{% block title %}Current – Itiano{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-    <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Time Report</h5>
+    <h5 class="mb-0 me-auto"><i class="bi bi-bar-chart"></i> Current</h5>
     {# Range toggle — carries active filters to the new range #}
     <form method="get" class="d-flex flex-wrap gap-1 align-items-center" id="range-form">
         {% for tag in selected_tags %}<input type="hidden" name="tags" value="{{ tag }}">{% endfor %}
@@ -44,6 +44,9 @@
     </form>
     <a href="{% url 'timetracking-map' %}" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-diagram-3"></i> In Progress Map
+    </a>
+    <a href="{% url 'timetracking-report' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-tags"></i> Time Report
     </a>
     <a href="{% url 'timetracking-list' %}" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-list"></i> All Entries

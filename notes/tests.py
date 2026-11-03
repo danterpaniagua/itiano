@@ -1,4 +1,5 @@
 import json
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -343,8 +344,11 @@ class SystemPromptRegistryTests(TestCase):
         system_prompts.register('prompt_time_report', 'itiano', 'T', 'body')
         self.assertIn('prompt_time_report', system_prompts.PROMPTS)
 
-    def test_no_feature_prompt_ships_with_the_mechanism(self):
-        self.assertEqual(system_prompts.PROMPTS, {})
+    def test_registered_prompts_have_valid_ids_and_projects(self):
+        self.assertIn('prompt_time_report', system_prompts.PROMPTS)
+        for prompt_id, spec in system_prompts.PROMPTS.items():
+            self.assertRegex(prompt_id, system_prompts.PROMPT_ID_RE)
+            self.assertIn(spec['project'], system_prompts.PROJECTS)
 
     def test_viewers_group_exists_with_the_permission(self):
         group = Group.objects.get(name='System Prompts viewers')
@@ -411,8 +415,9 @@ class SystemPromptsTests(TestCase):
 
     def test_allowed_users_see_the_folder_even_with_no_prompts(self):
         self.note.delete()
-        system_prompts.PROMPTS.pop('prompt_demo_report')
-        self.addCleanup(system_prompts.register, 'prompt_demo_report', 'itiano', 'Demo report prompt', 'Default for {tag}')
+        patcher = mock.patch.dict(system_prompts.PROMPTS, {}, clear=True)   # no registered prompt at all
+        patcher.start()
+        self.addCleanup(patcher.stop)
         for user in (self.admin, self.manager, self.viewer):
             self.client.force_login(user)
             html = self.client.get(reverse('notes-list')).content.decode()

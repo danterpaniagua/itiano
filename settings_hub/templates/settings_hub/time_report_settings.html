@@ -32,6 +32,23 @@
     </div>
 
     <div class="section-card">
+        <div class="section-title"><i class="bi bi-tags me-1"></i>Time Report Default Tags</div>
+        <p class="text-muted small mb-3">
+            The Time Report (<code>/time/report/</code>) lists these Jira labels when no tag is selected. Comma-separated, in the order shown.
+        </p>
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="set_default_tags">
+            <div class="flex-grow-1" style="min-width:240px">
+                <label class="form-label form-label-sm mb-1">Default tags</label>
+                <input type="text" name="time_report_default_tags" class="form-control form-control-sm"
+                       value="{{ time_report_default_tags }}" required>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Save</button>
+        </form>
+    </div>
+
+    <div class="section-card">
         <div class="section-title"><i class="bi bi-graph-up me-1"></i>Trend Minimum Baseline</div>
         <p class="text-muted small mb-3">
             Time by Status hides the trend percentage (shows "new" instead) when the previous period's value is below this many seconds — avoids misleading spikes from brief status flickers.

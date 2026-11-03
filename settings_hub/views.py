@@ -15,6 +15,7 @@ from contacts.models import Contact, ContactChannel
 from core.models import Team, UserProfile
 from itsm.models import Category, Tag
 from jira_integration.models import JiraEvent
+from timetracking import tag_report
 from timetracking.models import ReportEnvironment, ReportProject, ReportService, WorkSchedule
 from vault.models import Container, ContainerAccess
 from vault.views import CLIPBOARD_TTL_MAX, clipboard_ttl_seconds
@@ -557,6 +558,7 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
             'project_available_tags': [t for t in all_tags if t.name not in existing_proj_names],
             'stuck_threshold_hours': get_app_setting('stuck_threshold_hours', '16'),
             'trend_min_baseline_seconds': get_app_setting('trend_min_baseline_seconds', '300'),
+            'time_report_default_tags': ', '.join(tag_report.default_tags()),
         }
 
     def get(self, request):
@@ -578,6 +580,16 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
                     key='stuck_threshold_hours', defaults={'value': str(hours)}
                 )
                 messages.success(request, 'Stuck threshold saved.')
+
+        elif action == 'set_default_tags':
+            tags = tag_report.parse_tags(request.POST.get('time_report_default_tags', ''))
+            if not tags:
+                messages.error(request, 'Enter at least one tag for the Time Report default.')
+            else:
+                AppSetting.objects.update_or_create(
+                    key='time_report_default_tags', defaults={'value': ', '.join(tags)}
+                )
+                messages.success(request, 'Default tags for the Time Report saved.')
 
         elif action == 'set_trend_min_baseline':
             value = request.POST.get('trend_min_baseline_seconds', '').strip()

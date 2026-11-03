@@ -883,7 +883,7 @@ class FocusMapViewTests(MapPageMixin, TestCase):
 
 
 class TimeCurrentRouteTests(TestCase):
-    """v5.20.0: /time/report/ became /time/current/; the old paths redirect until v5.21.0."""
+    """v5.20.0: /time/report/ became /time/current/ (the old redirects were removed in v5.21.0)."""
     def setUp(self):
         self.user = User.objects.create_user('agent_test', password='pass')
         UserProfile.objects.update_or_create(user=self.user, defaults={'jira_account_id': ACCOUNT_ID})
@@ -897,18 +897,9 @@ class TimeCurrentRouteTests(TestCase):
         self.assertEqual(self.client.get('/time/current/').status_code, 200)
         self.assertEqual(self.client.get('/time/current/ticket/GITIN-1/').status_code, 200)
 
-    def test_old_report_path_redirects_and_keeps_the_query(self):
-        response = self.client.get('/time/report/', {'range': 'week', 'tags': 'a'})
-        self.assertRedirects(response, '/time/current/?range=week&tags=a', fetch_redirect_response=False)
-
-    def test_old_timeline_path_redirects(self):
-        response = self.client.get('/time/report/ticket/GITIN-1/', {'back_range': 'week'})
-        self.assertRedirects(response, '/time/current/ticket/GITIN-1/?back_range=week', fetch_redirect_response=False)
-
     def test_links_point_to_the_new_path(self):
         for url in (reverse('timetracking-list'), reverse('timetracking-map'), reverse('dashboard')):
             self.assertContains(self.client.get(url), '/time/current/', msg_prefix=url)
-            self.assertNotContains(self.client.get(url), '/time/report/', msg_prefix=url)
 
 
 class NewUserWithoutScheduleTests(TestCase):
@@ -935,3 +926,393 @@ class NewUserWithoutScheduleTests(TestCase):
         self.assertEqual(self.client.get(reverse('timetracking-list')).status_code, 200)
         self.assertRedirects(self.client.get(reverse('timetracking-schedule')), reverse('settings-user'), fetch_redirect_response=False)
         self.assertEqual(self.client.get(reverse('settings-user')).status_code, 200)
+
+
+# ── Tag time report (v5.21.0) ────────────────────────────────────────────────
+
+from notes import system_prompts  # noqa: E402
+from notes.models import Note  # noqa: E402
+from settings_hub.models import AppSetting, JiraStatusConfig  # noqa: E402
+
+from . import focus_map, tag_report  # noqa: E402
+
+WIKI = 'h2. Qué pasó\n\n* Customer asked for the export\n* Waiting for their access\n\nh2. Notas\nignored text'
+
+
+class TagReportBase(TestCase):
+    """Thursday 2026-10-01 (UTC, working hours 09:00-18:00).
+    A: IP 09:00, Blocked 12:00, IP 14:00, Done 15:00. B: IP 10:00-11:00 (takes the focus from A).
+    Exclusive: A owns 09-10 and 11-12 and 14-15 (3h), is Overlapped 10-11 (1h), Blocked 12-14 (2h)."""
+    def setUp(self):
+        for name, category in (('In Progress', 'in_progress'), ('Bloqueado', 'blocked'), ('Done', 'done')):
+            JiraStatusConfig.objects.update_or_create(status_name=name, defaults={'category': category})
+        self.user = User.objects.create_user('agent_test', password='pass')
+        UserProfile.objects.update_or_create(user=self.user, defaults={'jira_account_id': ACCOUNT_ID})
+        WorkSchedule.objects.create(user=self.user, timezone='UTC', start_time=dt.time(9), end_time=dt.time(18))
+        self.client.force_login(self.user)
+        self.url = reverse('timetracking-report')
+        self.now = at(2, '12:00')
+
+    def ticket(self, key, labels, hops, description='', created=''):
+        ticket = JiraTicket.objects.create(
+            issue_key=key, title=f'Title {key}', status='Done', labels=labels, assignee_account_id=ACCOUNT_ID,
+        )
+        if description or created:
+            fields = {}
+            if description:
+                fields['description'] = description
+            if created:
+                fields['created'] = created
+            JiraEvent.objects.create(
+                ticket=ticket, event_type='jira:issue_updated', received_at=at(1, '08:00'),
+                payload={'issue': {'fields': fields}},
+            )
+        for received_at, from_status, to_status in hops:
+            JiraEvent.objects.create(
+                ticket=ticket, event_type='jira:issue_updated', received_at=received_at,
+                payload={'changelog': {'items': [{'field': 'status', 'fromString': from_status, 'toString': to_status}]}},
+            )
+        return ticket
+
+    def scenario(self):
+        self.ticket('GITIN-A', ['SmartPedidos', 'Other'], [
+            (at(1, '09:00'), 'Open', 'In Progress'), (at(1, '12:00'), 'In Progress', 'Bloqueado'),
+            (at(1, '14:00'), 'Bloqueado', 'In Progress'), (at(1, '15:00'), 'In Progress', 'Done'),
+        ], description=WIKI, created='2026-09-20T09:30:00.000+0000')
+        self.ticket('GITIN-B', ['SmartLoyalty'], [
+            (at(1, '10:00'), 'Open', 'In Progress'), (at(1, '11:00'), 'In Progress', 'Done'),
+        ])
+        self.ticket('GITIN-C', ['SmartPedidos', 'SmartLoyalty'], [])   # no activity in the range
+
+    def get(self, **params):
+        params.setdefault('range', 'custom')
+        params.setdefault('date_from', '2026-10-01')
+        params.setdefault('date_to', '2026-10-01')
+        with mock.patch('django.utils.timezone.now', return_value=self.now):
+            response = self.client.get(self.url, params)
+        self.assertEqual(response.status_code, 200)
+        return response
+
+    def rows(self, **params):
+        response = self.get(**params)
+        return {r['key']: r for s in response.context['sections'] for r in s['rows']}, response
+
+
+class TagReportRulesTests(TagReportBase):
+    def test_ip_blocked_overlapped_and_paused_in_working_hours(self):
+        self.scenario()
+        rows, _ = self.rows()
+        a, b = rows['GITIN-A'], rows['GITIN-B']
+        self.assertEqual((a['ip_wh'], a['blocked_wh'], a['overlap_wh'], a['paused_wh']), (10800, 7200, 3600, 10800))
+        self.assertEqual((b['ip_wh'], b['blocked_wh'], b['overlap_wh'], b['paused_wh']), (3600, 0, 0, 0))
+        self.assertEqual((a['ip_label'], a['blocked_label'], a['paused_label']), ('3h 0m', '2h 0m', '3h 0m'))
+
+    def test_paused_is_blocked_plus_overlapped_and_never_smaller_than_blocked(self):
+        self.scenario()
+        rows, _ = self.rows()
+        for row in rows.values():
+            self.assertEqual(row['paused_wh'], row['blocked_wh'] + row['overlap_wh'])
+            self.assertGreaterEqual(row['paused_wh'], row['blocked_wh'])
+
+    def test_overlapped_period_names_the_ticket_that_took_the_focus(self):
+        self.scenario()
+        rows, _ = self.rows()
+        period = rows['GITIN-A']['overlap_periods'][0]
+        self.assertEqual((period['owner'], period['owner_title'], period['wh_secs']), ('GITIN-B', 'Title GITIN-B', 3600))
+        self.assertEqual(rows['GITIN-A']['blocked_periods'][0]['status'], 'Bloqueado')
+
+    def test_ip_matches_the_in_progress_map(self):
+        self.scenario()
+        rows, _ = self.rows()
+        tickets = list(JiraTicket.objects.filter(assignee_account_id=ACCOUNT_ID))
+        transitions = {t.issue_key: [] for t in tickets}
+        for event in JiraEvent.objects.all():
+            for item in event.payload.get('changelog', {}).get('items', []):
+                transitions[event.ticket.issue_key].append({
+                    'from_status': item['fromString'], 'to_status': item['toString'], 'at': event.received_at,
+                })
+        categories = {'in progress': 'in_progress', 'bloqueado': 'blocked', 'done': 'done'}
+        schedule = WorkSchedule.objects.get(user=self.user)
+        data = focus_map.build_focus_map(
+            tickets, transitions, categories, schedule, dt.timezone.utc,
+            at(1, '00:00'), at(1, '23:59', ) + dt.timedelta(seconds=59), self.now,
+        )
+        per_ticket = {}
+        for day in data['days']:
+            for card in day['cards']:
+                per_ticket[card['key']] = per_ticket.get(card['key'], 0) + card['wh_secs']
+        for key, secs in per_ticket.items():
+            self.assertEqual(rows[key]['ip_wh'], secs, key)
+
+    def test_created_comes_from_the_jira_payload_and_finished_from_the_last_done_transition(self):
+        self.scenario()
+        rows, _ = self.rows()
+        self.assertEqual(rows['GITIN-A']['created'], dt.date(2026, 9, 20))
+        self.assertEqual(rows['GITIN-A']['finished'], dt.date(2026, 10, 1))
+        self.assertEqual(rows['GITIN-B']['finished'], dt.date(2026, 10, 1))
+
+    def test_a_reopened_ticket_has_no_finished_date(self):
+        self.ticket('GITIN-R', ['SmartPedidos'], [
+            (at(1, '09:00'), 'Open', 'In Progress'), (at(1, '10:00'), 'In Progress', 'Done'),
+            (at(1, '11:00'), 'Done', 'In Progress'),
+        ])
+        rows, _ = self.rows()
+        self.assertIsNone(rows['GITIN-R']['finished'])
+
+    def test_tickets_without_activity_in_the_range_are_not_listed(self):
+        self.scenario()
+        rows, _ = self.rows()
+        self.assertNotIn('GITIN-C', rows)
+        rows, _ = self.rows(date_from='2026-10-05', date_to='2026-10-05')
+        self.assertEqual(rows, {})
+
+    def test_a_blocked_weekend_has_no_working_hours(self):
+        self.now = at(6, '12:00')   # the range (Sat-Sun) must be in the past
+        self.ticket('GITIN-W', ['SmartPedidos'], [
+            (at(3, '10:00'), 'Open', 'Bloqueado'), (at(4, '10:00'), 'Bloqueado', 'In Progress'),
+        ])
+        rows, _ = self.rows(date_from='2026-10-03', date_to='2026-10-04')
+        self.assertEqual(rows['GITIN-W']['blocked_wh'], 0)
+
+
+class TagReportViewTests(TagReportBase):
+    def test_default_view_lists_the_main_projects_in_order(self):
+        self.scenario()
+        response = self.get()
+        self.assertEqual([s['tag'] for s in response.context['sections']],
+                         ['SmartPedidos', 'SmartLoyalty', 'Operaciones', 'SmartCloud'])
+        self.assertEqual([r['key'] for r in response.context['sections'][0]['rows']], ['GITIN-A'])
+        self.assertEqual([r['key'] for r in response.context['sections'][1]['rows']], ['GITIN-B'])
+        self.assertContains(response, 'No tickets with activity in this range.')
+
+    def test_selected_tags_replace_the_default(self):
+        self.scenario()
+        response = self.get(tags='SmartLoyalty')
+        self.assertEqual([s['tag'] for s in response.context['sections']], ['SmartLoyalty'])
+        self.assertEqual(response.context['selected_tags'], ['SmartLoyalty'])
+
+    def test_a_ticket_with_two_tags_is_in_both_sections_but_counted_once(self):
+        self.ticket('GITIN-X', ['SmartPedidos', 'SmartLoyalty'], [
+            (at(1, '16:00'), 'Open', 'In Progress'), (at(1, '17:00'), 'In Progress', 'Done'),
+        ])
+        self.scenario()
+        response = self.get()
+        sections = {s['tag']: s for s in response.context['sections']}
+        self.assertIn('GITIN-X', [r['key'] for r in sections['SmartPedidos']['rows']])
+        self.assertIn('GITIN-X', [r['key'] for r in sections['SmartLoyalty']['rows']])
+        self.assertEqual(response.context['totals']['tickets'], 3)   # A, B, X once each
+        self.assertEqual(sum(s['totals']['tickets'] for s in response.context['sections']), 4)
+        self.assertEqual(response.context['totals']['ip_wh'], 10800 + 3600 + 3600)
+
+    def test_the_id_links_to_jira_when_the_base_url_is_set(self):
+        self.scenario()
+        AppSetting.objects.create(key='jira_base_url', value='https://x.atlassian.net/')
+        self.assertContains(self.get(), 'https://x.atlassian.net/browse/GITIN-A')
+
+    def test_without_a_jira_base_url_the_id_is_plain_text(self):
+        self.scenario()
+        self.assertNotContains(self.get(), '/browse/GITIN-A')
+
+    def test_the_range_filter_is_the_same_as_the_other_pages(self):
+        self.scenario()
+        response = self.get(range='custom', date_from='01/Oct/2026', date_to='01/Oct/2026')
+        self.assertEqual(response.context['range_param'], 'custom')
+        self.assertEqual(response.context['date_from_text'], '01/Oct/2026')
+        self.assertEqual(self.get(range='month').context['range_param'], 'month')
+        self.assertEqual(self.get(range='nonsense').context['range_param'], 'week')
+        self.assertContains(self.get(date_from='bad', date_to='bad'), 'dd/mmm/yyyy')
+
+    def test_login_and_jira_link_required(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(self.url).status_code, 302)
+        user = User.objects.create_user('nojira', password='x')
+        self.client.force_login(user)
+        self.assertContains(self.client.get(self.url), 'Link your')
+
+    def test_the_old_redirects_are_gone(self):
+        self.assertEqual(self.client.get('/time/report/').status_code, 200)
+        self.assertEqual(self.client.get('/time/report/ticket/GITIN-A/').status_code, 404)
+
+    def test_pages_are_named_and_linked(self):
+        self.assertContains(self.client.get(reverse('timetracking-current')), '<i class="bi bi-bar-chart"></i> Current')
+        self.assertContains(self.client.get(reverse('timetracking-current')), reverse('timetracking-report'))
+        self.assertContains(self.client.get(reverse('timetracking-map')), reverse('timetracking-report'))
+        self.assertContains(self.get(), reverse('timetracking-current'))
+
+    def test_mobile_cards_and_responsive_table(self):
+        self.scenario()
+        html = self.get().content.decode()
+        self.assertIn('table-responsive', html)
+        self.assertIn('d-md-none', html)
+
+
+class QuePasoTests(TestCase):
+    def test_the_section_stops_at_the_next_heading(self):
+        text = tag_report.extract_que_paso(WIKI)
+        self.assertIn('Customer asked for the export', text)
+        self.assertNotIn('ignored text', text)
+
+    def test_heading_matching_ignores_accents_case_and_level(self):
+        self.assertIn('x', tag_report.extract_que_paso('h3. QUE PASO\nx'))
+        self.assertIn('x', tag_report.extract_que_paso('intro\nh1.  Qué   pasó \nx\n'))
+
+    def test_no_section_or_not_a_string(self):
+        self.assertEqual(tag_report.extract_que_paso('h2. Other\nx'), '')
+        self.assertEqual(tag_report.extract_que_paso({'type': 'doc'}), '')
+        self.assertEqual(tag_report.extract_que_paso(None), '')
+
+    def test_context_falls_back_to_the_description(self):
+        self.assertIn('(no such section)', tag_report.ticket_context('just text'))
+        self.assertIn('(no description stored)', tag_report.ticket_context(''))
+        self.assertTrue(tag_report.ticket_context('h2. Qué pasó\n' + 'x' * 5000).endswith('…'))
+
+    def test_parse_tags(self):
+        self.assertEqual(tag_report.parse_tags(' A, B\nC,, A '), ['A', 'B', 'C'])
+
+
+class TagReportPromptTests(TagReportBase):
+    def prompt(self, **params):
+        params.setdefault('range', 'custom')
+        params.setdefault('date_from', '2026-10-01')
+        params.setdefault('date_to', '2026-10-01')
+        with mock.patch('django.utils.timezone.now', return_value=self.now):
+            response = self.client.get(reverse('timetracking-report-prompt'), params)
+        self.assertEqual(response.status_code, 200)
+        return response.json()['prompt']
+
+    def test_the_prompt_is_registered_as_a_system_prompt(self):
+        spec = system_prompts.PROMPTS['prompt_time_report']
+        self.assertEqual((spec['project'], spec['title']), ('itiano', 'Time report prompt'))
+        self.assertEqual(system_prompts.get_prompt('prompt_time_report'), tag_report.PROMPT_DEFAULT)
+
+    def test_default_prompt_has_the_tickets_periods_and_que_paso(self):
+        self.scenario()
+        text = self.prompt()
+        self.assertIn('SmartPedidos, SmartLoyalty, Operaciones, SmartCloud', text)
+        self.assertIn('01/Oct/2026 - 01/Oct/2026', text)
+        self.assertIn('### GITIN-A · Title GITIN-A', text)
+        self.assertIn('IP 3h 0m · Blocked 2h 0m · Paused 3h 0m (Blocked 2h 0m + Overlapped 1h 0m)', text)
+        self.assertIn('Transition map:', text)
+        self.assertIn('Every ticket has a "Transition map"', text)
+        self.assertIn('''```text
+01/Oct 09:00  Open -> In Progress
+01/Oct 10:00    || paused: GITIN-B "Title GITIN-B" took the focus   [1h 0m WH]
+01/Oct 11:00    || resumed
+01/Oct 12:00  In Progress -> Bloqueado
+01/Oct 14:00  Bloqueado -> In Progress   [Blocked 2h 0m WH]
+01/Oct 15:00  In Progress -> Done
+(range end)    Done
+```''', text)
+        self.assertNotIn('Blocked periods:', text)
+        self.assertIn('Customer asked for the export', text)
+        self.assertNotIn('ignored text', text)
+        self.assertIn('Created: 20/Sep/2026 | Finished: 01/Oct/2026', text)
+        self.assertNotIn('{tickets}', text)
+        self.assertNotIn('{tag}', text)
+
+    def test_the_map_starts_with_the_status_the_ticket_had_when_the_range_began(self):
+        self.ticket('GITIN-S', ['SmartPedidos'], [
+            (sep(30, '16:00'), 'Open', 'In Progress'), (at(1, '10:00'), 'In Progress', 'Done'),
+        ])
+        text = self.prompt()
+        self.assertIn('(range start)  In Progress\n01/Oct 10:00  In Progress -> Done\n(range end)    Done', text)
+
+    def test_the_map_shows_the_focus_passing_between_tickets(self):
+        self.ticket('GITIN-A', ['SmartPedidos'], [(at(1, '09:00'), 'Open', 'In Progress'), (at(1, '13:00'), 'In Progress', 'Done')])
+        self.ticket('GITIN-B', ['SmartLoyalty'], [(at(1, '10:00'), 'Open', 'In Progress'), (at(1, '12:00'), 'In Progress', 'Done')])
+        self.ticket('GITIN-C', ['SmartLoyalty'], [(at(1, '10:30'), 'Open', 'In Progress'), (at(1, '11:00'), 'In Progress', 'Done')])
+        text = self.prompt()
+        a_block = text[text.index('### GITIN-A'):text.index('### GITIN-B')]
+        self.assertIn('01/Oct 10:00    || paused: GITIN-B "Title GITIN-B" took the focus   [30m WH]', a_block)
+        self.assertIn('01/Oct 10:30    || focus passed to GITIN-C "Title GITIN-C"   [30m WH]', a_block)
+        self.assertIn('01/Oct 11:00    || focus passed to GITIN-B "Title GITIN-B"   [1h 0m WH]', a_block)
+        self.assertIn('01/Oct 12:00    || resumed', a_block)
+
+    def test_short_handoffs_are_left_out_of_the_map(self):
+        self.ticket('GITIN-A', ['SmartPedidos'], [(at(1, '09:00'), 'Open', 'In Progress'), (at(1, '12:00'), 'In Progress', 'Done')])
+        self.ticket('GITIN-B', ['SmartLoyalty'], [
+            (at(1, '10:00'), 'Open', 'In Progress'), (at(1, '10:00') + dt.timedelta(seconds=30), 'In Progress', 'Done'),
+        ])
+        text = self.prompt()
+        self.assertNotIn('||', text[text.index('### GITIN-A'):text.index('### GITIN-B')])
+
+    def test_a_ticket_in_two_tags_is_listed_once(self):
+        self.ticket('GITIN-X', ['SmartPedidos', 'SmartLoyalty'], [
+            (at(1, '16:00'), 'Open', 'In Progress'), (at(1, '17:00'), 'In Progress', 'Done'),
+        ])
+        self.assertEqual(self.prompt().count('### GITIN-X'), 1)
+
+    def test_selected_tags_drive_the_prompt(self):
+        self.scenario()
+        text = self.prompt(tags='SmartLoyalty')
+        self.assertIn('tags SmartLoyalty,', text)
+        self.assertIn('### GITIN-B', text)
+        self.assertNotIn('### GITIN-A', text)
+
+    def test_an_admin_edit_of_the_system_prompt_changes_the_text(self):
+        self.scenario()
+        admin = User.objects.create_user('admin_t', password='x', is_staff=True)
+        note = system_prompts.ensure_prompt('prompt_time_report', admin)
+        note.body = 'Custom for {tag} {"json": "braces"}\n{tickets}\nEND'
+        note.save()
+        text = self.prompt()
+        self.assertTrue(text.startswith('Custom for SmartPedidos'))
+        self.assertIn('{"json": "braces"}', text)
+        self.assertIn('### GITIN-A', text)
+        self.assertTrue(text.rstrip().endswith('END'))
+
+    def test_a_template_without_tickets_gets_the_block_appended(self):
+        self.scenario()
+        admin = User.objects.create_user('admin_t', password='x', is_staff=True)
+        note = system_prompts.ensure_prompt('prompt_time_report', admin)
+        note.body = 'Only a header'
+        note.save()
+        text = self.prompt()
+        self.assertTrue(text.startswith('Only a header'))
+        self.assertIn('### GITIN-A', text)
+
+    def test_an_empty_note_falls_back_to_the_default(self):
+        admin = User.objects.create_user('admin_t', password='x', is_staff=True)
+        note = system_prompts.ensure_prompt('prompt_time_report', admin)
+        Note.objects.filter(pk=note.pk).update(body='  ')
+        self.assertIn('You are helping me summarise Jira work', self.prompt())
+
+    def test_no_activity_says_so(self):
+        self.assertIn('(no tickets with activity in this range)', self.prompt())
+
+    def test_login_required(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('timetracking-report-prompt')).status_code, 302)
+
+    def test_the_page_has_the_copy_button_and_the_box(self):
+        response = self.get()
+        self.assertContains(response, 'id="prompt-btn"')
+        self.assertContains(response, 'id="prompt-box"')
+        self.assertContains(response, reverse('timetracking-report-prompt'))
+
+
+class DefaultTagsSettingTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user('staff_t', password='x', is_staff=True)
+        self.user = User.objects.create_user('agent_t', password='x')
+        self.url = reverse('settings-time-report')
+
+    def test_default_value(self):
+        self.assertEqual(tag_report.default_tags(), ['SmartPedidos', 'SmartLoyalty', 'Operaciones', 'SmartCloud'])
+        self.client.force_login(self.staff)
+        self.assertContains(self.client.get(self.url), 'SmartPedidos, SmartLoyalty, Operaciones, SmartCloud')
+
+    def test_staff_saves_the_list_and_the_report_uses_it(self):
+        self.client.force_login(self.staff)
+        self.client.post(self.url, {'action': 'set_default_tags', 'time_report_default_tags': 'Alpha,  Beta\nAlpha'})
+        self.assertEqual(tag_report.default_tags(), ['Alpha', 'Beta'])
+        self.assertEqual(AppSetting.objects.get(key='time_report_default_tags').value, 'Alpha, Beta')
+
+    def test_an_empty_list_is_rejected(self):
+        self.client.force_login(self.staff)
+        self.client.post(self.url, {'action': 'set_default_tags', 'time_report_default_tags': ' , '})
+        self.assertFalse(AppSetting.objects.filter(key='time_report_default_tags').exists())
+
+    def test_non_staff_cannot_change_it(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(self.url, {'action': 'set_default_tags', 'time_report_default_tags': 'X'}).status_code, 403)
