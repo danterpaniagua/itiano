@@ -128,3 +128,17 @@
 | v5.13.3 | Jira Reconcile Notifications: Multiple Teams as Recipients | Delivered | [v5/v5.13.3.md](v5/v5.13.3.md) |
 | v5.13.4 | Notification Bell Visible on Mobile Without Opening Hamburger Menu | Delivered | [v5/v5.13.4.md](v5/v5.13.4.md) |
 | v5.13.5 | Notifications List: Back Button | Delivered | [v5/v5.13.5.md](v5/v5.13.5.md) |
+| v5.14.0 | Jira Issue Links (blocks / is blocked by): scoped, no code found | Scoped, not delivered | [v5/v5.14.0.md](v5/v5.14.0.md) |
+| v5.15.0 | Time by Environment: All / Labor Toggle + Per-Tag Donut | Delivered | [v5/v5.15.0.md](v5/v5.15.0.md) |
+| v5.15.1 | Time Report: Today Hours in the Parent/Child Envelope, Double-Count and Colors Fix | Delivered | [v5/v5.15.1.md](v5/v5.15.1.md) |
+| v5.16.0 | Time Report: Overlap / Exclusive Time Mode Toggle | Delivered | [v5/v5.16.0.md](v5/v5.16.0.md) |
+| v5.17.1 | Configurable Jira Notification Rules (Settings → Notifications) | Delivered | [v5/v5.17.1.md](v5/v5.17.1.md) |
+| v5.18.0 | Time Report: In Progress Map | Delivered | [v5/v5.18.0.md](v5/v5.18.0.md) |
+| v5.18.1 | In Progress Map: Card Time with Total | W-H Toggle | Delivered | [v5/v5.18.1.md](v5/v5.18.1.md) |
+| v5.18.3 | Time Report: In-Range In Progress Time, Carry-Over Rule, Exclusive by Default (merges the planned v5.18.2) | Delivered | [v5/v5.18.3.md](v5/v5.18.3.md) |
+| v5.18.4 | In Progress Map Page /time/map/: Exclusive Chain, Range Filter, Parent Alert | Delivered | [v5/v5.18.4.md](v5/v5.18.4.md) |
+| v5.18.5 | JSON Sandbox: Save as Note | Delivered | [v5/v5.18.5.md](v5/v5.18.5.md) |
+| v5.18.6 | Vault: Read-Only Credential Page + Global Clipboard TTL (experimental) | Delivered | [v5/v5.18.6.md](v5/v5.18.6.md) |
+| v5.18.7 | Notes: @ Mentions with Autocomplete, Chips and Backlinks | Delivered | [v5/v5.18.7.md](v5/v5.18.7.md) |
+| v5.19.0 | Notes: System Prompts (Folder Tree, Viewers Group, Admin-Only Edit) | Delivered | [v5/v5.19.0.md](v5/v5.19.0.md) |
+| v5.19.1 | Documentation Sync: Version Index, VERSION, Feature Docs, Architecture Apps | In progress | [v5/v5.19.1.md](v5/v5.19.1.md) |
