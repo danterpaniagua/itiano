@@ -909,3 +909,29 @@ class TimeCurrentRouteTests(TestCase):
         for url in (reverse('timetracking-list'), reverse('timetracking-map'), reverse('dashboard')):
             self.assertContains(self.client.get(url), '/time/current/', msg_prefix=url)
             self.assertNotContains(self.client.get(url), '/time/report/', msg_prefix=url)
+
+
+class NewUserWithoutScheduleTests(TestCase):
+    """v5.20.1: the first visit of a user with no WorkSchedule row used to crash (default time was a string)."""
+    def setUp(self):
+        self.user = User.objects.create_user('fresh_user', password='pass')
+        UserProfile.objects.update_or_create(user=self.user, defaults={'jira_account_id': ACCOUNT_ID})
+        self.client.force_login(self.user)
+        self.assertFalse(WorkSchedule.objects.filter(user=self.user).exists())
+
+    def test_a_new_schedule_has_real_time_values(self):
+        schedule, created = WorkSchedule.objects.get_or_create(user=self.user)
+        self.assertTrue(created)
+        self.assertEqual((schedule.start_time, schedule.end_time), (dt.time(9, 0), dt.time(18, 0)))
+
+    def test_current_report_loads_for_a_user_without_a_schedule(self):
+        self.assertEqual(self.client.get(reverse('timetracking-current')).status_code, 200)
+        self.assertEqual(WorkSchedule.objects.filter(user=self.user).count(), 1)
+
+    def test_map_loads_for_a_user_without_a_schedule(self):
+        self.assertEqual(self.client.get(reverse('timetracking-map')).status_code, 200)
+
+    def test_entry_list_and_user_settings_load_for_a_user_without_a_schedule(self):
+        self.assertEqual(self.client.get(reverse('timetracking-list')).status_code, 200)
+        self.assertRedirects(self.client.get(reverse('timetracking-schedule')), reverse('settings-user'), fetch_redirect_response=False)
+        self.assertEqual(self.client.get(reverse('settings-user')).status_code, 200)

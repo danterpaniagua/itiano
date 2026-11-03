@@ -1,3 +1,5 @@
+import datetime
+
 from django.contrib.auth.models import User
 from django.db import models
 
@@ -13,8 +15,9 @@ class WorkSchedule(models.Model):
     fri = models.BooleanField(default=True)
     sat = models.BooleanField(default=False)
     sun = models.BooleanField(default=False)
-    start_time = models.TimeField(default='09:00')
-    end_time = models.TimeField(default='18:00')
+    # Real time objects: a string default stays a string on a freshly created row (get_or_create) until reloaded.
+    start_time = models.TimeField(default=datetime.time(9, 0))
+    end_time = models.TimeField(default=datetime.time(18, 0))
     jira_username = models.CharField(max_length=200, blank=True)
     timezone = models.CharField(max_length=64, default='America/Argentina/Cordoba')
 
