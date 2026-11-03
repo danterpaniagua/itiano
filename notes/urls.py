@@ -5,6 +5,8 @@ from . import views
 urlpatterns = [
     path('', views.NoteListView.as_view(), name='notes-list'),
     path('notebook/<int:notebook_pk>/', views.NoteListView.as_view(), name='notes-notebook'),
+    path('mentions/search/', views.MentionSearchView.as_view(), name='notes-mention-search'),
+    path('mentions/resolve/', views.MentionResolveView.as_view(), name='notes-mention-resolve'),
     path('new/', views.NoteEditView.as_view(), name='note-new'),
     path('<int:pk>/edit/', views.NoteEditView.as_view(), name='note-edit'),
     path('<int:pk>/delete/', views.NoteDeleteView.as_view(), name='note-delete'),

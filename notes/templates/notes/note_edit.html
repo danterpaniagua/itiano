@@ -75,10 +75,15 @@
 
 <div class="tab-content border border-top-0 rounded-bottom">
     <div class="tab-pane fade show active p-0" id="panel-write">
-        <textarea id="note-body" class="form-control font-monospace border-0 rounded-0 rounded-bottom"
-                  style="min-height:65vh; resize:vertical"
-                  spellcheck="false"
-                  placeholder="Write markdown here...">{% if note %}{{ note.body }}{% endif %}</textarea>
+        <div class="position-relative">
+            <textarea id="note-body" class="form-control font-monospace border-0 rounded-0 rounded-bottom"
+                      style="min-height:65vh; resize:vertical"
+                      spellcheck="false"
+                      placeholder="Write markdown here... Type @ to mention a Jira ticket (@GITIN-2315), @ticket:42 or @cred:17">{% if note %}{{ note.body }}{% endif %}</textarea>
+            {# @ autocomplete: full width, docked at the bottom of the editor, tappable rows #}
+            <div id="mention-menu" class="list-group list-group-flush border-top shadow-sm position-absolute start-0 end-0 bottom-0 bg-body"
+                 style="display:none; max-height:45%; overflow-y:auto; z-index:5"></div>
+        </div>
     </div>
     <div class="tab-pane fade p-3" id="panel-preview" style="min-height:65vh">
         <div id="preview-content" class="prose"></div>
@@ -107,10 +112,107 @@ function saveNote() {
     document.getElementById('save-form').submit();
 }
 
-function renderPreview() {
+// Preview: mentions are resolved by the server for the viewer (chips), the rest is Markdown.
+async function renderPreview() {
     const body = document.getElementById('note-body').value;
-    document.getElementById('preview-content').innerHTML = marked.parse(body || '');
+    let markdown = body;
+    try {
+        const resp = await fetch("{% url 'notes-mention-resolve' %}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('#save-form [name=csrfmiddlewaretoken]').value},
+            body: JSON.stringify({body}),
+        });
+        if (resp.ok) markdown = (await resp.json()).body;
+    } catch (e) { /* offline: show the plain text */ }
+    document.getElementById('preview-content').innerHTML = marked.parse(markdown || '');
 }
+
+// @ autocomplete (Write tab)
+(function () {
+    const bodyEl = document.getElementById('note-body');
+    const menu = document.getElementById('mention-menu');
+    let timer = null, seq = 0, items = [], active = -1;
+
+    function current() {
+        const caret = bodyEl.selectionStart;
+        const m = bodyEl.value.slice(0, caret).match(/(?:^|[^\w@])@([\w:.\-]*)$/);
+        return m ? {start: caret - m[1].length - 1, query: m[1], caret} : null;
+    }
+    function hide() { menu.style.display = 'none'; menu.innerHTML = ''; items = []; active = -1; }
+    function pick(i) {
+        const at = current();
+        if (!at || !items[i]) return hide();
+        const v = bodyEl.value;
+        bodyEl.value = v.slice(0, at.start) + items[i].token + ' ' + v.slice(at.caret);
+        const pos = at.start + items[i].token.length + 1;
+        bodyEl.setSelectionRange(pos, pos);
+        hide();
+        bodyEl.focus();
+    }
+    function mark() {
+        Array.from(menu.children).forEach((el, i) => el.classList.toggle('active', i === active));
+    }
+    function show(results) {
+        items = results; active = results.length ? 0 : -1;
+        menu.innerHTML = '';
+        results.forEach((r, i) => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'list-group-item list-group-item-action small d-flex align-items-center gap-2 text-start';
+            const icon = document.createElement('i'); icon.className = 'bi ' + r.icon;
+            const label = document.createElement('span'); label.className = 'text-truncate'; label.textContent = r.label;
+            if (r.sub !== undefined) {
+                // credential: name on the first line, container path and tags on the second
+                row.classList.replace('align-items-center', 'align-items-start');
+                const body = document.createElement('div'); body.className = 'flex-grow-1 overflow-hidden';
+                const top = document.createElement('div'); top.className = 'd-flex align-items-center gap-2';
+                top.append(icon, label);
+                const meta = document.createElement('div'); meta.className = 'd-flex flex-wrap gap-1 align-items-center text-muted';
+                const path = document.createElement('span'); path.className = 'me-auto'; path.textContent = r.sub;
+                meta.appendChild(path);
+                (r.tags || []).forEach(name => {
+                    const tag = document.createElement('span'); tag.className = 'badge bg-light text-dark border fw-normal'; tag.textContent = '#' + name;
+                    meta.appendChild(tag);
+                });
+                body.append(top, meta);
+                row.appendChild(body);
+            } else {
+                row.append(icon, label);
+            }
+            row.addEventListener('mousedown', e => e.preventDefault());   // keep the caret in the textarea
+            row.addEventListener('click', () => pick(i));
+            menu.appendChild(row);
+        });
+        menu.style.display = results.length ? '' : 'none';
+        mark();
+    }
+
+    bodyEl.addEventListener('input', () => {
+        clearTimeout(timer);
+        const at = current();
+        if (!at || at.query.length < 2) return hide();
+        timer = setTimeout(async () => {
+            const mine = ++seq;
+            try {
+                const resp = await fetch("{% url 'notes-mention-search' %}?q=" + encodeURIComponent(at.query));
+                if (resp.ok && mine === seq) show((await resp.json()).results);
+            } catch (e) { hide(); }
+        }, 200);
+    });
+    bodyEl.addEventListener('keydown', e => {
+        if (menu.style.display === 'none') return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+            mark();
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault(); pick(active);
+        } else if (e.key === 'Escape') {
+            hide();
+        }
+    });
+    bodyEl.addEventListener('blur', () => setTimeout(hide, 150));
+})();
 
 document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {

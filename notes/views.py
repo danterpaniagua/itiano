@@ -2,9 +2,13 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
+import json
+
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
+from . import mentions
 from .models import Note, Notebook, NoteShare
 
 
@@ -72,6 +76,7 @@ class NoteEditView(LoginRequiredMixin, View):
                 note.notebook = None
 
         note.save()
+        mentions.sync_mentions(note)
         return redirect('note-edit', pk=note.pk)
 
 
@@ -146,3 +151,21 @@ class NotebookDeleteView(LoginRequiredMixin, View):
         if not notebook.notes.exists():
             notebook.delete()
         return redirect('notes-list')
+
+
+class MentionSearchView(LoginRequiredMixin, View):
+    """Autocomplete for `@`: only objects the user can see; credentials give name and type only."""
+    def get(self, request):
+        return JsonResponse({'results': mentions.search(request.user, request.GET.get('q', ''))})
+
+
+class MentionResolveView(LoginRequiredMixin, View):
+    """Preview: the body with each mention replaced by a chip resolved for the viewer."""
+    def post(self, request):
+        try:
+            body = json.loads(request.body or b'{}').get('body', '')
+        except (ValueError, AttributeError):
+            body = ''
+        if not isinstance(body, str):
+            body = ''
+        return JsonResponse({'body': mentions.render_mentions(request.user, body)})

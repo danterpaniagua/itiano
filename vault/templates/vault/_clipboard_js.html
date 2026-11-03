@@ -2,10 +2,56 @@
 const clipboardTtl = {{ clipboard_ttl|default:0 }};
 let clipboardTimer = null;
 let clipboardOnTick = null;
+let clipboardNotice = null;
 
 async function sha256Hex(text) {
     const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
     return Array.from(new Uint8Array(bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hideClipboardNotice() {
+    document.removeEventListener('click', clearClipboardNow);
+    if (clipboardNotice) clipboardNotice.remove();
+    clipboardNotice = null;
+}
+
+function showClipboardNotice(text, withButton) {
+    hideClipboardNotice();
+    const box = document.createElement('div');
+    box.className = 'position-fixed bottom-0 start-0 end-0 m-2 p-2 bg-dark text-light rounded shadow small d-flex flex-wrap gap-2 align-items-center';
+    box.style.zIndex = 1080;
+    box.setAttribute('role', 'status');
+    const label = document.createElement('span');
+    label.textContent = text;
+    box.appendChild(label);
+    if (withButton) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-sm btn-light ms-auto';
+        button.textContent = 'Clear now';
+        box.appendChild(button);
+    }
+    document.body.appendChild(box);
+    clipboardNotice = box;
+}
+
+// Fallback when the browser blocks the timed clear (Firefox needs a user gesture; Chrome needs focus and
+// permission): the next click on the page clears the clipboard. It cannot check what the clipboard holds.
+async function clearClipboardNow() {
+    hideClipboardNotice();
+    try {
+        await navigator.clipboard.writeText('');
+        showClipboardNotice('Clipboard cleared.', false);
+    } catch (e) {
+        showClipboardNotice('The browser would not clear the clipboard. Copy something else to replace the secret.', false);
+    }
+    setTimeout(hideClipboardNotice, 3000);
+}
+
+function armClipboardClear() {
+    showClipboardNotice('A copied secret is still on the clipboard. Your next click clears it.', true);
+    clipboardNotice.querySelector('button').addEventListener('click', clearClipboardNow);
+    document.addEventListener('click', clearClipboardNow);
 }
 
 function stopClipboardCountdown() {
@@ -14,10 +60,24 @@ function stopClipboardCountdown() {
     clipboardOnTick = null;
 }
 
-// Copies `text`. For a secret, clears the clipboard after the TTL, only if it still holds that
-// secret (compared by SHA-256, so the secret itself is not kept in memory). Best effort.
+// Silent clear: only if the clipboard still holds the secret (compared by SHA-256, so the secret is not
+// kept in memory). -> true when done or when the clipboard no longer holds it, false when blocked.
+async function clearIfStillHeld(digest) {
+    try {
+        if (await sha256Hex(await navigator.clipboard.readText()) === digest) {
+            await navigator.clipboard.writeText('');
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+// Copies `text`. For a secret, clears the clipboard after the TTL: silently when the browser allows it,
+// otherwise on the user's next click (see armClipboardClear). Plain copies are never cleared.
 async function copyToClipboard(text, secret, onTick) {
     stopClipboardCountdown();
+    hideClipboardNotice();
     await navigator.clipboard.writeText(text);
     if (!secret || clipboardTtl <= 0 || !(window.crypto && crypto.subtle)) return;
     const digest = await sha256Hex(text);
@@ -28,10 +88,6 @@ async function copyToClipboard(text, secret, onTick) {
         left -= 1;
         if (left > 0) { if (clipboardOnTick) clipboardOnTick(left); return; }
         stopClipboardCountdown();
-        try {
-            if (await sha256Hex(await navigator.clipboard.readText()) === digest) {
-                await navigator.clipboard.writeText('');
-            }
-        } catch (e) { /* browser refused or page hidden: nothing happens */ }
+        if (!(await clearIfStillHeld(digest))) armClipboardClear();
     }, 1000);
 }

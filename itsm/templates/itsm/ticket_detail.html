@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load note_mentions %}
 {% load itsm_filters %}
 {% block title %}#{{ ticket.pk }} {{ ticket.title }} – Itiano{% endblock %}
 
@@ -508,6 +509,8 @@
     {% endif %}
 
 </div>
+
+{% note_backlinks request.user 'ticket' ticket.pk %}
 
 {% endblock %}
 

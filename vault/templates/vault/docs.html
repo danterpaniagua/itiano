@@ -41,7 +41,7 @@
 <p>Click a credential name to open its read-only page: type, owner, container, expiry, URL, username, and the public key or certificate. Every item has a <i class="bi bi-clipboard"></i> button. Secret fields (password, private key, API secret) are never shown; their button fetches the value only when pressed. <strong>Edit</strong> appears only if you can edit the credential.</p>
 
 <h6 class="mt-3">Clipboard Clearing</h6>
-<p>A copied secret is removed from the clipboard after a set time (30 s by default), but only if the clipboard still holds that secret, so something you copied afterwards is never erased. Staff set the time for everyone at <strong>Settings → App → Vault</strong> (0 turns it off). Clearing is best effort: the browser may refuse it, and it needs the page to stay open.</p>
+<p>A copied secret is removed from the clipboard after a set time (30 s by default), but only if the clipboard still holds that secret, so something you copied afterwards is never erased. Staff set the time for everyone at <strong>Settings → App → Vault</strong> (0 turns it off). Clearing is best effort and needs the page to stay open. Some browsers (Firefox) only let a page touch the clipboard on a click: then a notice appears and your <strong>next click</strong> on the page (or <strong>Clear now</strong>) clears it, without checking what the clipboard holds.</p>
 
 <h6 class="mt-3">Expiry Warnings</h6>
 <p>Credentials with an expiry date within 30 days show a warning badge in the list.</p>
@@ -51,3 +51,4 @@
 
 <h6 class="mt-3 text-warning">SECRET_KEY Rotation Warning</h6>
 <p>Each user's vault key is encrypted with a key derived from <code>SECRET_KEY</code>. Rotating <code>SECRET_KEY</code> will make <strong>all vault credentials unreadable</strong>. Export or re-enter credentials before rotating.</p>
+<p class="text-muted small mt-2">Notes can link a credential with <code>@cred:&lt;id&gt;</code> (a link to its page, never the secret); those notes are listed in a collapsed <em>Notes mentioning this</em> card on the credential page.</p>

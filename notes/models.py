@@ -47,3 +47,26 @@ class NoteShare(models.Model):
 
     class Meta:
         unique_together = [('note', 'shared_with')]
+
+
+class NoteMention(models.Model):
+    """Objects a note mentions with `@` (v5.18.7). Rebuilt from the body on every save."""
+    KIND_JIRA = 'jira'
+    KIND_TICKET = 'ticket'
+    KIND_CRED = 'cred'
+    KINDS = [
+        (KIND_JIRA, 'Jira ticket'),
+        (KIND_TICKET, 'ITSM ticket'),
+        (KIND_CRED, 'Credential'),
+    ]
+
+    note = models.ForeignKey(Note, on_delete=models.CASCADE, related_name='mentions')
+    kind = models.CharField(max_length=10, choices=KINDS)
+    ref = models.CharField(max_length=50)
+
+    class Meta:
+        unique_together = [('note', 'kind', 'ref')]
+        indexes = [models.Index(fields=['kind', 'ref'], name='notes_mention_kind_ref_idx')]
+
+    def __str__(self):
+        return f'{self.note_id} -> {self.kind}:{self.ref}'

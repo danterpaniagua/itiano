@@ -19,6 +19,16 @@
 <h6 class="text-muted mt-3">From the JSON Sandbox</h6>
 <p>Staff can save a JSON Sandbox session as a note (payload, expression or filter, and result); those notes go in a <strong>JSON Sandbox</strong> notebook created on first use.</p>
 
+<h6 class="text-muted mt-3">Mentions with @</h6>
+<p>Type <code>@</code> in the Write tab to mention an object; a list appears (tap a row to pick it):</p>
+<ul class="small">
+    <li><code>@GITIN-2315</code> — a Jira ticket (always the Jira one).</li>
+    <li><code>@ticket:42</code> — an ITSM ticket.</li>
+    <li><code>@cred:17</code> — a vault credential (a link to its read-only page, never the secret).</li>
+</ul>
+<p>The list only offers what you can see. Mentions inside code, and things like <code>user@host.com</code>, are ignored. The <strong>Preview</strong> tab turns each mention into a chip with the current title or name; if you cannot open the object you only see <em>no access</em>, and a removed object shows <em>deleted</em>. Sharing a note never shares the objects it mentions: every reader sees chips according to their own access.</p>
+<p>The ITSM ticket, Jira ticket and credential pages list the notes that mention them (only notes you can read) in a collapsed <strong>Notes mentioning this</strong> card.</p>
+
 <h6 class="text-muted mt-3">Sharing</h6>
 <div class="table-responsive"><table class="table table-sm table-bordered">
     <thead class="table-light"><tr><th>Permission</th><th>Can do</th></tr></thead>

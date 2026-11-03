@@ -164,6 +164,8 @@ class VaultListLinkTests(TestCase):
         self.assertContains(response, reverse('vault-detail', args=[credential.pk]))
         self.assertContains(response, 'const clipboardTtl = 30;')
         self.assertContains(response, 'copyToClipboard(data.secret, true)')
+        self.assertContains(response, 'armClipboardClear')
+        self.assertContains(response, 'Clear now')
 
 
 class ClipboardTtlSettingTests(TestCase):
