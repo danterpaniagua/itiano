@@ -94,6 +94,19 @@ python manage.py jira_reconcile          # same as: jira_reconcile by_time
 0 * * * * root cd /path/to/itiano && docker compose exec -T app python manage.py jira_reconcile >> /path/to/itiano/logs/jira_reconcile.log 2>&1
 ```
 
+### Personal Time Report notes
+
+`time_report_close` creates, for every user with a Jira link, a private note with the Time Report prompt of each
+week, month or N-day period that has closed (choose which in Settings → Time Report → Auto report creation). It is
+idempotent, so run it daily:
+
+```cron
+# /etc/cron.d/itiano-time-report-close — daily, shortly after midnight
+10 0 * * * root cd /path/to/itiano && docker compose exec -T app python manage.py time_report_close >> /path/to/itiano/logs/time_report_close.log 2>&1
+```
+
+Options: `--backfill N` (last N closed periods per kind), `--dry-run`, `--user NAME`, `--today YYYY-MM-DD`.
+
 For a one-off backfill of recent tickets that predate the webhook or were otherwise missed
 entirely (not just their status history — the ticket itself), use `last [N]` (defaults to 300):
 

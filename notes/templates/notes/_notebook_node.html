@@ -1,0 +1,34 @@
+{# One personal notebook and its children (recursive). Context: nb, selected_notebook #}
+{% if nb.node_children %}
+<details class="mb-1" {% if nb.open %}open{% endif %}>
+    <summary class="d-flex align-items-center gap-1 py-1 px-2 rounded {% if selected_notebook.pk == nb.pk %}fw-semibold bg-light{% endif %}" style="cursor:pointer">
+        <a href="{% url 'notes-notebook' nb.pk %}" class="d-flex align-items-center gap-2 text-decoration-none text-body flex-grow-1">
+            <i class="bi bi-folder2-open text-warning"></i>
+            <span class="text-truncate">{{ nb.name }}</span>
+            <span class="badge bg-secondary ms-auto">{{ nb.notes.count }}</span>
+        </a>
+    </summary>
+    <div class="ms-3 ps-2 border-start">
+        {% for child in nb.node_children %}
+        {% include 'notes/_notebook_node.html' with nb=child %}
+        {% endfor %}
+    </div>
+</details>
+{% else %}
+<div class="d-flex align-items-center gap-1 py-1 px-2 rounded mb-1 {% if selected_notebook.pk == nb.pk %}fw-semibold bg-light{% endif %}">
+    <a href="{% url 'notes-notebook' nb.pk %}" class="d-flex align-items-center gap-2 text-decoration-none text-body flex-grow-1">
+        <i class="bi bi-folder text-warning"></i>
+        <span class="text-truncate">{{ nb.name }}</span>
+        <span class="badge bg-secondary ms-auto">{{ nb.notes.count }}</span>
+    </a>
+    {% if nb.notes.count == 0 %}
+    <form method="post" action="{% url 'notebook-delete' nb.pk %}"
+          onsubmit="return confirm('Delete notebook {{ nb.name }}?')" class="m-0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Delete">
+            <i class="bi bi-x"></i>
+        </button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}

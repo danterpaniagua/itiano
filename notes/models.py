@@ -15,8 +15,12 @@ class Notebook(models.Model):
         ordering = ['name']
         constraints = [
             models.UniqueConstraint(
-                fields=['owner', 'name'], condition=models.Q(is_system=False),
+                fields=['owner', 'name'], condition=models.Q(is_system=False, parent__isnull=True),
                 name='notes_notebook_owner_name_personal_uniq',
+            ),
+            models.UniqueConstraint(
+                fields=['owner', 'parent', 'name'], condition=models.Q(is_system=False, parent__isnull=False),
+                name='notes_notebook_owner_parent_name_uniq',
             ),
             models.UniqueConstraint(
                 fields=['key'], condition=~models.Q(key=''), name='notes_notebook_key_uniq',
@@ -39,12 +43,18 @@ class Note(models.Model):
     is_system = models.BooleanField(default=False)
     # System prompt id (`prompt_<feature>`, v5.19.0); empty for personal notes.
     key = models.CharField(max_length=100, blank=True, default='')
+    # Id of a generated personal file inside its notebook (v5.22.0), e.g. `2026-11` or `2026-11_W45`.
+    file_id = models.CharField(max_length=64, blank=True, default='')
 
     class Meta:
         ordering = ['-updated_at']
         permissions = [('view_system_prompts', 'Can view system prompts')]
         constraints = [
             models.UniqueConstraint(fields=['key'], condition=~models.Q(key=''), name='notes_note_key_uniq'),
+            models.UniqueConstraint(
+                fields=['notebook', 'file_id'], condition=~models.Q(file_id=''),
+                name='notes_note_file_id_per_notebook_uniq',
+            ),
         ]
 
     def __str__(self):

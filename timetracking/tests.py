@@ -4,6 +4,7 @@ from unittest import mock
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from core.models import UserProfile
 from jira_integration.models import JiraEvent, JiraTicket
@@ -1107,7 +1108,7 @@ class TagReportViewTests(TagReportBase):
     def test_paused_is_a_grouped_column_with_blocked_overlapped_and_total(self):
         self.scenario()
         html = self.get().content.decode()
-        self.assertIn('colspan="3" class="text-center border-bottom-0" title="Paused = Blocked + Overlapped">Paused</th>', html)
+        self.assertIn('colspan="3" class="text-center border-bottom-0" title="Paused = Blocked + Overlapped, in working hours">Paused (WH)</th>', html)
         for header in ('>Blocked</th>', '>Overlapped</th>', '>Total</th>'):
             self.assertIn(header, html)
 
@@ -1120,8 +1121,18 @@ class TagReportViewTests(TagReportBase):
         self.assertEqual((pedidos['blocked_wh'], pedidos['overlap_wh'], pedidos['paused_wh']), (7200, 3600, 10800))
         self.assertEqual(pedidos['overlap_label'], '1h 0m')
         self.assertEqual(response.context['totals']['overlap_wh'], 3600)
-        self.assertContains(response, 'Paused 3h 0m')
+        self.assertContains(response, 'WH: IP 3h 0m · Paused 3h 0m')
         self.assertContains(response, '(Blocked 2h 0m + Overlapped 1h 0m)')
+
+    def test_the_summary_lines_only_carry_tickets_and_ip(self):
+        import re
+        self.scenario()
+        html = re.sub(r'\s+', ' ', self.get().content.decode())
+        self.assertIn('1 ticket · IP (WH) 3h 0m', html)
+        self.assertNotIn('1 ticket · IP (WH) 3h 0m ·', html)
+        self.assertIn('IP (WH) 4h 0m', html)                  # grand total card (mobile)
+        self.assertNotIn('IP (WH) 4h 0m ·', html)
+        self.assertNotIn('WH: IP 3h 0m · Paused 3h 0m (Blocked 2h 0m + Overlapped 1h 0m) ·', html)
 
     def test_totals_are_rows_under_the_same_columns_with_a_parallel_wait_hint(self):
         self.scenario()
@@ -1343,3 +1354,269 @@ class DefaultTagsSettingTests(TestCase):
     def test_non_staff_cannot_change_it(self):
         self.client.force_login(self.user)
         self.assertEqual(self.client.post(self.url, {'action': 'set_default_tags', 'time_report_default_tags': 'X'}).status_code, 403)
+
+
+# ── Auto personal reports (v5.22.0) ──────────────────────────────────────────
+
+from io import StringIO  # noqa: E402
+
+from django.core.management import call_command  # noqa: E402
+
+from notes.models import Notebook  # noqa: E402
+
+from . import auto_reports  # noqa: E402
+from .models import GeneratedTimeReport  # noqa: E402
+
+D = dt.date
+
+
+class AutoReportPeriodTests(TestCase):
+    def test_closed_months(self):
+        self.assertEqual([(p['id'], p['start'], p['end']) for p in auto_reports.closed_months(D(2026, 11, 3), 2)],
+                         [('2026-10', D(2026, 10, 1), D(2026, 10, 31)), ('2026-09', D(2026, 9, 1), D(2026, 9, 30))])
+        self.assertEqual(auto_reports.closed_months(D(2026, 1, 15))[0]['id'], '2025-12')
+
+    def test_a_month_is_closed_only_after_its_last_day(self):
+        self.assertEqual(auto_reports.closed_months(D(2026, 10, 31))[0]['id'], '2026-09')
+        self.assertEqual(auto_reports.closed_months(D(2026, 11, 1))[0]['id'], '2026-10')
+
+    def test_closed_weeks_use_iso_numbers_and_the_month_of_the_monday(self):
+        week = auto_reports.closed_weeks(D(2026, 11, 3))[0]           # Tuesday
+        self.assertEqual((week['id'], week['start'], week['end']), ('2026-10_W44', D(2026, 10, 26), D(2026, 11, 1)))
+        self.assertEqual(auto_reports.closed_weeks(D(2026, 11, 2))[0]['id'], '2026-10_W44')   # Monday: Sunday has passed
+        self.assertEqual(auto_reports.closed_weeks(D(2026, 11, 1))[0]['id'], '2026-10_W43')   # Sunday: not closed yet
+        self.assertEqual(auto_reports.closed_weeks(D(2027, 1, 5))[0]['id'], '2026-12_W53')    # week across the year end
+        self.assertEqual([p['id'] for p in auto_reports.closed_weeks(D(2026, 11, 3), 2)], ['2026-10_W44', '2026-10_W43'])
+
+    def test_closed_blocks_count_from_the_anchor(self):
+        anchor = D(2026, 10, 1)
+        self.assertEqual(auto_reports.closed_blocks(D(2026, 10, 10), anchor, 10), [])
+        block = auto_reports.closed_blocks(D(2026, 10, 11), anchor, 10)[0]
+        self.assertEqual((block['id'], block['start'], block['end']), ('2026-10-01_10D', D(2026, 10, 1), D(2026, 10, 10)))
+        latest = auto_reports.closed_blocks(D(2026, 11, 3), anchor, 10, 2)
+        self.assertEqual([(p['id'], p['end']) for p in latest], [('2026-10-21_10D', D(2026, 10, 30)), ('2026-10-11_10D', D(2026, 10, 20))])
+        self.assertEqual(auto_reports.closed_blocks(D(2026, 11, 3), None, 10), [])
+
+    def test_periods_follow_the_settings(self):
+        base = {'weekly': False, 'monthly': False, 'other': False, 'other_days': 10, 'other_anchor': D(2026, 10, 1)}
+        self.assertEqual(auto_reports.periods_for(base, D(2026, 11, 3)), [])
+        self.assertEqual([p['kind'] for p in auto_reports.periods_for({**base, 'weekly': True, 'monthly': True, 'other': True}, D(2026, 11, 3))],
+                         ['weekly', 'monthly', 'other'])
+        self.assertEqual([p['id'] for p in auto_reports.periods_for({**base, 'monthly': True}, D(2026, 11, 3))], ['2026-10'])
+
+    def test_settings_defaults_and_bad_values(self):
+        defaults = auto_reports.load_settings()
+        self.assertEqual((defaults['weekly'], defaults['monthly'], defaults['other'], defaults['other_days'], defaults['other_anchor']),
+                         (True, True, False, 14, None))
+        AppSetting.objects.create(key='time_report_auto_other_days', value='abc')
+        AppSetting.objects.create(key='time_report_auto_other_anchor', value='not a date')
+        bad = auto_reports.load_settings()
+        self.assertEqual((bad['other_days'], bad['other_anchor']), (14, None))
+        AppSetting.objects.filter(key='time_report_auto_other_days').update(value='9999')
+        self.assertEqual(auto_reports.load_settings()['other_days'], 366)
+
+    def test_year_and_month_folders_repeat_across_years_without_clashing(self):
+        user = User.objects.create_user('u1', password='x')
+        november_2026 = auto_reports.ensure_folder(user, D(2026, 11, 1))
+        november_2027 = auto_reports.ensure_folder(user, D(2027, 11, 1))
+        self.assertNotEqual(november_2026.pk, november_2027.pk)
+        self.assertEqual((november_2026.name, november_2026.parent.name, november_2026.parent.parent.name, november_2026.parent.parent.parent.name),
+                         ('11', '2026', 'Jira Time Report', 'Personal'))
+        self.assertEqual(auto_reports.ensure_folder(user, D(2026, 11, 20)).pk, november_2026.pk)   # reused
+
+    def test_an_existing_top_level_personal_notebook_is_reused(self):
+        user = User.objects.create_user('u2', password='x')
+        mine = Notebook.objects.create(name='Personal', owner=user)
+        self.assertEqual(auto_reports.ensure_folder(user, D(2026, 10, 1)).parent.parent.parent.pk, mine.pk)
+
+
+class TimeReportCloseTests(TagReportBase):
+    """now = Tue 2026-11-03; closed month 2026-10; closed week 2026-10_W44 (Oct 26 - Nov 1)."""
+    def setUp(self):
+        super().setUp()
+        self.now = dt.datetime(2026, 11, 3, 12, 0, tzinfo=UTC)
+
+    def run_command(self, *args):
+        out = StringIO()
+        with mock.patch('django.utils.timezone.now', return_value=self.now):
+            call_command('time_report_close', *args, stdout=out)
+        return out.getvalue()
+
+    def reports(self, user=None):
+        return Note.objects.filter(owner=user or self.user).exclude(file_id='').order_by('file_id')
+
+    def october_activity(self):
+        self.scenario()      # Oct 1
+
+    def week_activity(self):
+        self.ticket('GITIN-W44', ['SmartPedidos'], [
+            (at(27, '09:00'), 'Open', 'In Progress'), (at(27, '11:00'), 'In Progress', 'Done'),
+        ])
+
+    def test_the_closed_month_becomes_a_private_note_in_the_year_month_folder(self):
+        self.october_activity()
+        output = self.run_command()
+        note = self.reports().get()
+        self.assertEqual((note.file_id, note.title, note.owner), ('2026-10', 'Jira Time Report 2026-10', self.user))
+        self.assertEqual(note.notebook.name, '10')
+        self.assertEqual(note.notebook.parent.name, '2026')
+        self.assertEqual(note.notebook.parent.parent.name, 'Jira Time Report')
+        self.assertEqual(note.notebook.parent.parent.parent.name, 'Personal')
+        self.assertIn('01/Oct/2026 - 31/Oct/2026', note.body)
+        self.assertIn('### GITIN-A · Title GITIN-A', note.body)
+        self.assertIn('```text', note.body)
+        self.assertIn('Created 1 note(s)', output)
+
+    def test_the_closed_week_is_created_with_the_iso_id(self):
+        self.october_activity()
+        self.week_activity()
+        self.run_command()
+        self.assertEqual([n.file_id for n in self.reports()], ['2026-10', '2026-10_W44'])
+        week = self.reports().get(file_id='2026-10_W44')
+        self.assertIn('26/Oct/2026 - 01/Nov/2026', week.body)
+        self.assertIn('GITIN-W44', week.body)
+        self.assertEqual(week.notebook.pk, self.reports().get(file_id='2026-10').notebook.pk)   # same YYYY/MM folder
+
+    def test_running_it_again_changes_nothing(self):
+        self.october_activity()
+        self.run_command()
+        note = self.reports().get()
+        body = note.body
+        Note.objects.filter(pk=note.pk).update(body='my own edit')
+        output = self.run_command()
+        self.assertEqual(self.reports().count(), 1)
+        self.assertEqual(self.reports().get().body, 'my own edit')
+        self.assertIn('Created 0 note(s)', output)
+        self.assertEqual(GeneratedTimeReport.objects.filter(user=self.user, file_id='2026-10').count(), 1)
+        self.assertNotEqual(body, 'my own edit')
+
+    def test_a_deleted_note_is_not_recreated(self):
+        self.october_activity()
+        self.run_command()
+        self.reports().get().delete()
+        self.run_command()
+        self.assertEqual(self.reports().count(), 0)
+
+    def test_a_period_without_activity_is_recorded_but_has_no_note(self):
+        self.run_command()
+        self.assertEqual(self.reports().count(), 0)
+        self.assertEqual(set(GeneratedTimeReport.objects.filter(user=self.user).values_list('file_id', 'empty')),
+                         {('2026-10', True), ('2026-10_W44', True)})
+
+    def test_the_note_is_private_to_its_owner(self):
+        self.october_activity()
+        self.run_command()
+        note = self.reports().get()
+        staff = User.objects.create_user('staff_x', password='x', is_staff=True)
+        other = User.objects.create_user('other_x', password='x')
+        for viewer in (staff, other):
+            self.client.force_login(viewer)
+            self.assertEqual(self.client.get(reverse('note-edit', args=[note.pk])).status_code, 403, viewer.username)
+            self.assertNotContains(self.client.get(reverse('notes-list')), 'Jira Time Report')
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('note-edit', args=[note.pk])).status_code, 200)
+        self.assertEqual(note.shares.count(), 0)
+
+    def test_settings_choose_the_periods(self):
+        self.october_activity()
+        self.week_activity()
+        AppSetting.objects.create(key='time_report_auto_weekly', value='0')
+        self.run_command()
+        self.assertEqual([n.file_id for n in self.reports()], ['2026-10'])
+        AppSetting.objects.update_or_create(key='time_report_auto_monthly', defaults={'value': '0'})
+        AppSetting.objects.filter(key='time_report_auto_weekly').update(value='0')
+        self.assertIn('off in Settings', self.run_command())
+
+    def test_other_n_day_blocks(self):
+        self.october_activity()
+        for key, value in (('weekly', '0'), ('monthly', '0'), ('other', '1')):
+            AppSetting.objects.create(key=f'time_report_auto_{key}', value=value)
+        AppSetting.objects.create(key='time_report_auto_other_days', value='10')
+        AppSetting.objects.create(key='time_report_auto_other_anchor', value='2026-09-25')
+        self.run_command('--backfill', '3')
+        ids = [n.file_id for n in self.reports()]
+        self.assertEqual(ids, ['2026-09-25_10D'])   # Sep 25 - Oct 4 holds Oct 1; the other closed blocks are empty
+        self.assertEqual(self.reports().get().notebook.name, '09')
+
+    def test_backfill_creates_older_periods(self):
+        self.october_activity()
+        self.run_command('--backfill', '6')
+        self.assertIn('2026-09_W40', [n.file_id for n in self.reports()])   # Sep 28 - Oct 4 holds Oct 1
+        self.assertEqual(self.reports().get(file_id='2026-09_W40').notebook.name, '09')
+
+    def test_dry_run_writes_nothing(self):
+        self.october_activity()
+        output = self.run_command('--dry-run')
+        self.assertIn('would handle 2026-10', output)
+        self.assertEqual(self.reports().count(), 0)
+        self.assertFalse(GeneratedTimeReport.objects.exists())
+        self.assertFalse(AppSetting.objects.filter(key='time_report_auto_last_run').exists())
+
+    def test_users_without_a_jira_link_are_skipped_and_the_last_run_is_stored(self):
+        self.october_activity()
+        User.objects.create_user('nolink', password='x')
+        self.run_command()
+        self.assertEqual(GeneratedTimeReport.objects.exclude(user=self.user).count(), 0)
+        self.assertTrue(AppSetting.objects.get(key='time_report_auto_last_run').value.startswith('2026-11-03T12:00:00'))
+
+    def test_only_one_user_with_the_user_option(self):
+        self.october_activity()
+        self.run_command('--user', 'someone_else')
+        self.assertEqual(self.reports().count(), 0)
+        self.run_command('--user', self.user.username)
+        self.assertEqual(self.reports().count(), 1)
+
+    def test_the_notes_page_lists_the_folder_tree_and_orders_the_files(self):
+        self.october_activity()
+        self.week_activity()
+        self.run_command()
+        month = self.reports().get(file_id='2026-10').notebook
+        response = self.client.get(reverse('notes-notebook', args=[month.pk]))
+        self.assertEqual([n.file_id for n in response.context['notes']], ['2026-10', '2026-10_W44'])
+        self.assertEqual([r.name for r in response.context['notebook_tree']], ['Personal'])
+        html = response.content.decode()
+        for name in ('Personal', 'Jira Time Report', '2026'):
+            self.assertIn(name, html)
+
+
+class AutoReportSettingsTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user('staff_t', password='x', is_staff=True)
+        self.url = reverse('settings-time-report')
+        self.client.force_login(self.staff)
+
+    def post(self, **fields):
+        return self.client.post(self.url, {'action': 'set_auto_reports', **fields})
+
+    def test_the_section_shows_defaults_the_cron_line_and_the_last_run(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Auto report creation')
+        self.assertContains(response, 'docker compose exec -T app python manage.py time_report_close')
+        self.assertContains(response, 'Last run: never')
+        AppSetting.objects.create(key='time_report_auto_last_run', value='2026-11-03T12:00:00+00:00')
+        self.assertContains(self.client.get(self.url), '03/Nov/2026')
+
+    def test_save_weekly_and_monthly_only(self):
+        self.post(weekly='on', other_days='14')
+        settings = auto_reports.load_settings()
+        self.assertEqual((settings['weekly'], settings['monthly'], settings['other']), (True, False, False))
+
+    def test_save_other_with_days_and_start_date(self):
+        self.post(other='on', other_days='10', other_anchor='03/Nov/2026')
+        settings = auto_reports.load_settings()
+        self.assertEqual((settings['other'], settings['other_days'], settings['other_anchor']), (True, 10, D(2026, 11, 3)))
+        self.assertContains(self.client.get(self.url), '03/Nov/2026')
+
+    def test_other_without_a_start_date_starts_today(self):
+        self.post(other='on', other_days='7')
+        self.assertEqual(auto_reports.load_settings()['other_anchor'], timezone.localdate())
+
+    def test_invalid_days_or_date_are_rejected_and_nothing_changes(self):
+        for fields in ({'other': 'on', 'other_days': '1'}, {'other': 'on', 'other_days': '999'}, {'other': 'on', 'other_days': 'x'},
+                       {'other': 'on', 'other_days': '10', 'other_anchor': '31/Feb/2026'}):
+            self.post(weekly='on', **fields)
+        self.assertFalse(AppSetting.objects.filter(key='time_report_auto_weekly').exists())
+
+    def test_non_staff_cannot_change_it(self):
+        self.client.force_login(User.objects.create_user('agent_t', password='x'))
+        self.assertEqual(self.post(weekly='on').status_code, 403)

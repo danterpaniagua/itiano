@@ -63,7 +63,7 @@ def _save_as_note(request, mode, payload, expression, filter_expr, result, filte
     title = request.POST.get('note_title', '').strip()[:255]
     if not title:
         title = 'JSON sandbox - ' + timezone.localtime().strftime('%Y-%m-%d %H:%M')
-    notebook, _ = Notebook.objects.get_or_create(owner=request.user, name=NOTEBOOK_NAME)
+    notebook, _ = Notebook.objects.get_or_create(owner=request.user, name=NOTEBOOK_NAME, parent=None)
     note = Note.objects.create(
         title=title, owner=request.user, notebook=notebook,
         body=build_note_body(mode, payload, expression, filter_expr, result, filter_matched, evaluated),

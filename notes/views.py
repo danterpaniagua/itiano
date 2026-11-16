@@ -12,6 +12,34 @@ from . import mentions, system_prompts
 from .models import Note, Notebook, NoteShare
 
 
+def personal_tree(user, selected=None):
+    """(roots, flat): the user's personal notebooks nested by parent. Each notebook gets `node_children`,
+    `path` (`Personal / Jira Time Report / 2026 / 11`) and `open` (an ancestor of `selected` or `selected`)."""
+    notebooks = list(Notebook.objects.filter(owner=user, is_system=False))
+    by_id = {n.pk: n for n in notebooks}
+    for n in notebooks:
+        n.node_children = []
+        n.open = False
+    roots = []
+    for n in notebooks:
+        parent = by_id.get(n.parent_id)
+        (parent.node_children if parent else roots).append(n)
+    flat = []
+
+    def walk(nodes, prefix):
+        for n in nodes:
+            n.path = f'{prefix}{n.name}'
+            flat.append(n)
+            walk(n.node_children, f'{n.path} / ')
+
+    walk(roots, '')
+    node = by_id.get(selected.pk) if selected else None
+    while node:
+        node.open = True
+        node = by_id.get(node.parent_id)
+    return roots, flat
+
+
 def _note_perm(user, note):
     if note.key:   # system prompt: permission comes from the user, not from ownership or shares
         return system_prompts.perm_for(user)
@@ -25,11 +53,13 @@ class NoteListView(LoginRequiredMixin, View):
     def get(self, request, notebook_pk=None):
         if system_prompts.can_edit(request.user):
             system_prompts.ensure_all(request.user)
-        notebooks = Notebook.objects.filter(owner=request.user, is_system=False)
         selected_notebook = None
         if notebook_pk:
             selected_notebook = get_object_or_404(Notebook, pk=notebook_pk, owner=request.user, is_system=False)
-            notes = selected_notebook.notes.select_related('notebook')
+        notebook_tree, notebooks = personal_tree(request.user, selected_notebook)
+        if selected_notebook:
+            # generated report files (2026-11, 2026-11_W45, ...) read in id order; ordinary notes by update time
+            notes = selected_notebook.notes.select_related('notebook').order_by('file_id', '-updated_at')
         else:
             notes = Note.objects.filter(owner=request.user, key='').select_related('notebook')
 
@@ -39,6 +69,7 @@ class NoteListView(LoginRequiredMixin, View):
 
         return render(request, 'notes/note_list.html', {
             'notebooks': notebooks,
+            'notebook_tree': notebook_tree,
             'notes': notes,
             'selected_notebook': selected_notebook,
             'shared_notes': shared_notes,
@@ -59,7 +90,7 @@ class NoteEditView(LoginRequiredMixin, View):
 
     def get(self, request, pk=None):
         note, perm = self._resolve(request, pk, write=False)
-        notebooks = Notebook.objects.filter(owner=request.user if note is None else note.owner, is_system=False)
+        _, notebooks = personal_tree(request.user if note is None else note.owner)
         return render(request, 'notes/note_edit.html', {
             'note': note,
             'perm': perm,
@@ -148,14 +179,14 @@ class NotebookCreateView(LoginRequiredMixin, View):
     def post(self, request):
         name = request.POST.get('name', '').strip()
         if name:
-            Notebook.objects.get_or_create(owner=request.user, name=name)
+            Notebook.objects.get_or_create(owner=request.user, name=name, parent=None)
         return redirect('notes-list')
 
 
 class NotebookDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
         notebook = get_object_or_404(Notebook, pk=pk, owner=request.user, is_system=False)
-        if not notebook.notes.exists():
+        if not notebook.notes.exists() and not notebook.children.exists():
             notebook.delete()
         return redirect('notes-list')
 

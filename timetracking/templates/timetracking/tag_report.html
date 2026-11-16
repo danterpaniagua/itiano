@@ -81,8 +81,7 @@
         <h6 class="mb-0"><i class="bi bi-tag"></i> {{ section.tag }}</h6>
         <span class="small text-muted">
             {{ section.totals.tickets }} ticket{{ section.totals.tickets|pluralize }} ·
-            IP {{ section.totals.ip_label }} · Paused {{ section.totals.paused_label }}
-            (Blocked {{ section.totals.blocked_label }} + Overlapped {{ section.totals.overlap_label }})
+            IP (WH) {{ section.totals.ip_label }}
         </span>
     </div>
     {% if section.rows %}
@@ -94,13 +93,13 @@
                 <tr>
                     <th rowspan="2">ID</th><th rowspan="2">Title</th><th rowspan="2">Jira tags</th>
                     <th rowspan="2" class="text-end">IP (WH)</th>
-                    <th colspan="3" class="text-center border-bottom-0" title="Paused = Blocked + Overlapped">Paused</th>
+                    <th colspan="3" class="text-center border-bottom-0" title="Paused = Blocked + Overlapped, in working hours">Paused (WH)</th>
                     <th rowspan="2">Created</th><th rowspan="2">Finished</th>
                 </tr>
                 <tr>
-                    <th class="text-end" title="Time in Blocked statuses">Blocked</th>
-                    <th class="text-end" title="In Progress while another ticket had the focus">Overlapped</th>
-                    <th class="text-end" title="Blocked + Overlapped">Total</th>
+                    <th class="text-end" title="Time in Blocked statuses, in working hours">Blocked</th>
+                    <th class="text-end" title="In Progress while another ticket had the focus, in working hours">Overlapped</th>
+                    <th class="text-end" title="Blocked + Overlapped, in working hours">Total</th>
                 </tr>
             </thead>
             <tbody>
@@ -147,7 +146,7 @@
                 </div>
                 <div class="text-break">{{ row.title }}</div>
                 <div class="d-flex flex-wrap gap-1 my-1">{% for label in row.labels %}<span class="badge bg-light text-dark border fw-normal">{{ label }}</span>{% endfor %}</div>
-                <div>IP {{ row.ip_label }} · Paused {{ row.paused_label }} (Blocked {{ row.blocked_label }} + Overlapped {{ row.overlap_label }})</div>
+                <div>WH: IP {{ row.ip_label }} · Paused {{ row.paused_label }} (Blocked {{ row.blocked_label }} + Overlapped {{ row.overlap_label }})</div>
             </div>
         </div>
         {% endfor %}
@@ -177,7 +176,7 @@
 <div class="card d-md-none">
     <div class="card-body py-2 px-3 small">
         <strong>Total (each ticket once)</strong> · {{ totals.tickets }} ticket{{ totals.tickets|pluralize }}<br>
-        IP {{ totals.ip_label }} · Paused {{ totals.paused_label }} (Blocked {{ totals.blocked_label }} + Overlapped {{ totals.overlap_label }})
+        IP (WH) {{ totals.ip_label }}
     </div>
 </div>
 

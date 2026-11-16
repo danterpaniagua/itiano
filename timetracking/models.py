@@ -90,3 +90,21 @@ class ReportEnvironment(models.Model):
 
     def __str__(self):
         return f"{self.service.tag_name} / {self.tag_name}"
+
+
+class GeneratedTimeReport(models.Model):
+    """A period whose personal report was already handled (v5.22.0), so a deleted note is never recreated."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='generated_time_reports')
+    file_id = models.CharField(max_length=64)
+    kind = models.CharField(max_length=10)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    empty = models.BooleanField(default=False)   # the period had no activity: no note was created
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'file_id')]
+        ordering = ['-period_end']
+
+    def __str__(self):
+        return f"{self.user.username} {self.file_id}"

@@ -31,8 +31,9 @@ def _created_at(payload):
 class _Report:
     """Everything both endpoints need: filters, the viewer's tickets and the computed sections."""
 
-    def __init__(self, request, with_descriptions=False):
-        user = request.user
+    def __init__(self, user, params, with_descriptions=False, now=None):
+        """`params` is a QueryDict-like (`range`, `date_from`, `date_to`, `tags`): the request's GET for the pages,
+        a built one for the management command (v5.22.0)."""
         schedule, _ = WorkSchedule.objects.get_or_create(user=user)
         self.schedule = schedule
         jira_username = schedule.jira_username.strip() if schedule.jira_username else ''
@@ -46,10 +47,10 @@ class _Report:
         except Exception:
             self.tz = dt.timezone.utc
 
-        self.now = timezone.now()
+        self.now = now or timezone.now()
         (self.range_param, self.start, self.end,
-         self.from_text, self.to_text, self.range_error) = resolve_range(request.GET, self.tz, self.now)
-        self.selected_tags = [t for t in request.GET.getlist('tags') if t]
+         self.from_text, self.to_text, self.range_error) = resolve_range(params, self.tz, self.now)
+        self.selected_tags = [t for t in params.getlist('tags') if t]
         self.default_tags = tag_report.default_tags()
         self.tags = self.selected_tags or self.default_tags
 
@@ -101,9 +102,17 @@ class _Report:
         return f'{format_map_date(self.start.astimezone(self.tz).date())} - {format_map_date(self.end.astimezone(self.tz).date())}'
 
 
+def build_prompt_text(report):
+    """The prompt for a computed report, from the `prompt_time_report` system prompt."""
+    return tag_report.build_prompt(
+        system_prompts.get_prompt(tag_report.PROMPT_ID), report.tags, report.range_text,
+        report.sections, report.descriptions, report.tz,
+    )
+
+
 class TimeReportView(LoginRequiredMixin, View):
     def get(self, request):
-        report = _Report(request)
+        report = _Report(request.user, request.GET)
         return render(request, 'timetracking/tag_report.html', {
             'jira_account_id': report.jira_account_id, 'jira_username': report.jira_username,
             'range_param': report.range_param, 'date_from_text': report.from_text,
@@ -119,9 +128,5 @@ class TimeReportPromptView(LoginRequiredMixin, View):
     """The AI prompt for the report currently on screen (same query string), built from the
     `prompt_time_report` system prompt. Only copied by the user; nothing is sent anywhere."""
     def get(self, request):
-        report = _Report(request, with_descriptions=True)
-        template = system_prompts.get_prompt(tag_report.PROMPT_ID)
-        prompt = tag_report.build_prompt(
-            template, report.tags, report.range_text, report.sections, report.descriptions, report.tz,
-        )
-        return JsonResponse({'prompt': prompt})
+        report = _Report(request.user, request.GET, with_descriptions=True)
+        return JsonResponse({'prompt': build_prompt_text(report)})

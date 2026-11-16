@@ -6,6 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views import View
 
 from django.contrib.auth.models import User
@@ -15,7 +16,8 @@ from contacts.models import Contact, ContactChannel
 from core.models import Team, UserProfile
 from itsm.models import Category, Tag
 from jira_integration.models import JiraEvent
-from timetracking import tag_report
+from timetracking import auto_reports, tag_report
+from timetracking.map_views import format_map_date
 from timetracking.models import ReportEnvironment, ReportProject, ReportService, WorkSchedule
 from vault.models import Container, ContainerAccess
 from vault.views import CLIPBOARD_TTL_MAX, clipboard_ttl_seconds
@@ -543,6 +545,32 @@ class AppSettingsHubView(StaffRequiredMixin, View):
 
 
 class TimeReportSettingsView(StaffRequiredMixin, View):
+    def _save_auto_reports(self, request):
+        current = auto_reports.load_settings()
+        weekly, monthly, other = 'weekly' in request.POST, 'monthly' in request.POST, 'other' in request.POST
+        days, anchor = current['other_days'], current['other_anchor']
+        days_text = request.POST.get('other_days', '').strip()
+        anchor_text = request.POST.get('other_anchor', '').strip()
+        if other:
+            try:
+                days = int(days_text)
+                if not auto_reports.MIN_OTHER_DAYS <= days <= auto_reports.MAX_OTHER_DAYS:
+                    raise ValueError
+            except ValueError:
+                messages.error(request, f'"Other" needs a whole number of days from {auto_reports.MIN_OTHER_DAYS} to {auto_reports.MAX_OTHER_DAYS}.')
+                return
+            anchor = auto_reports.parse_anchor(anchor_text) if anchor_text else (anchor or timezone.localdate())
+            if anchor is None:
+                messages.error(request, 'Enter the start date as dd/mmm/yyyy (for example 03/Nov/2026).')
+                return
+        for name, value in (('weekly', weekly), ('monthly', monthly), ('other', other)):
+            AppSetting.objects.update_or_create(key=auto_reports.KEYS[name], defaults={'value': '1' if value else '0'})
+        AppSetting.objects.update_or_create(key=auto_reports.KEYS['other_days'], defaults={'value': str(days)})
+        AppSetting.objects.update_or_create(
+            key=auto_reports.KEYS['other_anchor'], defaults={'value': anchor.isoformat() if anchor else ''},
+        )
+        messages.success(request, 'Auto report creation saved.')
+
     def _ctx(self):
         all_tags = list(Tag.objects.order_by('name'))
         projects = list(ReportProject.objects.prefetch_related('services__environments').all())
@@ -559,6 +587,20 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
             'stuck_threshold_hours': get_app_setting('stuck_threshold_hours', '16'),
             'trend_min_baseline_seconds': get_app_setting('trend_min_baseline_seconds', '300'),
             'time_report_default_tags': ', '.join(tag_report.default_tags()),
+            **self._auto_ctx(),
+        }
+
+    def _auto_ctx(self):
+        auto = auto_reports.load_settings()
+        last_run = None
+        try:
+            last_run = dt.datetime.fromisoformat(get_app_setting(auto_reports.LAST_RUN_KEY, ''))
+        except ValueError:
+            pass
+        return {
+            'auto': auto,
+            'auto_anchor_text': format_map_date(auto['other_anchor']) if auto['other_anchor'] else '',
+            'auto_last_run': last_run,
         }
 
     def get(self, request):
@@ -590,6 +632,9 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
                     key='time_report_default_tags', defaults={'value': ', '.join(tags)}
                 )
                 messages.success(request, 'Default tags for the Time Report saved.')
+
+        elif action == 'set_auto_reports':
+            self._save_auto_reports(request)
 
         elif action == 'set_trend_min_baseline':
             value = request.POST.get('trend_min_baseline_seconds', '').strip()

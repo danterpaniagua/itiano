@@ -29,6 +29,12 @@
 <p>The list only offers what you can see. Mentions inside code, and things like <code>user@host.com</code>, are ignored. The <strong>Preview</strong> tab turns each mention into a chip with the current title or name; if you cannot open the object you only see <em>no access</em>, and a removed object shows <em>deleted</em>. Sharing a note never shares the objects it mentions: every reader sees chips according to their own access.</p>
 <p>The ITSM ticket, Jira ticket and credential pages list the notes that mention them (only notes you can read) in a collapsed <strong>Notes mentioning this</strong> card.</p>
 
+<h6 class="text-muted mt-3">Folders inside folders</h6>
+<p>Notebooks can be nested; the sidebar shows them as a tree and the notebook selector in the editor shows the full path. A notebook that contains other notebooks or notes cannot be deleted.</p>
+
+<h6 class="text-muted mt-3">Jira Time Report files</h6>
+<p>When a week or month closes, the app creates a note for you with the Time Report prompt of that period in <em>Personal / Jira Time Report / YYYY / MM</em> (for example <code>2026-11</code> for the month and <code>2026-11_W45</code> for ISO week 45). They are private: nobody else can open them, not even admins, and the app never overwrites them, so your edits stay. A note you delete is not created again. Staff choose which periods are created in Settings → Time Report.</p>
+
 <h6 class="text-muted mt-3">System Prompts</h6>
 <p>Prompt templates that features use (for example the time report export) are kept as notes in a <strong>System Prompts</strong> folder at the bottom of the sidebar, grouped in a folder per project (<em>Itiano</em> for system-wide prompts). Each prompt has an id such as <code>prompt_time_report</code> (<code>prompt_</code> plus the feature path in snake_case) that the app uses to find it, so you can rename the title freely.</p>
 <ul class="small">

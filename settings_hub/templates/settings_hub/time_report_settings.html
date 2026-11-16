@@ -49,6 +49,44 @@
     </div>
 
     <div class="section-card">
+        <div class="section-title"><i class="bi bi-journal-text me-1"></i>Auto report creation</div>
+        <p class="text-muted small mb-3">
+            When a period closes, every user with a Jira link gets a private note with the Time Report prompt for it, in
+            <em>Personal / Jira Time Report / YYYY / MM</em> (Notes). Existing notes are never overwritten.
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="set_auto_reports">
+            <div class="form-check mb-1">
+                <input class="form-check-input" type="checkbox" name="weekly" id="auto-weekly" {% if auto.weekly %}checked{% endif %}>
+                <label class="form-check-label" for="auto-weekly">Weekly <span class="text-muted small">(Monday to Sunday, id <code>2026-11_W45</code>)</span></label>
+            </div>
+            <div class="form-check mb-1">
+                <input class="form-check-input" type="checkbox" name="monthly" id="auto-monthly" {% if auto.monthly %}checked{% endif %}>
+                <label class="form-check-label" for="auto-monthly">Monthly <span class="text-muted small">(calendar month, id <code>2026-11</code>)</span></label>
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" name="other" id="auto-other" {% if auto.other %}checked{% endif %}>
+                    <label class="form-check-label" for="auto-other">Other: every</label>
+                </div>
+                <input type="number" name="other_days" value="{{ auto.other_days }}" min="2" max="366" aria-label="Days"
+                       class="form-control form-control-sm" style="width:80px">
+                <span class="small">days, starting</span>
+                <input type="text" name="other_anchor" value="{{ auto_anchor_text }}" placeholder="dd/mmm/yyyy" aria-label="Start date"
+                       class="form-control form-control-sm" style="width:130px" autocomplete="off">
+                <span class="text-muted small">id <code>2026-11-03_10D</code> (start date)</span>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Save</button>
+        </form>
+        <div class="small text-muted mt-3">
+            Run it daily from host cron:
+            <code>docker compose exec -T app python manage.py time_report_close</code><br>
+            Last run: {% if auto_last_run %}{{ auto_last_run|date:"d/M/Y H:i" }}{% else %}never{% endif %}
+        </div>
+    </div>
+
+    <div class="section-card">
         <div class="section-title"><i class="bi bi-graph-up me-1"></i>Trend Minimum Baseline</div>
         <p class="text-muted small mb-3">
             Time by Status hides the trend percentage (shows "new" instead) when the previous period's value is below this many seconds — avoids misleading spikes from brief status flickers.

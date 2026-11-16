@@ -36,6 +36,9 @@
     {% if note.key %}
     <span class="badge bg-light text-dark border" title="System prompt id"><i class="bi bi-gear"></i> {{ note.key }}</span>
     {% endif %}
+    {% if note.file_id %}
+    <span class="badge bg-light text-dark border" title="Generated report id"><i class="bi bi-calendar-check"></i> {{ note.file_id }}</span>
+    {% endif %}
     {% if read_only %}
     <span class="badge bg-secondary" title="You can read this note but not edit it"><i class="bi bi-lock"></i> read-only</span>
     {% endif %}
@@ -45,11 +48,11 @@
 {% if perm == 'owner' and not note.is_system %}
 <div class="d-flex align-items-center gap-2 mb-2">
     <i class="bi bi-folder text-warning"></i>
-    <select id="note-notebook" class="form-select form-select-sm" style="max-width:220px">
+    <select id="note-notebook" class="form-select form-select-sm" style="max-width:360px">
         <option value="">No notebook</option>
         {% for nb in notebooks %}
         <option value="{{ nb.pk }}" {% if note.notebook.pk == nb.pk %}selected{% endif %}>
-            {{ nb.name }}
+            {{ nb.path }}
         </option>
         {% endfor %}
     </select>

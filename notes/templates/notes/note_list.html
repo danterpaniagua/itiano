@@ -35,26 +35,9 @@
             <span class="badge bg-secondary ms-auto">{{ notes|length }}</span>
         </a>
 
-        {# Notebooks #}
-        {% for nb in notebooks %}
-        <div class="d-flex align-items-center gap-1 py-1 px-2 rounded mb-1
-                    {% if selected_notebook.pk == nb.pk %}fw-semibold bg-light{% endif %}">
-            <a href="{% url 'notes-notebook' nb.pk %}"
-               class="d-flex align-items-center gap-2 text-decoration-none text-body flex-grow-1">
-                <i class="bi bi-folder text-warning"></i>
-                <span class="text-truncate">{{ nb.name }}</span>
-                <span class="badge bg-secondary ms-auto">{{ nb.notes.count }}</span>
-            </a>
-            {% if nb.notes.count == 0 %}
-            <form method="post" action="{% url 'notebook-delete' nb.pk %}"
-                  onsubmit="return confirm('Delete notebook {{ nb.name }}?')" class="m-0">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Delete">
-                    <i class="bi bi-x"></i>
-                </button>
-            </form>
-            {% endif %}
-        </div>
+        {# Notebooks (nested) #}
+        {% for nb in notebook_tree %}
+        {% include 'notes/_notebook_node.html' %}
         {% endfor %}
 
         {# Shared with me #}

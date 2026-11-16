@@ -498,7 +498,7 @@ class SystemPromptsTests(TestCase):
         response = self.client.get(reverse('notes-list'))
         self.assertEqual([n.title for n in response.context['notes']], ['Mine'])
         self.assertEqual(list(response.context['notebooks']), [])
-        self.assertEqual(self.client.get(reverse('note-new')).context['notebooks'].count(), 0)
+        self.assertEqual(len(self.client.get(reverse('note-new')).context['notebooks']), 0)
 
     def test_a_personal_notebook_can_share_a_name_with_a_system_folder(self):
         Notebook.objects.create(name='Itiano', owner=self.admin)
@@ -540,3 +540,80 @@ class ReadSharedNoteTests(TestCase):
         self.client.post(reverse('note-edit', args=[self.note.pk]), {'title': 'Shared', 'body': 'changed'})
         self.note.refresh_from_db()
         self.assertEqual(self.note.body, 'changed')
+
+
+# ── Nested personal notebooks and generated report files (v5.22.0) ───────────
+
+from django.db import IntegrityError, transaction  # noqa: E402
+
+from .views import personal_tree  # noqa: E402
+
+
+class NestedNotebookTests(TestCase):
+    def setUp(self):
+        self.user = make_user('ope_test')
+        self.client.force_login(self.user)
+        self.personal = Notebook.objects.create(name='Personal', owner=self.user)
+        self.reports = Notebook.objects.create(name='Jira Time Report', owner=self.user, parent=self.personal)
+        self.year = Notebook.objects.create(name='2026', owner=self.user, parent=self.reports)
+        self.month = Notebook.objects.create(name='11', owner=self.user, parent=self.year)
+        self.work = Notebook.objects.create(name='Work', owner=self.user)
+
+    def test_tree_paths_children_and_open_flags(self):
+        roots, flat = personal_tree(self.user, self.month)
+        self.assertEqual([r.name for r in roots], ['Personal', 'Work'])
+        self.assertEqual([n.path for n in flat], ['Personal', 'Personal / Jira Time Report', 'Personal / Jira Time Report / 2026',
+                                                  'Personal / Jira Time Report / 2026 / 11', 'Work'])
+        opened = {n.name for n in flat if n.open}
+        self.assertEqual(opened, {'Personal', 'Jira Time Report', '2026', '11'})
+        self.assertFalse(next(n for n in flat if n.name == 'Work').open)
+
+    def test_month_folders_may_repeat_under_different_years_but_not_under_the_same_parent(self):
+        year_2027 = Notebook.objects.create(name='2027', owner=self.user, parent=self.reports)
+        Notebook.objects.create(name='11', owner=self.user, parent=year_2027)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Notebook.objects.create(name='11', owner=self.user, parent=self.year)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Notebook.objects.create(name='Work', owner=self.user)
+
+    def test_creating_a_notebook_by_name_never_picks_a_nested_one(self):
+        self.client.post(reverse('notebook-new'), {'name': '11'})
+        top = Notebook.objects.get(name='11', parent=None, owner=self.user)
+        self.assertNotEqual(top.pk, self.month.pk)
+
+    def test_a_notebook_with_children_cannot_be_deleted(self):
+        self.client.post(reverse('notebook-delete', args=[self.personal.pk]))
+        self.assertTrue(Notebook.objects.filter(pk=self.personal.pk).exists())
+        self.client.post(reverse('notebook-delete', args=[self.month.pk]))
+        self.assertFalse(Notebook.objects.filter(pk=self.month.pk).exists())
+
+    def test_the_sidebar_nests_and_marks_the_selected_branch_open(self):
+        Note.objects.create(title='r', owner=self.user, notebook=self.month, file_id='2026-11')
+        response = self.client.get(reverse('notes-notebook', args=[self.month.pk]))
+        html = response.content.decode()
+        self.assertEqual(html.count('<details'), 3)          # Personal, Jira Time Report, 2026
+        self.assertNotIn('<details class="mb-1" >', html)    # all three are open on the way to the selection
+        for name in ('Personal', 'Jira Time Report', '2026', '>11<', 'Work'):
+            self.assertIn(name, html)
+
+    def test_the_editor_selector_shows_the_full_path(self):
+        note = Note.objects.create(title='r', owner=self.user, notebook=self.month)
+        self.assertContains(self.client.get(reverse('note-edit', args=[note.pk])), 'Personal / Jira Time Report / 2026 / 11')
+
+    def test_file_ids_are_unique_per_notebook_only(self):
+        Note.objects.create(title='a', owner=self.user, notebook=self.month, file_id='2026-11')
+        Note.objects.create(title='b', owner=self.user, notebook=self.year, file_id='2026-11')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Note.objects.create(title='c', owner=self.user, notebook=self.month, file_id='2026-11')
+        Note.objects.create(title='d', owner=self.user, notebook=self.month)
+        Note.objects.create(title='e', owner=self.user, notebook=self.month)   # blank ids never clash
+
+    def test_the_file_id_badge_shows_in_the_editor(self):
+        note = Note.objects.create(title='r', owner=self.user, notebook=self.month, file_id='2026-11_W45')
+        self.assertContains(self.client.get(reverse('note-edit', args=[note.pk])), '2026-11_W45')
+
+    def test_generated_notes_read_in_id_order(self):
+        for file_id in ('2026-11_W45', '2026-11', '2026-11_W44'):
+            Note.objects.create(title=file_id, owner=self.user, notebook=self.month, file_id=file_id)
+        response = self.client.get(reverse('notes-notebook', args=[self.month.pk]))
+        self.assertEqual([n.file_id for n in response.context['notes']], ['2026-11', '2026-11_W44', '2026-11_W45'])
