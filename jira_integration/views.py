@@ -7,7 +7,6 @@ from datetime import datetime, timezone as dt_timezone
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import OuterRef, Subquery
 from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -215,29 +214,32 @@ def open_in_sandbox(request, issue_key, event_pk):
 
 @login_required
 def ticket_list(request):
-    last_event_pk = JiraEvent.objects.filter(
-        ticket=OuterRef('pk')
-    ).order_by('-received_at').values('pk')[:1]
+    # MongoDB: one light projection instead of a correlated sorted subquery per ticket (very slow there).
+    last_event = {}
+    event_counts = {}
+    for ticket_id, event_pk, received_at in JiraEvent.objects.order_by().values_list('ticket_id', 'pk', 'received_at'):
+        event_counts[ticket_id] = event_counts.get(ticket_id, 0) + 1
+        current = last_event.get(ticket_id)
+        if current is None or received_at >= current[1]:
+            last_event[ticket_id] = (event_pk, received_at)
 
-    all_tickets = JiraTicket.objects.annotate(last_event_pk=Subquery(last_event_pk))
+    all_tickets = list(JiraTicket.objects.all())
+    for ticket in all_tickets:
+        ticket.last_event_pk = last_event.get(ticket.pk, (None, None))[0]
+        ticket.event_count = event_counts.get(ticket.pk, 0)
 
-    all_labels = sorted({
-        label
-        for ticket in JiraTicket.objects.only('labels')
-        for label in (ticket.labels or [])
-    })
+    all_labels = sorted({label for ticket in all_tickets for label in (ticket.labels or [])})
 
-    all_statuses = sorted(
-        JiraTicket.objects.exclude(is_deleted=True).values_list('status', flat=True).distinct()
-    )
+    all_statuses = sorted({ticket.status for ticket in all_tickets if not ticket.is_deleted})
 
     selected_labels = request.GET.getlist('labels')
     selected_statuses = request.GET.getlist('statuses')
     tickets = all_tickets
+    # JSONField __contains is not supported by the MongoDB backend: filter labels in Python.
     for label in selected_labels:
-        tickets = tickets.filter(labels__contains=[label])
+        tickets = [t for t in tickets if label in (t.labels or [])]
     if selected_statuses:
-        tickets = tickets.filter(status__in=selected_statuses)
+        tickets = [t for t in tickets if t.status in selected_statuses]
 
     return render(request, 'jira_integration/ticket_list.html', {
         'tickets': tickets,

@@ -8,7 +8,8 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views import View
 
-from jira_integration.models import JiraEvent, JiraTicket
+from jira_integration.event_data import events_for
+from jira_integration.models import JiraTicket
 from notes import system_prompts
 from settings_hub.models import get_app_setting, JiraStatusConfig
 
@@ -72,7 +73,10 @@ class _Report:
         created = {}
         self.descriptions = {}
         key_of = {t.pk: t.issue_key for t in tickets}
-        for event in JiraEvent.objects.filter(ticket_id__in=list(key_of)).order_by('received_at'):
+        event_paths = ['changelog__items', 'issue__fields__created']
+        if with_descriptions:
+            event_paths.append('issue__fields__description')
+        for event in events_for(key_of, event_paths):
             key = key_of[event.ticket_id]
             for item in event.payload.get('changelog', {}).get('items', []):
                 if item.get('field') == 'status':

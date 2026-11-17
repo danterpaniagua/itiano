@@ -138,7 +138,9 @@ class TriggerLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        # MongoDB sorts without an index are capped at 32 MB (payload_snapshot is large JSON).
         ordering = ['-created_at']
+        indexes = [models.Index(fields=['created_at'], name='trigger_log_created_idx')]
 
     def __str__(self):
         return f"{self.trigger} → {self.result}"

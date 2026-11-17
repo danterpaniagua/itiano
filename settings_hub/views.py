@@ -22,6 +22,7 @@ from timetracking.models import ReportEnvironment, ReportProject, ReportService,
 from vault.models import Container, ContainerAccess
 from vault.views import CLIPBOARD_TTL_MAX, clipboard_ttl_seconds
 from .models import get_app_setting, AppSetting, JiraStatusConfig
+from bson import ObjectId
 
 _DAYS = [
     ('mon', 'Monday'),
@@ -167,8 +168,8 @@ class CategoryDeleteView(StaffRequiredMixin, View):
 
 class VaultSettingsView(StaffRequiredMixin, View):
     def get(self, request):
-        teams = Team.objects.prefetch_related('members').all()
-        containers = Container.objects.select_related('parent').prefetch_related('access_grants__team').all()
+        teams = Team.objects.all()
+        containers = Container.objects.select_related('parent').all()
         return render(request, 'settings_hub/vault_settings.html', {
             'teams': teams,
             'containers': containers,
@@ -368,8 +369,11 @@ class ContainerAccessRemoveView(StaffRequiredMixin, View):
 
 def _jira_accounts():
     seen = {}
-    for event in JiraEvent.objects.order_by('-received_at').iterator(chunk_size=500):
-        assignee = (event.payload or {}).get('issue', {}).get('fields', {}).get('assignee') or {}
+    # MongoDB: fetch only the assignee sub-document (payloads are large) and skip the database sort (in-memory sorts
+    # are capped at 32 MB). Insertion order is received order, so walking it backwards keeps "latest name wins".
+    assignees = list(JiraEvent.objects.order_by().values_list('payload__issue__fields__assignee', flat=True))
+    for assignee in reversed(assignees):
+        assignee = assignee or {}
         aid = assignee.get('accountId', '')
         name = assignee.get('displayName', '')
         if aid and aid not in seen:
@@ -573,7 +577,7 @@ class TimeReportSettingsView(StaffRequiredMixin, View):
 
     def _ctx(self):
         all_tags = list(Tag.objects.order_by('name'))
-        projects = list(ReportProject.objects.prefetch_related('services__environments').all())
+        projects = list(ReportProject.objects.all())
         existing_proj_names = {p.tag_name for p in projects}
         for proj in projects:
             svc_names = {s.tag_name for s in proj.services.all()}
@@ -694,7 +698,7 @@ class JiraSettingsView(StaffRequiredMixin, View):
             u.strip() for u in get_app_setting('jira_reconcile_notify_users', '').split(',') if u.strip()
         ]
         notify_team_ids = [
-            int(t) for t in get_app_setting('jira_reconcile_notify_teams', '').split(',') if t.strip().isdigit()
+            ObjectId(t.strip()) for t in get_app_setting('jira_reconcile_notify_teams', '').split(',') if ObjectId.is_valid(t.strip())
         ]
         return {
             'jira_base_url': get_app_setting('jira_base_url'),
@@ -726,7 +730,7 @@ class JiraSettingsView(StaffRequiredMixin, View):
             AppSetting.objects.update_or_create(
                 key='jira_reconcile_notify_users', defaults={'value': ','.join(usernames)}
             )
-            posted_team_ids = [t for t in request.POST.getlist('jira_reconcile_notify_teams') if t.isdigit()]
+            posted_team_ids = [t for t in request.POST.getlist('jira_reconcile_notify_teams') if ObjectId.is_valid(t)]
             valid_team_ids = set(map(str, Team.objects.filter(
                 pk__in=posted_team_ids
             ).values_list('pk', flat=True)))
@@ -764,7 +768,7 @@ class NotificationsSettingsView(StaffRequiredMixin, View):
         from notifications.models import NotificationRule
         return render(request, 'settings_hub/notifications_settings.html', {
             'notifications_enabled': get_app_setting('notifications_enabled', 'True') == 'True',
-            'rules': NotificationRule.objects.prefetch_related('users', 'teams'),
+            'rules': NotificationRule.objects.all(),
         })
 
     def post(self, request):
@@ -785,8 +789,8 @@ class NotificationRuleFormMixin(StaffRequiredMixin):
             'data': data,
             'all_users': User.objects.order_by('username'),
             'all_teams': Team.objects.order_by('name'),
-            'selected_users': {int(v) for v in data.get('users', []) if str(v).isdigit()},
-            'selected_teams': {int(v) for v in data.get('teams', []) if str(v).isdigit()},
+            'selected_users': {ObjectId(str(v)) for v in data.get('users', []) if ObjectId.is_valid(str(v))},
+            'selected_teams': {ObjectId(str(v)) for v in data.get('teams', []) if ObjectId.is_valid(str(v))},
             'test_result': test_result,
         }
 
@@ -840,8 +844,8 @@ class NotificationRuleFormMixin(StaffRequiredMixin):
         rule.message = data['message']
         rule.notify_assignee = data['notify_assignee']
         rule.save()
-        rule.users.set(User.objects.filter(pk__in=[v for v in data['users'] if v.isdigit()]))
-        rule.teams.set(Team.objects.filter(pk__in=[v for v in data['teams'] if v.isdigit()]))
+        rule.users.set(User.objects.filter(pk__in=[v for v in data['users'] if ObjectId.is_valid(v)]))
+        rule.teams.set(Team.objects.filter(pk__in=[v for v in data['teams'] if ObjectId.is_valid(v)]))
 
 
 class NotificationRuleCreateView(NotificationRuleFormMixin, View):

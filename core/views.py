@@ -72,13 +72,21 @@ def dashboard(request):
             qs = qs.filter(assignee_account_id=jira_account_id)
         else:
             qs = qs.filter(assignee__iexact=jira_username)
-        for ticket in qs:
-            events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
+        # MongoDB: one projected query for every ticket's events (only the changelog items, not the large payload)
+        # instead of one full-payload query per ticket.
+        ticket_ids = list(qs.order_by().values_list('pk', flat=True))
+        events_by_ticket = {}
+        for ticket_id, received_at, items in JiraEvent.objects.filter(ticket_id__in=ticket_ids).order_by().values_list(
+            'ticket_id', 'received_at', 'payload__changelog__items',
+        ):
+            events_by_ticket.setdefault(ticket_id, []).append((received_at, items or []))
+        for events in events_by_ticket.values():
+            events.sort(key=lambda e: e[0])
             transitions = []
-            for event in events:
-                for item in event.payload.get('changelog', {}).get('items', []):
+            for received_at, items in events:
+                for item in items:
                     if item.get('field') == 'status':
-                        transitions.append({'to_status': item.get('toString', ''), 'at': event.received_at})
+                        transitions.append({'to_status': item.get('toString', ''), 'at': received_at})
             for i, t in enumerate(transitions):
                 if t['to_status'].lower() != 'in progress':
                     continue

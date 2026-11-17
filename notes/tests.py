@@ -37,8 +37,8 @@ class ParserTests(TestCase):
 
     def test_the_three_kinds(self):
         self.assertEqual(
-            self.kinds('See @GITIN-2315, @ticket:42 and @cred:17.'),
-            [('jira', 'GITIN-2315'), ('ticket', '42'), ('cred', '17')],
+            self.kinds('See @GITIN-2315, @ticket:000000000000000000000042 and @cred:000000000000000000000017.'),
+            [('jira', 'GITIN-2315'), ('ticket', '000000000000000000000042'), ('cred', '000000000000000000000017')],
         )
 
     def test_email_is_not_a_mention(self):
@@ -63,10 +63,10 @@ class ParserTests(TestCase):
 
     def test_boundaries(self):
         self.assertEqual(self.kinds('@GITIN-2315x @GITIN-2315-1 @gitin-2315 @GITIN @ticket: @cred:x'), [])
-        self.assertEqual(self.kinds('(@GITIN-1) "@ticket:5".'), [('jira', 'GITIN-1'), ('ticket', '5')])
+        self.assertEqual(self.kinds('(@GITIN-1) "@ticket:000000000000000000000005".'), [('jira', 'GITIN-1'), ('ticket', '000000000000000000000005')])
 
     def test_reference_is_normalised(self):
-        self.assertEqual(self.kinds('@ticket:007'), [('ticket', '7')])
+        self.assertEqual(self.kinds('@ticket:007'), [])  # ids are 24-hex ObjectIds; short numbers are not mentions
 
     def test_offsets_match_the_original_text(self):
         body = '`x` then @GITIN-1'
@@ -80,9 +80,9 @@ class SyncTests(TestCase):
         self.client.force_login(self.owner)
 
     def test_saving_a_note_keeps_mentions_in_step(self):
-        self.client.post(reverse('note-new'), {'title': 'T', 'body': '@GITIN-1 and @cred:5'})
+        self.client.post(reverse('note-new'), {'title': 'T', 'body': '@GITIN-1 and @cred:000000000000000000000005'})
         note = Note.objects.get(title='T')
-        self.assertEqual(set(note.mentions.values_list('kind', 'ref')), {('jira', 'GITIN-1'), ('cred', '5')})
+        self.assertEqual(set(note.mentions.values_list('kind', 'ref')), {('jira', 'GITIN-1'), ('cred', '000000000000000000000005')})
         self.client.post(reverse('note-edit', args=[note.pk]), {'title': 'T', 'body': '@GITIN-2'})
         self.assertEqual(list(note.mentions.values_list('kind', 'ref')), [('jira', 'GITIN-2')])
 
@@ -113,7 +113,7 @@ class ResolveTests(TestCase):
         self.assertEqual(resolve(self.owner, 'ticket', str(ticket.pk))['label'], f'#{ticket.pk} · VPN down')
         denied = resolve(self.other, 'ticket', str(ticket.pk))
         self.assertEqual((denied['state'], denied['label']), ('no_access', 'ticket (no access)'))
-        self.assertEqual(resolve(self.owner, 'ticket', '99999')['state'], 'not_found')
+        self.assertEqual(resolve(self.owner, 'ticket', '000000000000000000099999')['state'], 'not_found')
 
     def test_agent_sees_any_ticket(self):
         ticket = Ticket.objects.create(title='VPN down', description='d', type='incident', requester=self.owner)
@@ -132,7 +132,7 @@ class ResolveTests(TestCase):
         credential.save()
         self.assertEqual(resolve(self.owner, 'cred', str(credential.pk))['state'], 'deleted')
         self.assertEqual(resolve(self.other, 'cred', str(credential.pk))['state'], 'no_access')
-        self.assertEqual(resolve(self.owner, 'cred', '99999')['state'], 'not_found')
+        self.assertEqual(resolve(self.owner, 'cred', '000000000000000000099999')['state'], 'not_found')
 
     def test_chips_never_contain_secrets(self):
         credential = make_credential(self.owner)
@@ -203,7 +203,7 @@ class SearchTests(TestCase):
     def test_prefixes_restrict_the_kind(self):
         self.assertEqual(self.tokens(self.owner, 'ticket:deploy'), [f'@ticket:{self.ticket.pk}'])
         self.assertEqual(self.tokens(self.owner, 'cred:deploy'), [f'@cred:{self.credential.pk}'])
-        self.assertEqual(self.tokens(self.owner, f'ticket:{self.ticket.pk:02d}'), [f'@ticket:{self.ticket.pk}'])
+        self.assertEqual(self.tokens(self.owner, f'ticket:{self.ticket.pk}'), [f'@ticket:{self.ticket.pk}'])
 
     def test_only_what_the_user_can_see(self):
         self.assertEqual(self.tokens(self.other, 'deploy'), ['@GITIN-2315'])
@@ -340,7 +340,9 @@ class SystemPromptRegistryTests(TestCase):
             system_prompts.register('prompt_x', 'nope', 'T', 'body')
 
     def test_valid_id_is_registered(self):
-        self.addCleanup(system_prompts.PROMPTS.pop, 'prompt_time_report', None)
+        patcher = mock.patch.dict(system_prompts.PROMPTS)  # restores the real registrations afterwards
+        patcher.start()
+        self.addCleanup(patcher.stop)
         system_prompts.register('prompt_time_report', 'itiano', 'T', 'body')
         self.assertIn('prompt_time_report', system_prompts.PROMPTS)
 

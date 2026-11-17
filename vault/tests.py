@@ -67,7 +67,7 @@ class CredentialDetailTests(TestCase):
 
     def test_missing_is_404(self):
         self.client.force_login(self.owner)
-        self.assertEqual(self.client.get(reverse('vault-detail', args=[99999])).status_code, 404)
+        self.assertEqual(self.client.get(reverse('vault-detail', args=['0'*19+'99999'])).status_code, 404)
 
     def test_legacy_team_member_can_open_but_not_edit(self):
         team = Team.objects.create(name='Ops')

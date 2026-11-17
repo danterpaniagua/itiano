@@ -17,7 +17,9 @@ class JiraTicket(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        # MongoDB sorts without an index are capped at 32 MB (documents carry large JSON payloads).
         ordering = ['-updated_at']
+        indexes = [models.Index(fields=['updated_at'], name='jira_ticket_updated_idx')]
 
     def __str__(self):
         return self.issue_key
@@ -31,7 +33,9 @@ class JiraEvent(models.Model):
     received_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
+        # MongoDB sorts without an index are capped at 32 MB (documents carry large JSON payloads).
         ordering = ['received_at']
+        indexes = [models.Index(fields=['received_at'], name='jira_event_received_idx')]
 
     def __str__(self):
         return f"{self.ticket.issue_key} — {self.event_type}"

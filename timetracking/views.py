@@ -8,6 +8,7 @@ from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
+from jira_integration.event_data import events_for
 from jira_integration.models import JiraEvent, JiraTicket
 from settings_hub.models import get_app_setting, JiraStatusConfig
 
@@ -394,8 +395,11 @@ class DailyReportView(LoginRequiredMixin, View):
 
         # Build raw segments per ticket (single event fetch)
         ticket_segments = {}
+        events_by_ticket = {}
+        for event in events_for([t.pk for t in my_tickets], ['changelog__items', 'issue__fields__status__name']):
+            events_by_ticket.setdefault(event.ticket_id, []).append(event)
         for ticket in my_tickets:
-            events = list(JiraEvent.objects.filter(ticket=ticket).order_by('received_at'))
+            events = events_by_ticket.get(ticket.pk, [])
             transitions = []
             for event in events:
                 for item in event.payload.get('changelog', {}).get('items', []):
@@ -894,9 +898,7 @@ class DailyReportView(LoginRequiredMixin, View):
         ip_tickets = [t for t in my_tickets if t.status.lower() in _ip_statuses]
         ip_last_comment = {}
         if ip_tickets:
-            for event in JiraEvent.objects.filter(
-                ticket_id__in=[t.pk for t in ip_tickets]
-            ).order_by('-received_at'):
+            for event in events_for([t.pk for t in ip_tickets], ['comment'], newest_first=True):
                 if event.ticket_id in ip_last_comment:
                     continue
                 comment = event.payload.get('comment') or {}
@@ -1645,7 +1647,7 @@ class DailyReportView(LoginRequiredMixin, View):
         tag_totals_json = _tag_totals_raw.replace('&', '\\u0026').replace('<', '\\u003C').replace('>', '\\u003E')
 
         # --- Hierarchy (Project → Service) for Time by Project card ---
-        _rp_qs = ReportProject.objects.prefetch_related('services').all()
+        _rp_qs = ReportProject.objects.all()
         if _rp_qs.exists():
             _tag_sec = {r['tag']: r['secs'] for r in tag_totals}
             _hierarchy = []

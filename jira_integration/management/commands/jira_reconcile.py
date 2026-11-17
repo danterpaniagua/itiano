@@ -14,6 +14,7 @@ from jira_integration.models import JiraEvent, JiraTicket
 from jira_integration.views import _build_summary, _ticket_defaults_from_fields
 from notifications.models import notify
 from settings_hub.models import AppSetting, get_app_setting
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,7 @@ class Command(BaseCommand):
 
     def _notify_completion(self, range_mode, stats):
         usernames = [u.strip() for u in get_app_setting(NOTIFY_USERS_KEY, '').split(',') if u.strip()]
-        team_ids = [t for t in get_app_setting(NOTIFY_TEAMS_KEY, '').split(',') if t.strip().isdigit()]
+        team_ids = [t for t in get_app_setting(NOTIFY_TEAMS_KEY, '').split(',') if ObjectId.is_valid(t.strip())]
 
         # Combine into one recipient set (deduped by pk) so a user who is both
         # individually configured and a member of any configured team gets a

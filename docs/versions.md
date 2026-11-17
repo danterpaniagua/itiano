@@ -146,4 +146,10 @@
 | v5.20.1 | Fix: First Visit of a User Without a Work Schedule No Longer Crashes | Delivered | [v5/v5.20.1.md](v5/v5.20.1.md) |
 | v5.21.0 | Time Report by Tag (/time/report/): IP, Blocked, Paused in WH, Default Main Projects, Copy as Prompt | Delivered | [v5/v5.21.0.md](v5/v5.21.0.md) |
 | v5.21.1 | Time Report: Paused as Blocked / Overlapped / Total Columns with Total Rows | Delivered | [v5/v5.21.1.md](v5/v5.21.1.md) |
-| v5.22.0 | Auto Personal Time Report Notes (Weekly / Monthly / Other), Personal/Jira Time Report/YYYY/MM Folders, Nested Notebooks | In progress | [v5/v5.22.0.md](v5/v5.22.0.md) |
+| v5.22.0 | Auto Personal Time Report Notes (Weekly / Monthly / Other), Personal/Jira Time Report/YYYY/MM Folders, Nested Notebooks | Delivered | [v5/v5.22.0.md](v5/v5.22.0.md) |
+
+## v6.x
+
+| Version | Title | Status | Link |
+|---|---|---|---|
+| v6.0.0 | MongoDB Replaces PostgreSQL (ObjectId ids, local test replica set, legacy data import) | In progress | [../.claude/v6.0.0.md](../.claude/v6.0.0.md) |

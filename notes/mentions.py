@@ -11,8 +11,9 @@ from django.db.models import Q
 from django.urls import reverse
 
 from .models import Note, NoteMention
+from bson import ObjectId
 
-TOKEN_RE = re.compile(r'(?<![\w@])@(?:(ticket|cred):(\d+)|([A-Z][A-Z0-9]+-\d+))(?![\w-])')
+TOKEN_RE = re.compile(r'(?<![\w@])@(?:(ticket|cred):([0-9a-fA-F]{24})|([A-Z][A-Z0-9]+-\d+))(?![\w-])')
 FENCE_RE = re.compile(r'^ {0,3}(`{3,}|~{3,})')
 INLINE_CODE_RE = re.compile(r'(?<!`)(`+)(?!`).+?(?<!`)\1(?!`)')
 KEY_PREFIX_RE = re.compile(r'^[A-Za-z][A-Za-z0-9]*-\d*$')
@@ -60,7 +61,7 @@ def find_mentions(body):
         if match.group(3):
             found.append((match.start(), match.end(), NoteMention.KIND_JIRA, match.group(3)))
         else:
-            found.append((match.start(), match.end(), match.group(1), str(int(match.group(2)))))
+            found.append((match.start(), match.end(), match.group(1), match.group(2).lower()))
     return found
 
 
@@ -109,7 +110,7 @@ def resolve(user, kind, ref):
     if kind == NoteMention.KIND_TICKET:
         from itsm.models import Ticket
         from itsm.permissions import can_view_ticket
-        ticket = Ticket.objects.filter(pk=int(ref)).first()
+        ticket = Ticket.objects.filter(pk=ref).first()
         if ticket is None:
             return {'state': 'not_found', 'label': f'{token} (not found)', 'url': '', 'icon': 'bi-question-circle'}
         if not can_view_ticket(user, ticket):
@@ -118,7 +119,7 @@ def resolve(user, kind, ref):
 
     from vault.models import Credential
     from vault.views import _can_access
-    credential = Credential.objects.select_related('container').filter(pk=int(ref)).first()
+    credential = Credential.objects.select_related('container').filter(pk=ref).first()
     if credential is None:
         return {'state': 'not_found', 'label': f'{token} (not found)', 'url': '', 'icon': 'bi-question-circle'}
     if not _can_access(user, credential):
@@ -189,7 +190,7 @@ def search(user, query):
                             'label': f'{ticket.issue_key} · {ticket.title}' if ticket.title else ticket.issue_key})
     if want_ticket:
         tickets = _visible_tickets(user)
-        tickets = tickets.filter(Q(title__icontains=term) | Q(pk=int(term))) if term.isdigit() \
+        tickets = tickets.filter(Q(title__icontains=term) | Q(pk=term)) if ObjectId.is_valid(term) \
             else tickets.filter(title__icontains=term)
         for ticket in tickets.order_by('-pk')[:MAX_PER_KIND]:
             results.append({'kind': 'ticket', 'token': f'@ticket:{ticket.pk}', 'icon': 'bi-ticket-detailed',
@@ -197,7 +198,7 @@ def search(user, query):
     if want_cred:
         credentials = _visible_credentials(user).select_related('container')
         match = Q(name__icontains=term) | Q(tags__name__icontains=term)
-        credentials = credentials.filter(match | Q(pk=int(term))) if term.isdigit() else credentials.filter(match)
+        credentials = credentials.filter(match | Q(pk=term)) if ObjectId.is_valid(term) else credentials.filter(match)
         for credential in credentials.order_by('name')[:MAX_PER_KIND]:
             results.append({'kind': 'cred', 'token': f'@cred:{credential.pk}',
                             'icon': CRED_ICONS.get(credential.credential_type, 'bi-key'),

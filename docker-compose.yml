@@ -9,10 +9,8 @@ services:
       - ./certs:/app/certs
     env_file:
       - .env
-    environment:
-      DB_HOST: db
     depends_on:
-      db:
+      mongo:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import os, ssl, urllib.request; scheme = 'https' if os.path.exists('/app/certs/dev-cert.crt') else 'http'; urllib.request.urlopen(f'{scheme}://localhost:8000/health/', context=ssl._create_unverified_context())"]
@@ -23,17 +21,21 @@ services:
     stop_grace_period: 40s
     restart: unless-stopped
 
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${DB_NAME:-itiano}
-      POSTGRES_USER: ${DB_USER:-itiano}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+  # Application database: single-node replica set (transactions need one), data in a named volume.
+  mongo:
+    image: mongo:8
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     volumes:
-      - ./data:/var/lib/postgresql/data
+      - mongo_data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-itiano}"]
+      test: >
+        mongosh --quiet --eval
+        "try { rs.status().ok } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongo:27017'}]}).ok }"
       interval: 5s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 10
+      start_period: 5s
     restart: unless-stopped
+
+volumes:
+  mongo_data:

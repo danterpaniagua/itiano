@@ -90,7 +90,7 @@
             <textarea id="note-body" class="form-control font-monospace border-0 rounded-0 rounded-bottom"
                       style="min-height:65vh; resize:vertical"
                       spellcheck="false"{% if read_only %} readonly{% endif %}
-                      placeholder="Write markdown here... Type @ to mention a Jira ticket (@GITIN-2315), @ticket:42 or @cred:17">{% if note %}{{ note.body }}{% endif %}</textarea>
+                      placeholder="Write markdown here... Type @ to mention a Jira ticket (@GITIN-2315), @ticket:&lt;id&gt; or @cred:&lt;id&gt;">{% if note %}{{ note.body }}{% endif %}</textarea>
             {# @ autocomplete: full width, docked at the bottom of the editor, tappable rows #}
             <div id="mention-menu" class="list-group list-group-flush border-top shadow-sm position-absolute start-0 end-0 bottom-0 bg-body"
                  style="display:none; max-height:45%; overflow-y:auto; z-index:5"></div>

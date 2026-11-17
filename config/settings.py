@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from django_mongodb_backend import parse_uri
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 _version_file = BASE_DIR / 'VERSION'
@@ -11,9 +13,9 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
+    'config.apps.MongoAdminConfig',
+    'config.apps.MongoAuthConfig',
+    'config.apps.MongoContentTypesConfig',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
@@ -68,15 +70,30 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+def _env(name, default=''):
+    # docker --env-file keeps surrounding quotes; strip them so quoted .env values work everywhere.
+    return os.environ.get(name, default).strip().strip('"').strip("'")
+
+
+_mongo_uri = _env('MONGODB_URI')
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'itiano'),
-        'USER': os.environ.get('DB_USER', 'itiano'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-        'HOST': os.environ.get('DB_HOST', 'db'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
-    }
+    'default': parse_uri(_mongo_uri, db_name=_env('MONGODB_DB', 'itiano')),
+}
+
+# Credentials not embedded in the URI (e.g. MONGODB_USERNAME / MONGODB_PASSWORD in .env).
+if _env('MONGODB_USERNAME') and '@' not in _mongo_uri.split('://', 1)[-1].split('/', 1)[0]:
+    DATABASES['default']['USER'] = _env('MONGODB_USERNAME')
+    DATABASES['default']['PASSWORD'] = _env('MONGODB_PASSWORD')
+
+TEST_RUNNER = 'config.test_runner.MongoDiscoverRunner'
+
+DATABASE_ROUTERS = ['django_mongodb_backend.routers.MongoRouter']
+
+MIGRATION_MODULES = {
+    'admin': 'mongo_migrations.admin',
+    'auth': 'mongo_migrations.auth',
+    'contenttypes': 'mongo_migrations.contenttypes',
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -99,7 +116,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = 'django_mongodb_backend.fields.ObjectIdAutoField'
 
 JIRA_WEBHOOK_SECRET = os.environ.get('JIRA_WEBHOOK_SECRET', '')
 

@@ -10,7 +10,8 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views import View
 
-from jira_integration.models import JiraEvent, JiraTicket
+from jira_integration.event_data import events_for
+from jira_integration.models import JiraTicket
 from settings_hub.models import get_app_setting, JiraStatusConfig
 
 from . import focus_map, ip_map
@@ -105,7 +106,7 @@ class TimeMapView(LoginRequiredMixin, View):
 
         transitions = {t.issue_key: [] for t in tickets}
         key_of = {t.pk: t.issue_key for t in tickets}
-        for event in JiraEvent.objects.filter(ticket_id__in=list(key_of)).order_by('received_at'):
+        for event in events_for(key_of, ['changelog__items']):
             for item in event.payload.get('changelog', {}).get('items', []):
                 if item.get('field') == 'status':
                     transitions[key_of[event.ticket_id]].append({

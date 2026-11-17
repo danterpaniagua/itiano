@@ -175,7 +175,7 @@
                     <td>
                         {% for label in ticket.labels %}<span class="badge bg-light text-dark border me-1">{{ label }}</span>{% endfor %}
                     </td>
-                    <td>{{ ticket.events.count }}</td>
+                    <td>{{ ticket.event_count }}</td>
                     <td class="text-muted">{{ ticket.updated_at|date:"d/m/Y H:i" }}</td>
                     {% if request.user.is_staff %}
                     <td>

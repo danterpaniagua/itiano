@@ -21,7 +21,7 @@ def _staff_required(request):
 @login_required
 def contact_list(request):
     _staff_required(request)
-    contacts = Contact.objects.select_related('user').prefetch_related('channels')
+    contacts = Contact.objects.select_related('user')
     return render(request, 'contacts/contact_list.html', {'contacts': contacts})
 
 

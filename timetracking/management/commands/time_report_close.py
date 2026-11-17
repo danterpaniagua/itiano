@@ -4,7 +4,7 @@ import zoneinfo
 
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django_mongodb_backend import transaction
 from django.http import QueryDict
 from django.utils import timezone
 

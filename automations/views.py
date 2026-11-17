@@ -52,7 +52,7 @@ def index(request):
 
 @staff_required
 def action_list(request):
-    actions = Action.objects.prefetch_related('triggers')
+    actions = Action.objects
     return render(request, 'automations/action_list.html', {
         'actions': actions,
         'section': 'actions',

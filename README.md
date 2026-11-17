@@ -6,7 +6,7 @@ Soft-ITIL ticket management platform. Supports Incidents and Service Requests wi
 
 ```bash
 cp .env.example .env
-# Edit .env: set SECRET_KEY, DB_PASSWORD, ALLOWED_HOSTS
+# Edit .env: set SECRET_KEY and ALLOWED_HOSTS (MONGODB_URI already points to the local `mongo` service)
 docker compose up --build
 ```
 
@@ -25,7 +25,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env: point DB_HOST to your local PostgreSQL instance
+# Edit .env: set MONGODB_URI (and MONGODB_DB) to your MongoDB instance
 
 python manage.py migrate
 python manage.py createsuperuser
@@ -46,7 +46,7 @@ The Docker Compose `app` service serves HTTPS the same way: when `DEBUG=True` it
 
 ## Running tests
 
-Tests require PostgreSQL. Run inside the container:
+Tests need MongoDB as a replica set (the compose `mongo` service); they use a separate test database (`test_<MONGODB_DB>`). Run inside the container:
 
 ```bash
 docker compose exec app python manage.py test itsm jira_integration json_sandbox automations clipboard vault notes contacts timetracking settings_hub notifications
@@ -65,11 +65,10 @@ docker compose exec app python manage.py test itsm.tests.TestClassName.test_meth
 | `SECRET_KEY` | Django secret key | long random string |
 | `DEBUG` | Debug mode | `False` |
 | `ALLOWED_HOSTS` | Allowed hosts | `localhost,127.0.0.1` |
-| `DB_NAME` | Database name | `itiano` |
-| `DB_USER` | PostgreSQL user | `itiano` |
-| `DB_PASSWORD` | PostgreSQL password | — |
-| `DB_HOST` | PostgreSQL host | `db` (Docker) / `localhost` (local) |
-| `DB_PORT` | PostgreSQL port | `5432` |
+| `MONGODB_URI` | MongoDB connection string. Default: the local compose service. Atlas: `mongodb+srv://...` (credentials may be inline) | `mongodb://mongo:27017/?replicaSet=rs0` |
+| `MONGODB_USERNAME` | MongoDB user, only if not inline in the URI | — |
+| `MONGODB_PASSWORD` | MongoDB password, only if not inline in the URI | — |
+| `MONGODB_DB` | Database name | `itiano` |
 | `JIRA_WEBHOOK_SECRET` | HMAC secret for Jira webhook validation | random string |
 | `JIRA_API_BASE_URL` | Jira Cloud base URL, used by `jira_reconcile` | `https://yourcompany.atlassian.net` |
 | `JIRA_API_EMAIL` | Jira account email for Basic Auth, used by `jira_reconcile` | — |
@@ -172,3 +171,25 @@ Gunicorn access and error logs are written to `logs/` (bind-mounted from the hos
 ## Media files
 
 Files attached to tickets are stored in `media/` (bind-mounted from the host, created automatically). In development (`DEBUG=True`) Django serves them directly at `/media/`. In production a front-end web server (nginx or equivalent) is required to serve `MEDIA_ROOT`.
+
+## Migrating from PostgreSQL (v6.0.0)
+
+v6.0.0 replaces PostgreSQL with MongoDB. To carry the old data over, on the old stack:
+
+```bash
+python manage.py dumpdata --natural-foreign --natural-primary -e contenttypes -e sessions -e admin.logentry > itiano_data.json
+```
+
+Then on the new stack (empty database, after `migrate`):
+
+```bash
+python manage.py import_legacy_dump itiano_data.json --dry-run   # validate
+python manage.py import_legacy_dump itiano_data.json
+```
+
+Integer ids become ObjectIds, so old links with numeric ids stop working. Sessions are not imported (log in again).
+
+## MongoDB backups
+
+The database runs in the compose `mongo` service (volume `mongo_data`). Schedule a nightly dump from host cron and keep the
+files outside the repo (see `.claude/commands/local-dev.md` for the exact line and the restore command).

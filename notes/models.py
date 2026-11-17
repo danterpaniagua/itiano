@@ -1,5 +1,5 @@
 from django.contrib.auth.models import User
-from django.db import models
+from django.db import IntegrityError, models
 
 
 class Notebook(models.Model):
@@ -14,21 +14,26 @@ class Notebook(models.Model):
     class Meta:
         ordering = ['name']
         constraints = [
+            # MongoDB unique indexes ignore null values, so this index only covers nested folders;
+            # root-level (parent is null) uniqueness is enforced in save().
             models.UniqueConstraint(
-                fields=['owner', 'name'], condition=models.Q(is_system=False, parent__isnull=True),
-                name='notes_notebook_owner_name_personal_uniq',
-            ),
-            models.UniqueConstraint(
-                fields=['owner', 'parent', 'name'], condition=models.Q(is_system=False, parent__isnull=False),
+                fields=['owner', 'parent', 'name'], condition=models.Q(is_system=False),
                 name='notes_notebook_owner_parent_name_uniq',
             ),
             models.UniqueConstraint(
-                fields=['key'], condition=~models.Q(key=''), name='notes_notebook_key_uniq',
+                fields=['key'], condition=models.Q(key__gt=''), name='notes_notebook_key_uniq',
             ),
         ]
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if self.parent_id is None and not self.is_system and Notebook.objects.exclude(pk=self.pk).filter(
+            owner_id=self.owner_id, name=self.name, parent__isnull=True, is_system=False,
+        ).exists():
+            raise IntegrityError('Duplicate personal notebook name for this owner.')
+        super().save(*args, **kwargs)
 
 
 class Note(models.Model):
@@ -50,9 +55,9 @@ class Note(models.Model):
         ordering = ['-updated_at']
         permissions = [('view_system_prompts', 'Can view system prompts')]
         constraints = [
-            models.UniqueConstraint(fields=['key'], condition=~models.Q(key=''), name='notes_note_key_uniq'),
+            models.UniqueConstraint(fields=['key'], condition=models.Q(key__gt=''), name='notes_note_key_uniq'),
             models.UniqueConstraint(
-                fields=['notebook', 'file_id'], condition=~models.Q(file_id=''),
+                fields=['notebook', 'file_id'], condition=models.Q(file_id__gt=''),
                 name='notes_note_file_id_per_notebook_uniq',
             ),
         ]

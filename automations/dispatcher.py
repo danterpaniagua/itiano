@@ -1,6 +1,6 @@
 import logging
 
-from django.db import transaction
+from django_mongodb_backend import transaction
 
 logger = logging.getLogger(__name__)
 

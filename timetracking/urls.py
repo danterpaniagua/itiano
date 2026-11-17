@@ -5,8 +5,8 @@ from . import map_views, tag_report_views, views
 urlpatterns = [
     path('', views.TimeEntryListView.as_view(), name='timetracking-list'),
     path('create/', views.TimeEntryCreateView.as_view(), name='timetracking-create'),
-    path('<int:pk>/edit/', views.TimeEntryEditView.as_view(), name='timetracking-edit'),
-    path('<int:pk>/delete/', views.TimeEntryDeleteView.as_view(), name='timetracking-delete'),
+    path('<oid:pk>/edit/', views.TimeEntryEditView.as_view(), name='timetracking-edit'),
+    path('<oid:pk>/delete/', views.TimeEntryDeleteView.as_view(), name='timetracking-delete'),
     path('current/', views.DailyReportView.as_view(), name='timetracking-current'),
     path('current/ticket/<str:issue_key>/', views.TicketTimelineView.as_view(), name='timetracking-ticket-timeline'),
     path('report/', tag_report_views.TimeReportView.as_view(), name='timetracking-report'),

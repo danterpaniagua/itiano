@@ -45,7 +45,7 @@ class TicketListView(LoginRequiredMixin, View):
             for v, l in Ticket.STATES
         ]
 
-        tickets = tickets.select_related('requester', 'assigned_to').prefetch_related('tags').order_by('-created_at')
+        tickets = tickets.select_related('requester', 'assigned_to').order_by('-created_at')
         return render(request, 'itsm/ticket_list.html', {
             'tickets': tickets,
             'all_tags': Tag.objects.all(),

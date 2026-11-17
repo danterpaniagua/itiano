@@ -10,7 +10,8 @@ from django.views.decorators.http import require_POST
 from notifications.models import notify
 
 from .forms import ContainerQuickCreateForm, CredentialForm
-from .models import Container, Credential, Tag
+from .models import Container, ContainerAccess, Credential, Tag
+from bson import ObjectId
 
 
 def _notify_credential_shared(request, credential):
@@ -28,7 +29,7 @@ def _visible_credentials(user):
         Q(owner=user)
         | Q(visibility='team', team__members=user)
         | Q(container__access_grants__team__members=user)
-    ).exclude(is_deleted=True).distinct().prefetch_related('tags')
+    ).exclude(is_deleted=True).distinct()
 
 
 def _can_access(user, credential):
@@ -66,12 +67,26 @@ def credential_list(request):
         )
     if container_filter == 'none':
         credentials = credentials.filter(container__isnull=True)
-    elif container_filter:
+    elif container_filter and ObjectId.is_valid(container_filter):  # old numeric ids in bookmarks are ignored
         credentials = credentials.filter(container_id=container_filter)
 
     credentials = list(credentials)
+    # MongoDB: every query is a network round trip, so permissions and tags are resolved in bulk, not per credential.
+    rw_container_ids = set(ContainerAccess.objects.filter(
+        team__members=request.user, access_level='read_write',
+    ).values_list('container_id', flat=True))
     for c in credentials:
-        c.can_edit = _can_edit(request.user, c)
+        c.can_edit = c.owner_id == request.user.pk or (c.container_id is not None and c.container_id in rw_container_ids)
+    tag_rows = list(Credential.tags.through.objects.filter(
+        credential_id__in=[c.pk for c in credentials],
+    ).values_list('credential_id', 'tag_id'))
+    tag_by_id = {t.pk: t for t in Tag.objects.filter(pk__in={tag_id for _, tag_id in tag_rows})}
+    tags_of = {}
+    for credential_id, tag_id in tag_rows:
+        if tag_id in tag_by_id:
+            tags_of.setdefault(credential_id, []).append(tag_by_id[tag_id])
+    for c in credentials:
+        c.tag_list = sorted(tags_of.get(c.pk, []), key=lambda t: t.name)
 
     all_tags = Tag.objects.filter(credentials__in=_visible_credentials(request.user)).distinct()
 
@@ -88,14 +103,24 @@ def credential_list(request):
     # children in a collapsible div (v5.10.6 avoided recursion for a simple
     # indent-only list; the new per-node collapse UI genuinely needs nesting).
     visible_all = _visible_credentials(request.user)
-    personal_count = visible_all.filter(container__isnull=True).count()
+    visible_pairs = list(visible_all.values_list('pk', 'container_id'))  # (credential, container): distinct per credential
+    visible_per_container = {}
+    for _, container_id in visible_pairs:
+        visible_per_container[container_id] = visible_per_container.get(container_id, 0) + 1
+    personal_count = visible_per_container.get(None, 0)
     accessible_containers = list(
         Container.objects.filter(
             Q(access_grants__team__members=request.user) | Q(created_by=request.user)
-        ).distinct().select_related('parent').prefetch_related('access_grants__team').order_by('name')
+        ).distinct().select_related('parent').order_by('name')
     )
+    grants_of = {}
+    for grant in ContainerAccess.objects.filter(
+        container_id__in=[c.pk for c in accessible_containers],
+    ).select_related('team'):
+        grants_of.setdefault(grant.container_id, []).append(grant)
     for c in accessible_containers:
-        c.visible_count = visible_all.filter(container_id=c.pk).count()
+        c.visible_count = visible_per_container.get(c.pk, 0)
+        c.grants = grants_of.get(c.pk, [])
 
     def _build_tree(containers):
         """Nest a flat, name-ordered container list into root nodes with
@@ -113,11 +138,11 @@ def credential_list(request):
             (parent.node_children if parent else roots).append(c)
         return roots
 
-    personal_containers = _build_tree([c for c in accessible_containers if not c.access_grants.all()])
+    personal_containers = _build_tree([c for c in accessible_containers if not c.grants])
 
     containers_by_team = {}
     for c in accessible_containers:
-        for grant in c.access_grants.all():
+        for grant in c.grants:
             containers_by_team.setdefault(grant.team, []).append(c)
     shared_by_team = [
         (team, _build_tree(team_containers))
@@ -133,7 +158,7 @@ def credential_list(request):
         'personal_containers': personal_containers,
         'shared_by_team': shared_by_team,
         'personal_count': personal_count,
-        'total_visible_count': visible_all.count(),
+        'total_visible_count': len(visible_pairs),
         'clipboard_ttl': clipboard_ttl_seconds(),
     })
 

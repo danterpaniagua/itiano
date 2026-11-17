@@ -1,5 +1,6 @@
 Django==5.2
-psycopg2-binary==2.9.9
+django-mongodb-backend==5.2.4
+pymongo==4.20.0
 gunicorn==22.0.0
 whitenoise==6.7.0
 jsonpath-ng==1.8.0
